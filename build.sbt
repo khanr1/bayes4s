@@ -24,6 +24,15 @@ ThisBuild / tlJdkRelease := Some(17)
 // scalafmt 3.11.5 needs a JDK >= 23 (docs/design.md, D-3); 25 is the current LTS.
 ThisBuild / githubWorkflowJavaVersions := Seq(JavaSpec.temurin("25"))
 
+// sbt-typelevel still pins ubuntu-22.04, an image GitHub has deprecated. `ubuntu-latest` is
+// correct whether or not that image is still served.
+ThisBuild / githubWorkflowOSes := Seq("ubuntu-latest")
+
+// The dependency-submission job calls an API that needs `contents: write`, which a repository's
+// GITHUB_TOKEN does not have by default: it would fail on every push to the default branch. It
+// buys nothing until Dependabot is configured, so it is off (docs/design.md, D-14).
+ThisBuild / tlCiDependencyGraphJob := false
+
 // Publishing is off (docs/design.md, D-1): no release branch and no release tag, so ci.yml
 // carries no publish job at all. Turning it on is three settings and one regeneration.
 ThisBuild / tlCiReleaseBranches := Seq()

@@ -170,6 +170,18 @@ the design depends on, and it is syntactic, so it works on Scala 3 with no Seman
 SemanticDB being produced the way it expects, and there is almost no import in the tree to
 organise. It is to be enabled in phase 1, when there is real code to check it against.
 
+### D-14. CI runs on `ubuntu-latest`, and the dependency-graph job is off
+
+sbt-typelevel 0.8.7 still pins `ubuntu-22.04`, an image GitHub has deprecated; a workflow that
+names a retired image does not fail a step, it fails to find a runner at all.
+`githubWorkflowOSes := Seq("ubuntu-latest")` is right whether or not that image is still served.
+
+`tlCiDependencyGraphJob := false` removes the "Submit Dependencies" job. It calls an API that
+needs `contents: write`, which a repository's default `GITHUB_TOKEN` does not have, so it would
+fail on every push to the default branch. It is worth turning back on, with the permission
+granted, once Dependabot is configured and the repository is one whose dependency graph anyone
+reads.
+
 ### D-13. The register of encapsulated local mutation is empty
 
 The one allowed exception to referential transparency is mutation that is created inside a pure
