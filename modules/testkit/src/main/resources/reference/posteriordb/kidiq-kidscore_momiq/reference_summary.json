@@ -1,0 +1,120 @@
+{
+ "posterior": "kidiq-kidscore_momiq",
+ "why": "plain linear regression, easy baseline",
+ "model": "kidscore_momiq",
+ "data": "kidiq",
+ "reference_info": {
+  "inference": {
+   "method": "stan_sampling",
+   "method_arguments": {
+    "chains": 10,
+    "iter": 20000,
+    "warmup": 10000,
+    "thin": 10,
+    "seed": 4711,
+    "control": {
+     "adapt_delta": 0.8,
+     "max_treedepth": 10
+    }
+   }
+  },
+  "diagnostics": {
+   "diagnostic_information": {
+    "names": [
+     "beta[1]",
+     "beta[2]",
+     "sigma"
+    ]
+   },
+   "ndraws": 10000,
+   "nchains": 10,
+   "effective_sample_size_bulk": [
+    9642.82434219008,
+    9695.69356892313,
+    9816.80292628036
+   ],
+   "effective_sample_size_tail": [
+    9870.92886556851,
+    9525.99906700861,
+    9440.93615890716
+   ],
+   "r_hat": [
+    0.999891471265879,
+    1.00009170792976,
+    0.999972174586517
+   ],
+   "divergent_transitions": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "expected_fraction_of_missing_information": [
+    1.9054534828592,
+    2.04283846038632,
+    1.89087498163633,
+    1.88917968889126,
+    1.95506175016557,
+    1.95361734835695,
+    1.90252164274861,
+    2.02120203606408,
+    1.86273820844116,
+    1.96131348290903
+   ],
+   "mean_lag1_ac": [
+    0.0181572978345096,
+    0.0160491331785054,
+    0.00456248982820467
+   ]
+  },
+  "checks_made": {
+   "ndraws_is_10k": true,
+   "nchains_is_gte_4": true,
+   "ess_within_bounds": true,
+   "r_hat_below_1_01": true,
+   "efmi_above_0_2": true,
+   "abs_mean_lag1_ac_below_0_05": true
+  },
+  "comments": null
+ },
+ "chains": 10,
+ "draws_per_chain": 1000,
+ "parameters": {
+  "beta[1]": {
+   "mean": 25.916531571936176,
+   "sd": 5.968602922587016,
+   "q05": 16.00831544276665,
+   "q50": 25.9306079585363,
+   "q95": 35.64824019613705,
+   "ess_bulk": 9642.824342190082,
+   "mcse_mean": 0.06090309657267739,
+   "mcse_sd": 0.04277726182561925
+  },
+  "beta[2]": {
+   "mean": 0.6086284370903342,
+   "sd": 0.058981907232544525,
+   "q05": 0.5121879002176084,
+   "q50": 0.608954318363497,
+   "q95": 0.7052114462983703,
+   "ess_bulk": 9695.693568923132,
+   "mcse_mean": 0.0006002492400347896,
+   "mcse_sd": 0.00042421745356481
+  },
+  "sigma": {
+   "mean": 18.27584838142448,
+   "sd": 0.6240154595029856,
+   "q05": 17.283314469791456,
+   "q50": 18.2587215043691,
+   "q95": 19.34538864033894,
+   "ess_bulk": 9816.80292628036,
+   "mcse_mean": 0.0063596293227318685,
+   "mcse_sd": 0.004563221716470924
+  }
+ }
+}

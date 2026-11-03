@@ -1,0 +1,118 @@
+{
+ "posterior": "dogs-dogs",
+ "why": "Bernoulli/logistic likelihood with cumulative covariates",
+ "model": "dogs",
+ "data": "dogs",
+ "reference_info": {
+  "inference": {
+   "method": "stan_sampling",
+   "method_arguments": {
+    "chains": 10,
+    "iter": 20000,
+    "warmup": 10000,
+    "thin": 10,
+    "seed": 2544,
+    "control": {
+     "adapt_delta": 0.8
+    }
+   }
+  },
+  "diagnostics": {
+   "diagnostics_information": {
+    "names": [
+     "beta[1]",
+     "beta[2]",
+     "beta[3]"
+    ]
+   },
+   "ndraws": 10000,
+   "nchains": 10,
+   "effective_sample_size_bulk": [
+    9591.41489050582,
+    9704.797258757992,
+    9426.962343772646
+   ],
+   "effective_sample_size_tail": [
+    9791.569637864473,
+    9689.571740157513,
+    10001.459664001111
+   ],
+   "r_hat": [
+    0.999721673559926,
+    1.00002043175366,
+    1.0000439169065
+   ],
+   "divergent_transitions": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "expected_fraction_of_missing_information": [
+    2.10652788235528,
+    2.07964326807562,
+    2.0032385330797,
+    1.94637895460122,
+    2.03751426442169,
+    2.02000035535677,
+    2.08697998994052,
+    1.88651846700462,
+    2.11253436886765,
+    1.99787570321205
+   ],
+   "mean_lag1_ac": [
+    0.00935203940134141,
+    0.0118820745118194,
+    0.0120395211098497
+   ]
+  },
+  "checks_made": {
+   "ndraws_is_10k": true,
+   "nchains_is_gte_4": true,
+   "r_hat_below_1_01": true,
+   "efmi_above_0_2": true,
+   "abs_mean_lag1_ac_below_0_05": true
+  },
+  "comments": null
+ },
+ "chains": 10,
+ "draws_per_chain": 1000,
+ "parameters": {
+  "beta[1]": {
+   "mean": 1.8031251989999997,
+   "sd": 0.2308666146352818,
+   "q05": 1.431822,
+   "q50": 1.801005,
+   "q95": 2.1845044999999996,
+   "ess_bulk": 9591.414890505828,
+   "mcse_mean": 0.002375996580011387,
+   "mcse_sd": 0.001624906579134487
+  },
+  "beta[2]": {
+   "mean": -0.35826526789999996,
+   "sd": 0.037436274352577736,
+   "q05": -0.42204015,
+   "q50": -0.357884,
+   "q95": -0.29802225000000004,
+   "ess_bulk": 9704.797258757992,
+   "mcse_mean": 0.00038342359159246797,
+   "mcse_sd": 0.00027216798069479
+  },
+  "beta[3]": {
+   "mean": -0.21062098017999997,
+   "sd": 0.043429517158893746,
+   "q05": -0.2826164,
+   "q50": -0.209992,
+   "q95": -0.13947900000000016,
+   "ess_bulk": 9426.962343772646,
+   "mcse_mean": 0.0004508777575607831,
+   "mcse_sd": 0.00030482062929820727
+  }
+ }
+}

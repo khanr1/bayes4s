@@ -1,0 +1,176 @@
+{
+ "provenance": {
+  "data": "stan-dev/stan src/test/unit/analyze/mcmc (BSD-3-Clause): bern1-4.csv are 4 CmdStan chains of the Bernoulli example, 1000 draws each; ar1.csv is an AR(1) series x[n] ~ normal(0.8 x[n-1], 1) generated in R.",
+  "expected": "values asserted by Stan's own C++ tests (with Stan's tolerance). 'numpy_port' is reference/stan_analyze_reference.py, a line-by-line port that reproduces all of them. 'arviz' is ArviZ 1.3.0, kept to document that it does NOT match Stan for ess_basic (non-split), ess_tail (upper tail uses >=) and mcse_sd (ESS of |x - mean|): the Scala library must follow Stan, not ArviZ 1.x."
+ },
+ "columns": {
+  "lp__": "column 'lp__' of each chain",
+  "theta": "column 'theta' of each chain",
+  "constant": "column 'divergent__' (all zero): every diagnostic must return NaN"
+ },
+ "chains": {
+  "rows": "draw",
+  "count": 4,
+  "draws": 1000
+ },
+ "values": {
+  "lp__": {
+   "rhat_basic_split": {
+    "expected": 1.00035489482,
+    "tolerance": 1e-10,
+    "source": "rhat_basic_test.cpp (cmdstan 2.35.0 stansummary)",
+    "numpy_port": 1.0003548948158103,
+    "numpy_port_ok": true,
+    "arviz": 1.0003548948158103,
+    "arviz_abs_diff": 4.189759650330416e-12
+   },
+   "ess_basic": {
+    "expected": 1335.41366787,
+    "tolerance": 1e-08,
+    "source": "ess_basic_test.cpp (cmdstan 2.35.0 stansummary)",
+    "numpy_port": 1335.413667865408,
+    "numpy_port_ok": true,
+    "arviz": 1341.6851277442788,
+    "arviz_abs_diff": 6.271459874278889
+   },
+   "rhat_rank": {
+    "expected": 1.00073,
+    "tolerance": 1e-05,
+    "source": "split_rank_normalized_rhat_test.cpp (R posterior), max(bulk, tail)",
+    "numpy_port": 1.000730069464055,
+    "numpy_port_ok": true,
+    "arviz": 1.000730069464055,
+    "arviz_abs_diff": 6.946405517460619e-08
+   },
+   "ess_bulk": {
+    "expected": 1512.7684,
+    "tolerance": 0.0001,
+    "source": "split_rank_normalized_ess_test.cpp (R posterior)",
+    "numpy_port": 1512.7683770442472,
+    "numpy_port_ok": true,
+    "arviz": 1512.7683770442466,
+    "arviz_abs_diff": 2.2955753365749842e-05
+   },
+   "ess_tail": {
+    "expected": 1591.9707,
+    "tolerance": 0.0001,
+    "source": "split_rank_normalized_ess_test.cpp (R posterior)",
+    "numpy_port": 1591.970668793807,
+    "numpy_port_ok": true,
+    "arviz": 1544.0917655289054,
+    "arviz_abs_diff": 47.87893447109468
+   },
+   "mcse_mean": {
+    "expected": 0.02016,
+    "tolerance": 0.0001,
+    "source": "mcse_test.cpp (R posterior)",
+    "numpy_port": 0.02021207213535612,
+    "numpy_port_ok": true,
+    "arviz": 0.02016477800047136,
+    "arviz_abs_diff": 4.778000471359484e-06
+   },
+   "mcse_sd": {
+    "expected": 0.03553,
+    "tolerance": 0.0001,
+    "source": "mcse_test.cpp (R posterior)",
+    "numpy_port": 0.035530465913680566,
+    "numpy_port_ok": true,
+    "arviz": 0.030889830056668535,
+    "arviz_abs_diff": 0.004640169943331465
+   }
+  },
+  "theta": {
+   "rhat_basic_split": {
+    "expected": 1.00721797217,
+    "tolerance": 1e-10,
+    "source": "rhat_basic_test.cpp (cmdstan 2.35.0 stansummary)",
+    "numpy_port": 1.0072179721702432,
+    "numpy_port_ok": true,
+    "arviz": 1.0072179721702432,
+    "arviz_abs_diff": 2.431388423929093e-13
+   },
+   "ess_basic": {
+    "expected": 1377.5030282,
+    "tolerance": 1e-08,
+    "source": "ess_basic_test.cpp (cmdstan 2.35.0 stansummary)",
+    "numpy_port": 1377.5030282019052,
+    "numpy_port_ok": true,
+    "arviz": 1412.5651003391476,
+    "arviz_abs_diff": 35.06207213914763
+   },
+   "rhat_rank": {
+    "expected": 1.006789,
+    "tolerance": 1e-05,
+    "source": "split_rank_normalized_rhat_test.cpp (R posterior), max(bulk, tail)",
+    "numpy_port": 1.0067896841101203,
+    "numpy_port_ok": true,
+    "arviz": 1.0067896841101203,
+    "arviz_abs_diff": 6.841101203303168e-07
+   },
+   "ess_bulk": {
+    "expected": 1407.5124,
+    "tolerance": 0.0001,
+    "source": "split_rank_normalized_ess_test.cpp (R posterior)",
+    "numpy_port": 1407.5124226830303,
+    "numpy_port_ok": true,
+    "arviz": 1407.5124226830308,
+    "arviz_abs_diff": 2.2683030692860484e-05
+   },
+   "ess_tail": {
+    "expected": 1291.7131,
+    "tolerance": 0.0001,
+    "source": "split_rank_normalized_ess_test.cpp (R posterior)",
+    "numpy_port": 1291.7131224084508,
+    "numpy_port_ok": true,
+    "arviz": 1322.7659877461529,
+    "arviz_abs_diff": 31.05288774615292
+   },
+   "mcse_mean": {
+    "expected": 0.00323,
+    "tolerance": 0.0001,
+    "source": "mcse_test.cpp (R posterior)",
+    "numpy_port": 0.0032748909526351456,
+    "numpy_port_ok": true,
+    "arviz": 0.003233991607146082,
+    "arviz_abs_diff": 3.991607146082172e-06
+   },
+   "mcse_sd": {
+    "expected": 0.00216,
+    "tolerance": 0.0001,
+    "source": "mcse_test.cpp (R posterior)",
+    "numpy_port": 0.0021966229896320006,
+    "numpy_port_ok": true,
+    "arviz": 0.0021642136690784445,
+    "arviz_abs_diff": 4.213669078444431e-06
+   }
+  }
+ },
+ "edge_cases": [
+  "constant chains (divergent__ column): rhat, ess_bulk, ess_tail, mcse_mean, mcse_sd are NaN",
+  "one value set to +Inf in theta chain 0, draw 0: all diagnostics are NaN",
+  "chains truncated to 3 draws: ess and mcse are NaN",
+  "rank transform: the argmax and argmin positions are preserved",
+  "rank transform of 8x2 matrix filled 1..16 column-major is antisymmetric: r[i,j] = -r[7-i,1-j]",
+  "rank transform of 2x8 matrix with rows (1, 2): r[0,j] = -r[1,j]"
+ ],
+ "autocovariance_ar1": {
+  "expected_first_6": [
+   2.69,
+   2.16,
+   1.73,
+   1.38,
+   1.1,
+   0.89
+  ],
+  "tolerance": 0.01,
+  "source": "autocovariance_test.cpp; length of result equals 1000",
+  "numpy_biased_estimator": [
+   2.6869655202385774,
+   2.1571673315955655,
+   1.7302459292129044,
+   1.3789109918861255,
+   1.0964602468146027,
+   0.8926309474885821
+  ]
+ }
+}

@@ -1,0 +1,51 @@
+{
+ "provenance": "github.com/stan-dev/posteriordb, reference posteriors (10 chains x 1000 thinned draws of long Stan runs). Summaries computed with tools/stan_analyze_reference.py.",
+ "acceptance_rule": "for each parameter: |mean_scala - mean_ref| <= 4 * sqrt(mcse_scala^2 + mcse_ref^2), and the same for sd with mcse_sd",
+ "posteriors": [
+  {
+   "posterior": "eight_schools-eight_schools_noncentered",
+   "why": "hierarchical, non-centered; positive scale (tau)",
+   "n_parameters": 10
+  },
+  {
+   "posterior": "arK-arK",
+   "why": "autoregression, like the AR(1) latent rate",
+   "n_parameters": 7
+  },
+  {
+   "posterior": "arma-arma11",
+   "why": "ARMA(1,1), persistence parameter in (-1, 1)",
+   "n_parameters": 4
+  },
+  {
+   "posterior": "garch-garch11",
+   "why": "bounded and positive parameters, recursive likelihood",
+   "n_parameters": 4
+  },
+  {
+   "posterior": "kidiq-kidscore_momiq",
+   "why": "plain linear regression, easy baseline",
+   "n_parameters": 3
+  },
+  {
+   "posterior": "earnings-logearn_height",
+   "why": "regression on a log scale",
+   "n_parameters": 3
+  },
+  {
+   "posterior": "gp_pois_regr-gp_pois_regr",
+   "why": "Poisson likelihood with a latent vector",
+   "n_parameters": 13
+  },
+  {
+   "posterior": "dogs-dogs",
+   "why": "Bernoulli/logistic likelihood with cumulative covariates",
+   "n_parameters": 3
+  },
+  {
+   "posterior": "low_dim_gauss_mix-low_dim_gauss_mix",
+   "why": "mixture with a unit-interval weight",
+   "n_parameters": 5
+  }
+ ]
+}

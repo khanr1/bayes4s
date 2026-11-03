@@ -1,0 +1,254 @@
+{
+ "provenance": "mpmath 50 digits; complements stan-math/distributions.json at extreme arguments",
+ "conventions": "full normalising constants (Stan's *_lpdf with propto = false); poisson(0 | 0) = 0, poisson(k > 0 | 0) = -inf",
+ "cases": [
+  {
+   "distribution": "normal_lpdf",
+   "args": [
+    0,
+    0,
+    1e-08
+   ],
+   "value": 17.501742210747693
+  },
+  {
+   "distribution": "normal_lpdf",
+   "args": [
+    1000.0,
+    0,
+    1
+   ],
+   "value": -500000.9189385332
+  },
+  {
+   "distribution": "normal_lpdf",
+   "args": [
+    -37.5,
+    2.0,
+    0.3
+   ],
+   "value": -8667.770521284436
+  },
+  {
+   "distribution": "normal_lpdf",
+   "args": [
+    5.0,
+    5.0,
+    100000.0
+   ],
+   "value": -12.4318639981749
+  },
+  {
+   "distribution": "half_normal_lpdf",
+   "args": [
+    0.0,
+    1.0
+   ],
+   "value": -0.22579135264472744
+  },
+  {
+   "distribution": "half_normal_lpdf",
+   "args": [
+    1e-12,
+    0.001
+   ],
+   "value": 6.68196392633741
+  },
+  {
+   "distribution": "half_normal_lpdf",
+   "args": [
+    30.0,
+    2.0
+   ],
+   "value": -113.41893853320467
+  },
+  {
+   "distribution": "poisson_lpmf",
+   "args": [
+    0,
+    1e-300
+   ],
+   "value": -1e-300
+  },
+  {
+   "distribution": "poisson_lpmf",
+   "args": [
+    0,
+    0.0
+   ],
+   "value": 0.0
+  },
+  {
+   "distribution": "poisson_lpmf",
+   "args": [
+    5,
+    0.0
+   ],
+   "value": -Infinity
+  },
+  {
+   "distribution": "poisson_lpmf",
+   "args": [
+    1000,
+    1000.0
+   ],
+   "value": -4.372899506026297
+  },
+  {
+   "distribution": "poisson_lpmf",
+   "args": [
+    0,
+    100000000.0
+   ],
+   "value": -100000000.0
+  },
+  {
+   "distribution": "poisson_lpmf",
+   "args": [
+    12,
+    1e-06
+   ],
+   "value": -185.77334219123318
+  },
+  {
+   "distribution": "poisson_lpmf",
+   "args": [
+    170,
+    3.5
+   ],
+   "value": -497.10335760157477
+  },
+  {
+   "distribution": "poisson_log_lpmf",
+   "args": [
+    0,
+    -700.0
+   ],
+   "value": -9.85967654375977e-305
+  },
+  {
+   "distribution": "poisson_log_lpmf",
+   "args": [
+    3,
+    2.5
+   ],
+   "value": -6.474253429931529
+  },
+  {
+   "distribution": "poisson_log_lpmf",
+   "args": [
+    1000,
+    6.9
+   ],
+   "value": -4.402894093189579
+  },
+  {
+   "distribution": "neg_binomial_2_lpmf",
+   "args": [
+    0,
+    1e-08,
+    1.0
+   ],
+   "value": -9.999999889225291e-09
+  },
+  {
+   "distribution": "neg_binomial_2_lpmf",
+   "args": [
+    50,
+    3.0,
+    0.001
+   ],
+   "value": -10.839970481389441
+  },
+  {
+   "distribution": "neg_binomial_2_lpmf",
+   "args": [
+    10,
+    10.0,
+    100000000.0
+   ],
+   "value": -2.078561693135056
+  },
+  {
+   "distribution": "neg_binomial_2_lpmf",
+   "args": [
+    200,
+    150.0,
+    2.5
+   ],
+   "value": -5.91090797563793
+  },
+  {
+   "distribution": "beta_lpdf",
+   "args": [
+    1e-06,
+    0.5,
+    0.5
+   ],
+   "value": 5.763025893132987
+  },
+  {
+   "distribution": "beta_lpdf",
+   "args": [
+    0.999999999,
+    5.0,
+    2.0
+   ],
+   "value": -17.322068487566188
+  },
+  {
+   "distribution": "beta_lpdf",
+   "args": [
+    0.71,
+    1.0,
+    1.0
+   ],
+   "value": 0.0
+  },
+  {
+   "distribution": "beta_lpdf",
+   "args": [
+    0.5,
+    1000.0,
+    1000.0
+   ],
+   "value": 3.574534877131522
+  },
+  {
+   "distribution": "lognormal_lpdf",
+   "args": [
+    1e-10,
+    0.0,
+    1.0
+   ],
+   "value": -242.98799312718413
+  },
+  {
+   "distribution": "lognormal_lpdf",
+   "args": [
+    1000000.0,
+    3.0,
+    0.9
+   ],
+   "value": -86.83604451960784
+  },
+  {
+   "distribution": "gamma_lpdf",
+   "args": [
+    1e-08,
+    0.3,
+    2.0
+   ],
+   "value": 12.006622660116562
+  },
+  {
+   "distribution": "gamma_lpdf",
+   "args": [
+    500.0,
+    50.0,
+    0.1
+   ],
+   "value": -5.179201773359772
+  }
+ ]
+}

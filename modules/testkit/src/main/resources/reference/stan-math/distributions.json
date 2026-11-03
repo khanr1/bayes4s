@@ -1,0 +1,4328 @@
+{
+ "source": "stan-dev/math test/prob (BSD-3-Clause)",
+ "distributions": {
+  "normal": {
+   "lpdf": {
+    "file": "test/prob/normal/normal_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "mu",
+     "sigma"
+    ],
+    "valid": [
+     {
+      "params": [
+       0.0,
+       0.0,
+       1.0
+      ],
+      "expected": -0.9189385332046727,
+      "scipy_value": -0.9189385332046727,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       1.0,
+       0.0,
+       1.0
+      ],
+      "expected": -1.4189385332046727,
+      "scipy_value": -1.4189385332046727,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       -2.0,
+       0.0,
+       1.0
+      ],
+      "expected": -2.9189385332046727,
+      "scipy_value": -2.9189385332046727,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       -3.5,
+       1.9,
+       7.2
+      ],
+      "expected": -3.174269559226682,
+      "scipy_value": -3.1742695592266825,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": -Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "cdf": {
+    "file": "test/prob/normal/normal_cdf_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "mu",
+     "sigma"
+    ],
+    "valid": [
+     {
+      "params": [
+       0.1,
+       0.5,
+       1.0
+      ],
+      "expected": 0.3445782583896758,
+      "scipy_value": 0.3445782583896758,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       1.0,
+       0.1,
+       1.0
+      ],
+      "expected": 0.8159398746532405,
+      "scipy_value": 0.8159398746532405,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       -2.0,
+       0.1,
+       1.0
+      ],
+      "expected": 0.017864420562816556,
+      "scipy_value": 0.017864420562816542,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       -3.5,
+       1.9,
+       7.2
+      ],
+      "expected": 0.2266273523768682,
+      "scipy_value": 0.2266273523768682,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": -Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "lcdf": {
+    "file": "test/prob/normal/normal_cdf_log_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "mu",
+     "sigma"
+    ],
+    "valid": [
+     {
+      "params": [
+       0.0,
+       0.0,
+       1.0
+      ],
+      "expected": -0.6931471805599453,
+      "scipy_value": -0.6931471805599453,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       1.0,
+       0.0,
+       1.0
+      ],
+      "expected": -0.17275377902344993,
+      "scipy_value": -0.1727537790234499,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       -2.0,
+       0.0,
+       1.5
+      ],
+      "expected": -2.394577366158644,
+      "scipy_value": -2.394577366158644,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       -3.5,
+       1.9,
+       7.2
+      ],
+      "expected": -1.4844482299196562,
+      "scipy_value": -1.484448229919656,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       7.5,
+       0.0,
+       1.0
+      ],
+      "expected": -3.1908916729109475e-14,
+      "scipy_value": -3.1908916729109355e-14,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": -Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "lccdf": {
+    "file": "test/prob/normal/normal_ccdf_log_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "mu",
+     "sigma"
+    ],
+    "valid": [
+     {
+      "params": [
+       0.0,
+       0.0,
+       1.0
+      ],
+      "expected": -0.6931471805599453,
+      "scipy_value": -0.6931471805599453,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       1.0,
+       0.0,
+       1.0
+      ],
+      "expected": -1.8410216450092634,
+      "scipy_value": -1.8410216450092634,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       -2.0,
+       0.0,
+       1.0
+      ],
+      "expected": -0.02301290932896349,
+      "scipy_value": -0.023012909328963476,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       -3.5,
+       1.9,
+       7.2
+      ],
+      "expected": -0.2569942668383653,
+      "scipy_value": -0.25699426683836524,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": -Infinity
+     }
+    ],
+    "parse_problems": []
+   }
+  },
+  "lognormal": {
+   "lpdf": {
+    "file": "test/prob/lognormal/lognormal_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "mu",
+     "sigma"
+    ],
+    "valid": [
+     {
+      "params": [
+       1.2,
+       0.3,
+       1.5
+      ],
+      "expected": -1.5098025794391023,
+      "scipy_value": -1.5098025794391023,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       12.0,
+       3.0,
+       0.9
+      ],
+      "expected": -3.4622631608117738,
+      "scipy_value": -3.4622631608117738,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "cdf": {
+    "file": "test/prob/lognormal/lognormal_cdf_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "mu",
+     "sigma"
+    ],
+    "valid": [
+     {
+      "params": [
+       1.2,
+       0.3,
+       1.5
+      ],
+      "expected": 0.4687341379535833,
+      "scipy_value": 0.4687341379535833,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       12.0,
+       3.0,
+       0.9
+      ],
+      "expected": 0.2835505880143095,
+      "scipy_value": 0.28355058801430943,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     },
+     {
+      "index": 0,
+      "value": -Infinity
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "lcdf": {
+    "file": "test/prob/lognormal/lognormal_cdf_log_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "mu",
+     "sigma"
+    ],
+    "valid": [
+     {
+      "params": [
+       1.2,
+       0.3,
+       1.5
+      ],
+      "expected": -0.757719541302425,
+      "scipy_value": -0.757719541302425,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       12.0,
+       3.0,
+       0.9
+      ],
+      "expected": -1.2603647307654442,
+      "scipy_value": -1.2603647307654442,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     },
+     {
+      "index": 0,
+      "value": -Infinity
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "lccdf": {
+    "file": "test/prob/lognormal/lognormal_ccdf_log_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "mu",
+     "sigma"
+    ],
+    "valid": [
+     {
+      "params": [
+       1.2,
+       0.3,
+       1.5
+      ],
+      "expected": -0.6324927012195253,
+      "scipy_value": -0.6324927012195253,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       12.0,
+       3.0,
+       0.9
+      ],
+      "expected": -0.3334476385530736,
+      "scipy_value": -0.3334476385530736,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     },
+     {
+      "index": 0,
+      "value": -Infinity
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -Infinity
+     }
+    ],
+    "parse_problems": []
+   }
+  },
+  "gamma": {
+   "lpdf": {
+    "file": "test/prob/gamma/gamma_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "alpha",
+     "beta"
+    ],
+    "valid": [
+     {
+      "params": [
+       1.0,
+       2.0,
+       2.0
+      ],
+      "expected": -0.6137056388801093,
+      "scipy_value": -0.6137056388801093,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       2.0,
+       0.25,
+       0.75
+      ],
+      "expected": -3.3798034282309817,
+      "scipy_value": -3.3798034282309812,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "expected": -1.0,
+      "scipy_value": -1.0,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": 0.0
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "cdf": {
+    "file": "test/prob/gamma/gamma_cdf_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "alpha",
+     "beta"
+    ],
+    "valid": [
+     {
+      "params": [
+       1.0,
+       2.0,
+       2.0
+      ],
+      "expected": 0.5939941502901619,
+      "scipy_value": 0.5939941502901616,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       2.0,
+       0.25,
+       0.75
+      ],
+      "expected": 0.966583555841021,
+      "scipy_value": 0.9665835558410211,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "expected": 0.6321205588285577,
+      "scipy_value": 0.6321205588285577,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": 0.0
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "lcdf": {
+    "file": "test/prob/gamma/gamma_cdf_log_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "alpha",
+     "beta"
+    ],
+    "valid": [
+     {
+      "params": [
+       1.0,
+       2.0,
+       2.0
+      ],
+      "expected": -0.5208858076643444,
+      "scipy_value": -0.5208858076643441,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       2.0,
+       0.25,
+       0.75
+      ],
+      "expected": -0.03398753208807629,
+      "scipy_value": -0.03398753208807618,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "expected": -0.45867514538708193,
+      "scipy_value": -0.4586751453870821,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": 0.0
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "lccdf": {
+    "file": "test/prob/gamma/gamma_ccdf_log_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "alpha",
+     "beta"
+    ],
+    "valid": [
+     {
+      "params": [
+       1.0,
+       2.0,
+       2.0
+      ],
+      "expected": -0.9013877113318902,
+      "scipy_value": -0.9013877113318907,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       2.0,
+       0.25,
+       0.75
+      ],
+      "expected": -3.398707160069905,
+      "scipy_value": -3.398707160069908,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "expected": -1.0,
+      "scipy_value": -0.9999999999999997,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       9.0,
+       1.2,
+       1.2
+      ],
+      "expected": -10.221534317077268,
+      "scipy_value": -10.221534317077268,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": 0.0
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -Infinity
+     }
+    ],
+    "parse_problems": []
+   }
+  },
+  "beta": {
+   "lpdf": {
+    "file": "test/prob/beta/beta_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "alpha",
+     "beta"
+    ],
+    "valid": [
+     {
+      "params": [
+       0.4,
+       0.5,
+       0.5
+      ],
+      "expected": -0.43117170802932764,
+      "scipy_value": -0.43117170802932714,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       0.5,
+       2.0,
+       5.0
+      ],
+      "expected": -0.06453852113757105,
+      "scipy_value": -0.06453852113757108,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     },
+     {
+      "index": 0,
+      "value": 2.0
+     },
+     {
+      "index": 1,
+      "value": 0.0
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "cdf": {
+    "file": "test/prob/beta/beta_cdf_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "alpha",
+     "beta"
+    ],
+    "valid": [
+     {
+      "params": [
+       0.5,
+       2.0,
+       5.0
+      ],
+      "expected": 0.890625,
+      "scipy_value": 0.890625,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     },
+     {
+      "index": 0,
+      "value": 2.0
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": 0.0
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "lcdf": {
+    "file": "test/prob/beta/beta_cdf_log_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "alpha",
+     "beta"
+    ],
+    "valid": [
+     {
+      "params": [
+       0.5,
+       2.0,
+       5.0
+      ],
+      "expected": -0.1158318155251217,
+      "scipy_value": -0.1158318155251217,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     },
+     {
+      "index": 0,
+      "value": 2.0
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": 0.0
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "lccdf": {
+    "file": "test/prob/beta/beta_ccdf_log_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "alpha",
+     "beta"
+    ],
+    "valid": [
+     {
+      "params": [
+       0.5,
+       2.0,
+       5.0
+      ],
+      "expected": -2.2129729343043585,
+      "scipy_value": -2.2129729343043585,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     },
+     {
+      "index": 0,
+      "value": 2.0
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": 0.0
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     }
+    ],
+    "parse_problems": []
+   }
+  },
+  "poisson": {
+   "lpdf": {
+    "file": "test/prob/poisson/poisson_test.hpp",
+    "arguments": "Ints, Doubles",
+    "param_names": [
+     "n",
+     "lambda"
+    ],
+    "valid": [
+     {
+      "params": [
+       17.0,
+       13.0
+      ],
+      "expected": -2.9009343732907653,
+      "scipy_value": -2.9009343732907666,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       192.0,
+       42.0
+      ],
+      "expected": -145.35466496553119,
+      "scipy_value": -145.35466496553113,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       0.0,
+       3.0
+      ],
+      "expected": -3.0,
+      "scipy_value": -3.0,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": -1e-05
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     }
+    ],
+    "parse_problems": []
+   },
+   "cdf": {
+    "file": "test/prob/poisson/poisson_cdf_test.hpp",
+    "arguments": "Ints, Doubles",
+    "param_names": [
+     "n",
+     "lambda"
+    ],
+    "valid": [
+     {
+      "params": [
+       17.0,
+       13.0
+      ],
+      "expected": 0.8904649795242026,
+      "scipy_value": 0.8904649795242022,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       82.0,
+       42.0
+      ],
+      "expected": 0.9999999845303267,
+      "scipy_value": 0.9999999845303267,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       0.0,
+       3.0
+      ],
+      "expected": 0.049787068367863944,
+      "scipy_value": 0.04978706836786395,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": -1e-05
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     }
+    ],
+    "parse_problems": []
+   },
+   "lcdf": {
+    "file": "test/prob/poisson/poisson_cdf_log_test.hpp",
+    "arguments": "Ints, Doubles",
+    "param_names": [
+     "n",
+     "lambda"
+    ],
+    "valid": [
+     {
+      "params": [
+       17.0,
+       13.0
+      ],
+      "expected": -0.11601150378126555,
+      "scipy_value": -0.11601150378126593,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       82.0,
+       42.0
+      ],
+      "expected": -1.5469673439767463e-08,
+      "scipy_value": -1.5469673439767463e-08,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       0.0,
+       3.0
+      ],
+      "expected": -3.0,
+      "scipy_value": -3.0,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": -1e-05
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     }
+    ],
+    "parse_problems": []
+   },
+   "lccdf": {
+    "file": "test/prob/poisson/poisson_ccdf_log_test.hpp",
+    "arguments": "Ints, Doubles",
+    "param_names": [
+     "n",
+     "lambda"
+    ],
+    "valid": [
+     {
+      "params": [
+       17.0,
+       13.0
+      ],
+      "expected": -2.2115109591608584,
+      "scipy_value": -2.2115109591608553,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       82.0,
+       42.0
+      ],
+      "expected": -17.984384289577804,
+      "scipy_value": -17.984384288330507,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       0.0,
+       3.0
+      ],
+      "expected": -0.051069180942701596,
+      "scipy_value": -0.051069180942701596,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": -1e-05
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     }
+    ],
+    "parse_problems": []
+   },
+   "lpdf_log_param": {
+    "file": "test/prob/poisson/poisson_log_test.hpp",
+    "arguments": "Ints, Doubles",
+    "param_names": [
+     "n",
+     "alpha"
+    ],
+    "valid": [
+     {
+      "params": [
+       17.0,
+       2.5649493574615367
+      ],
+      "expected": -2.9009343732907653,
+      "scipy_value": -2.9009343732907666,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       192.0,
+       3.7376696182833684
+      ],
+      "expected": -145.35466496553119,
+      "scipy_value": -145.35466496553113,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       0.0,
+       1.0986122886681098
+      ],
+      "expected": -3.0,
+      "scipy_value": -3.0000000000000004,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     }
+    ],
+    "parse_problems": []
+   }
+  },
+  "neg_binomial_2": {
+   "lpdf": {
+    "file": "test/prob/neg_binomial_2/neg_binomial_2_test.hpp",
+    "arguments": "Ints, Doubles, Doubles",
+    "param_names": [
+     "n",
+     "mu",
+     "phi"
+    ],
+    "valid": [
+     {
+      "params": [
+       10.0,
+       2.0,
+       1.5
+      ],
+      "expected": -5.55873452880806,
+      "scipy_value": -5.558734528808062,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       100.0,
+       3.0,
+       3.5
+      ],
+      "expected": -69.1303554183435,
+      "scipy_value": -69.1303554183435,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       100.0,
+       4.0,
+       200.0
+      ],
+      "expected": -209.614066642678,
+      "scipy_value": -209.61406664267759,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     }
+    ],
+    "parse_problems": []
+   },
+   "cdf": {
+    "file": "test/prob/neg_binomial_2/neg_binomial_2_cdf_test.hpp",
+    "arguments": "Ints, Doubles, Doubles",
+    "param_names": [
+     "n",
+     "mu",
+     "phi"
+    ],
+    "valid": [
+     {
+      "params": [
+       3.0,
+       10.0,
+       20.0
+      ],
+      "expected": 0.026475260162823123,
+      "scipy_value": 0.026475260162823033,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       7.0,
+       15.0,
+       10.0
+      ],
+      "expected": 0.09189925417123852,
+      "scipy_value": 0.09189925417123841,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       0.0,
+       15.0,
+       10.0
+      ],
+      "expected": 0.00010485760000000015,
+      "scipy_value": 0.00010485760000000006,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       1.0,
+       15.0,
+       10.0
+      ],
+      "expected": 0.0007340032000000013,
+      "scipy_value": 0.0007340032000000003,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       0.0,
+       10.0,
+       1.0
+      ],
+      "expected": 0.0909090909090909,
+      "scipy_value": 0.09090909090909091,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       -1.0,
+       10.0,
+       1.0
+      ],
+      "expected": 0.0,
+      "scipy_value": 0.0,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       -89.0,
+       10.0,
+       1.0
+      ],
+      "expected": 0.0,
+      "scipy_value": 0.0,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     }
+    ],
+    "parse_problems": []
+   },
+   "lcdf": {
+    "file": "test/prob/neg_binomial_2/neg_binomial_2_cdf_log_test.hpp",
+    "arguments": "Ints, Doubles, Doubles",
+    "param_names": [
+     "n",
+     "mu",
+     "phi"
+    ],
+    "valid": [
+     {
+      "params": [
+       3.0,
+       10.0,
+       20.0
+      ],
+      "expected": -3.6315445608074204,
+      "scipy_value": -3.6315445608074235,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       7.0,
+       15.0,
+       10.0
+      ],
+      "expected": -2.3870623653091565,
+      "scipy_value": -2.387062365309158,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       0.0,
+       15.0,
+       10.0
+      ],
+      "expected": -9.16290731874155,
+      "scipy_value": -9.16290731874155,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       1.0,
+       15.0,
+       10.0
+      ],
+      "expected": -7.216997169686236,
+      "scipy_value": -7.216997169686237,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       0.0,
+       10.0,
+       1.0
+      ],
+      "expected": -2.3978952727983707,
+      "scipy_value": -2.3978952727983707,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     }
+    ],
+    "parse_problems": []
+   },
+   "lccdf": {
+    "file": "test/prob/neg_binomial_2/neg_binomial_2_ccdf_log_test.hpp",
+    "arguments": "Ints, Doubles, Doubles",
+    "param_names": [
+     "n",
+     "mu",
+     "phi"
+    ],
+    "valid": [
+     {
+      "params": [
+       3.0,
+       10.0,
+       20.0
+      ],
+      "expected": -0.0268320412034503,
+      "scipy_value": -0.0268320412034503,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       7.0,
+       15.0,
+       10.0
+      ],
+      "expected": -0.09639995297982962,
+      "scipy_value": -0.09639995297982949,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       0.0,
+       15.0,
+       10.0
+      ],
+      "expected": -0.00010486309794248415,
+      "scipy_value": -0.00010486309794248415,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       1.0,
+       15.0,
+       10.0
+      ],
+      "expected": -0.0007342727122388274,
+      "scipy_value": -0.0007342727122388274,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       0.0,
+       10.0,
+       1.0
+      ],
+      "expected": -0.0953101798043249,
+      "scipy_value": -0.0953101798043249,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     }
+    ],
+    "parse_problems": []
+   },
+   "lpdf_log_param": {
+    "file": "test/prob/neg_binomial_2/neg_binomial_2_log_test.hpp",
+    "arguments": "Ints, Doubles, Doubles",
+    "param_names": [
+     "n",
+     "eta",
+     "phi"
+    ],
+    "valid": [
+     {
+      "params": [
+       10.0,
+       2.0,
+       1.5
+      ],
+      "expected": -3.208872182050765,
+      "scipy_value": -3.2088721820507646,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       100.0,
+       -3.0,
+       3.5
+      ],
+      "expected": -416.3829277438502,
+      "scipy_value": -416.38292774385013,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       100.0,
+       -10.0,
+       200.0
+      ],
+      "expected": -1342.3027826656996,
+      "scipy_value": -1342.3027826402335,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     }
+    ],
+    "parse_problems": []
+   }
+  },
+  "neg_binomial": {
+   "lpdf": {
+    "file": "test/prob/neg_binomial/neg_binomial_test.hpp",
+    "arguments": "Ints, Doubles, Doubles",
+    "param_names": [
+     "n",
+     "alpha",
+     "beta"
+    ],
+    "valid": [
+     {
+      "params": [
+       10.0,
+       2.0,
+       1.5
+      ],
+      "expected": -7.786663293475162,
+      "scipy_value": -7.78666329347516,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       100.0,
+       3.0,
+       3.5
+      ],
+      "expected": -142.6147368129045,
+      "scipy_value": -142.6147368129045,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       10.0,
+       1000000.0,
+       100000.0
+      ],
+      "expected": -2.078566643108163,
+      "scipy_value": -2.078566642705411,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     }
+    ],
+    "parse_problems": []
+   },
+   "cdf": {
+    "file": "test/prob/neg_binomial/neg_binomial_cdf_test.hpp",
+    "arguments": "Ints, Doubles, Doubles",
+    "param_names": [
+     "Failures",
+     "Successes",
+     "logit"
+    ],
+    "valid": [
+     {
+      "params": [
+       15.0,
+       50.0,
+       3.0
+      ],
+      "expected": 0.4240861277740262,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       0.0,
+       15.0,
+       3.0
+      ],
+      "expected": 0.013363461010158064,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     }
+    ],
+    "parse_problems": []
+   },
+   "lcdf": {
+    "file": "test/prob/neg_binomial/neg_binomial_cdf_log_test.hpp",
+    "arguments": "Ints, Doubles, Doubles",
+    "param_names": [
+     "Failures",
+     "Successes",
+     "logit"
+    ],
+    "valid": [
+     {
+      "params": [
+       15.0,
+       50.0,
+       3.0
+      ],
+      "expected": -0.8578187128360829,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       0.0,
+       15.0,
+       3.0
+      ],
+      "expected": -4.315231086776714,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     }
+    ],
+    "parse_problems": []
+   },
+   "lccdf": {
+    "file": "test/prob/neg_binomial/neg_binomial_ccdf_log_test.hpp",
+    "arguments": "Ints, Doubles, Doubles",
+    "param_names": [
+     "Failures",
+     "Successes",
+     "logit"
+    ],
+    "valid": [
+     {
+      "params": [
+       15.0,
+       50.0,
+       3.0
+      ],
+      "expected": -0.551797156852042,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       0.0,
+       15.0,
+       3.0
+      ],
+      "expected": -0.013453555605930045,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     }
+    ],
+    "parse_problems": []
+   }
+  },
+  "logistic": {
+   "lpdf": {
+    "file": "test/prob/logistic/logistic_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "mu",
+     "sigma"
+    ],
+    "valid": [
+     {
+      "params": [
+       1.2,
+       0.3,
+       2.0
+      ],
+      "expected": -2.129645072554855,
+      "scipy_value": -2.129645072554855,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       -1.0,
+       0.2,
+       0.5
+      ],
+      "expected": -1.8805251237479539,
+      "scipy_value": -1.8805251237479537,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "cdf": {
+    "file": "test/prob/logistic/logistic_cdf_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "Location",
+     "Scale"
+    ],
+    "valid": [
+     {
+      "params": [
+       3.0,
+       0.5,
+       3.3
+      ],
+      "expected": 0.6808271732785296,
+      "scipy_value": 0.6808271732785296,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": -Infinity
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "lcdf": {
+    "file": "test/prob/logistic/logistic_cdf_log_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "Location",
+     "Scale"
+    ],
+    "valid": [
+     {
+      "params": [
+       3.0,
+       0.5,
+       3.3
+      ],
+      "expected": -0.3844467887731337,
+      "scipy_value": -0.3844467887731337,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": -Infinity
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "lccdf": {
+    "file": "test/prob/logistic/logistic_ccdf_log_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "Location",
+     "Scale"
+    ],
+    "valid": [
+     {
+      "params": [
+       3.0,
+       0.5,
+       3.3
+      ],
+      "expected": -1.142022546348891,
+      "scipy_value": -1.1420225463488913,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": -Infinity
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     }
+    ],
+    "parse_problems": []
+   }
+  },
+  "exponential": {
+   "lpdf": {
+    "file": "test/prob/exponential/exponential_test.hpp",
+    "arguments": "Doubles, Doubles",
+    "param_names": [
+     "y",
+     "beta"
+    ],
+    "valid": [
+     {
+      "params": [
+       2.0,
+       1.5
+      ],
+      "expected": -2.5945348918918354,
+      "scipy_value": -2.5945348918918354,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       15.0,
+       3.9
+      ],
+      "expected": -57.13902344686439,
+      "scipy_value": -57.13902344686439,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       1e-08,
+       3.9
+      ],
+      "expected": 1.3609765141356007,
+      "scipy_value": 1.3609765141356007,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -10.0
+     },
+     {
+      "index": 0,
+      "value": NaN
+     },
+     {
+      "index": 1,
+      "value": 0.0
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "cdf": {
+    "file": "test/prob/exponential/exponential_cdf_test.hpp",
+    "arguments": "Doubles, Doubles",
+    "param_names": [
+     "y",
+     "beta"
+    ],
+    "valid": [
+     {
+      "params": [
+       2.0,
+       1.5
+      ],
+      "expected": 0.950212931632136,
+      "scipy_value": 0.950212931632136,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       15.0,
+       3.9
+      ],
+      "expected": 1.0,
+      "scipy_value": 1.0,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     },
+     {
+      "index": 0,
+      "value": -Infinity
+     },
+     {
+      "index": 1,
+      "value": 0.0
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "lcdf": {
+    "file": "test/prob/exponential/exponential_cdf_log_test.hpp",
+    "arguments": "Doubles, Doubles",
+    "param_names": [
+     "y",
+     "beta"
+    ],
+    "valid": [
+     {
+      "params": [
+       2.0,
+       1.5
+      ],
+      "expected": -0.051069180942701596,
+      "scipy_value": -0.05106918094270159,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       15.0,
+       3.9
+      ],
+      "expected": 0.0,
+      "scipy_value": -3.9243958579474904e-26,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     },
+     {
+      "index": 0,
+      "value": -Infinity
+     },
+     {
+      "index": 1,
+      "value": 0.0
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "lccdf": {
+    "file": "test/prob/exponential/exponential_ccdf_log_test.hpp",
+    "arguments": "Doubles, Doubles",
+    "param_names": [
+     "y",
+     "beta"
+    ],
+    "valid": [
+     {
+      "params": [
+       2.0,
+       1.5
+      ],
+      "expected": -3.0,
+      "scipy_value": -3.0,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       15.0,
+       3.9
+      ],
+      "expected": -58.5,
+      "scipy_value": -58.49999999999999,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     },
+     {
+      "index": 0,
+      "value": -Infinity
+     },
+     {
+      "index": 1,
+      "value": 0.0
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     }
+    ],
+    "parse_problems": []
+   }
+  },
+  "student_t": {
+   "lpdf": {
+    "file": "test/prob/student_t/student_t_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "nu",
+     "mu",
+     "sigma"
+    ],
+    "valid": [
+     {
+      "params": [
+       1.0,
+       1.0,
+       0.0,
+       1.0
+      ],
+      "expected": -1.8378770664093453,
+      "scipy_value": -1.8378770664093453,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       -3.0,
+       2.0,
+       0.0,
+       1.0
+      ],
+      "expected": -3.5968429091975556,
+      "scipy_value": -3.596842909197556,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": 0.0
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -Infinity
+     },
+     {
+      "index": 3,
+      "value": 0.0
+     },
+     {
+      "index": 3,
+      "value": -1.0
+     },
+     {
+      "index": 3,
+      "value": Infinity
+     },
+     {
+      "index": 3,
+      "value": -Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "cdf": {
+    "file": "test/prob/student_t/student_t_cdf_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "nu",
+     "mu",
+     "sigma"
+    ],
+    "valid": [
+     {
+      "params": [
+       5.0,
+       1.5,
+       3.3,
+       1.0
+      ],
+      "expected": 0.8646688779244796,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       2.5,
+       3.5,
+       3.3,
+       1.0
+      ],
+      "expected": 0.23723278834732622,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": 0.0
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     },
+     {
+      "index": 3,
+      "value": -1.0
+     },
+     {
+      "index": 3,
+      "value": 0.0
+     },
+     {
+      "index": 3,
+      "value": Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "lcdf": {
+    "file": "test/prob/student_t/student_t_cdf_log_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "nu",
+     "mu",
+     "sigma"
+    ],
+    "valid": [
+     {
+      "params": [
+       5.0,
+       1.5,
+       3.3,
+       1.0
+      ],
+      "expected": -0.14540864542422138,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       2.5,
+       3.5,
+       3.3,
+       1.0
+      ],
+      "expected": -1.4387133906049614,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": 0.0
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     },
+     {
+      "index": 3,
+      "value": -1.0
+     },
+     {
+      "index": 3,
+      "value": 0.0
+     },
+     {
+      "index": 3,
+      "value": Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "lccdf": {
+    "file": "test/prob/student_t/student_t_ccdf_log_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "nu",
+     "mu",
+     "sigma"
+    ],
+    "valid": [
+     {
+      "params": [
+       5.0,
+       1.5,
+       3.3,
+       1.0
+      ],
+      "expected": -2.0000307475254475,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       2.5,
+       3.5,
+       3.3,
+       1.0
+      ],
+      "expected": -0.27080239037915155,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": 0.0
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     },
+     {
+      "index": 3,
+      "value": -1.0
+     },
+     {
+      "index": 3,
+      "value": 0.0
+     },
+     {
+      "index": 3,
+      "value": Infinity
+     }
+    ],
+    "parse_problems": []
+   }
+  },
+  "cauchy": {
+   "lpdf": {
+    "file": "test/prob/cauchy/cauchy_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "mu",
+     "sigma"
+    ],
+    "valid": [
+     {
+      "params": [
+       1.0,
+       0.0,
+       1.0
+      ],
+      "expected": -1.8378770664093453,
+      "scipy_value": -1.8378770664093453,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       -1.5,
+       0.0,
+       1.0
+      ],
+      "expected": -2.3233848821910463,
+      "scipy_value": -2.3233848821910463,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       -1.5,
+       -1.0,
+       1.0
+      ],
+      "expected": -1.3678734371636099,
+      "scipy_value": -1.3678734371636099,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "cdf": {
+    "file": "test/prob/cauchy/cauchy_cdf_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "mu",
+     "sigma"
+    ],
+    "valid": [
+     {
+      "params": [
+       1.0,
+       0.0,
+       1.0
+      ],
+      "expected": 0.75,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       -1.5,
+       0.0,
+       1.0
+      ],
+      "expected": 0.1871670418109988,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       -2.5,
+       -1.0,
+       1.0
+      ],
+      "expected": 0.1871670418109988,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "lcdf": {
+    "file": "test/prob/cauchy/cauchy_cdf_log_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "mu",
+     "sigma"
+    ],
+    "valid": [
+     {
+      "params": [
+       1.0,
+       0.0,
+       1.0
+      ],
+      "expected": -0.2876820724517809,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       -1.5,
+       0.0,
+       1.0
+      ],
+      "expected": -1.6757537891407275,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       -2.5,
+       -1.0,
+       1.0
+      ],
+      "expected": -1.6757537891407275,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "lccdf": {
+    "file": "test/prob/cauchy/cauchy_ccdf_log_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "mu",
+     "sigma"
+    ],
+    "valid": [
+     {
+      "params": [
+       1.0,
+       0.0,
+       1.0
+      ],
+      "expected": -1.3862943611198906,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       -1.5,
+       0.0,
+       1.0
+      ],
+      "expected": -0.20722965402700266,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       -2.5,
+       -1.0,
+       1.0
+      ],
+      "expected": -0.20722965402700266,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -Infinity
+     }
+    ],
+    "parse_problems": []
+   }
+  },
+  "binomial": {
+   "lpdf": {
+    "file": "test/prob/binomial/binomial_test.hpp",
+    "arguments": "Ints, Ints, Doubles",
+    "param_names": [
+     "n",
+     "N",
+     "theta"
+    ],
+    "valid": [
+     {
+      "params": [
+       10.0,
+       20.0,
+       0.4
+      ],
+      "expected": -2.1443722417990028,
+      "scipy_value": -2.1443722417990028,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       5.0,
+       15.0,
+       0.8
+      ],
+      "expected": -9.202729812928725,
+      "scipy_value": -9.20272981292872,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": -1e-15
+     },
+     {
+      "index": 2,
+      "value": 1.000000000000001
+     }
+    ],
+    "parse_problems": []
+   },
+   "cdf": {
+    "file": "test/prob/binomial/binomial_cdf_test.hpp",
+    "arguments": "Ints, Ints, Doubles",
+    "param_names": [
+     "Successes",
+     "Trials",
+     "Probability"
+    ],
+    "valid": [
+     {
+      "params": [
+       17.0,
+       45.0,
+       0.5
+      ],
+      "expected": 0.0675782254228353,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": -0.0001
+     },
+     {
+      "index": 2,
+      "value": 1.0001
+     }
+    ],
+    "parse_problems": []
+   },
+   "lcdf": {
+    "file": "test/prob/binomial/binomial_cdf_log_test.hpp",
+    "arguments": "Ints, Ints, Doubles",
+    "param_names": [
+     "Successes",
+     "Trials",
+     "Probability"
+    ],
+    "valid": [
+     {
+      "params": [
+       17.0,
+       45.0,
+       0.5
+      ],
+      "expected": -2.6944694569511625,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": -0.0001
+     },
+     {
+      "index": 2,
+      "value": 1.0001
+     }
+    ],
+    "parse_problems": []
+   },
+   "lccdf": {
+    "file": "test/prob/binomial/binomial_ccdf_log_test.hpp",
+    "arguments": "Ints, Ints, Doubles",
+    "param_names": [
+     "Successes",
+     "Trials",
+     "Probability"
+    ],
+    "valid": [
+     {
+      "params": [
+       17.0,
+       45.0,
+       0.5
+      ],
+      "expected": -0.06997001883585567,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": -0.0001
+     },
+     {
+      "index": 2,
+      "value": 1.0001
+     }
+    ],
+    "parse_problems": []
+   }
+  },
+  "bernoulli": {
+   "lpdf": {
+    "file": "test/prob/bernoulli/bernoulli_test.hpp",
+    "arguments": "Ints, Doubles",
+    "param_names": [
+     "n",
+     "theta"
+    ],
+    "valid": [
+     {
+      "params": [
+       1.0,
+       0.25
+      ],
+      "expected": -1.3862943611198906,
+      "scipy_value": -1.3862943611198906,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       0.0,
+       0.25
+      ],
+      "expected": -0.2876820724517809,
+      "scipy_value": -0.2876820724517809,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       1.0,
+       0.01
+      ],
+      "expected": -4.605170185988091,
+      "scipy_value": -4.605170185988091,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       0.0,
+       0.01
+      ],
+      "expected": -0.01005033585350145,
+      "scipy_value": -0.010050335853501442,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     },
+     {
+      "index": 0,
+      "value": 2.0
+     },
+     {
+      "index": 1,
+      "value": -0.001
+     },
+     {
+      "index": 1,
+      "value": 1.001
+     }
+    ],
+    "parse_problems": []
+   },
+   "cdf": {
+    "file": "test/prob/bernoulli/bernoulli_cdf_test.hpp",
+    "arguments": "Ints, Doubles",
+    "param_names": [
+     "Successes",
+     "Probability"
+    ],
+    "valid": [
+     {
+      "params": [
+       0.0,
+       0.75
+      ],
+      "expected": 0.25,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       1.0,
+       0.75
+      ],
+      "expected": 1.0,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": -0.0001
+     },
+     {
+      "index": 1,
+      "value": 1.0001
+     }
+    ],
+    "parse_problems": []
+   },
+   "lcdf": {
+    "file": "test/prob/bernoulli/bernoulli_cdf_log_test.hpp",
+    "arguments": "Ints, Doubles",
+    "param_names": [
+     "Successes",
+     "Probability"
+    ],
+    "valid": [
+     {
+      "params": [
+       0.0,
+       0.75
+      ],
+      "expected": -1.3862943611198906,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       1.0,
+       0.75
+      ],
+      "expected": 0.0,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": -0.0001
+     },
+     {
+      "index": 1,
+      "value": 1.0001
+     }
+    ],
+    "parse_problems": []
+   },
+   "lccdf": {
+    "file": "test/prob/bernoulli/bernoulli_ccdf_log_test.hpp",
+    "arguments": "Ints, Doubles",
+    "param_names": [
+     "Successes",
+     "Probability"
+    ],
+    "valid": [
+     {
+      "params": [
+       0.0,
+       0.75
+      ],
+      "expected": -0.2876820724517809,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": -0.0001
+     },
+     {
+      "index": 1,
+      "value": 1.0001
+     }
+    ],
+    "parse_problems": []
+   }
+  },
+  "beta_binomial": {
+   "lpdf": {
+    "file": "test/prob/beta_binomial/beta_binomial_test.hpp",
+    "arguments": "Ints, Ints, Doubles, Doubles",
+    "param_names": [
+     "n",
+     "N",
+     "alpha",
+     "beta"
+    ],
+    "valid": [
+     {
+      "params": [
+       5.0,
+       20.0,
+       10.0,
+       25.0
+      ],
+      "expected": -1.8540068216786034,
+      "scipy_value": -1.8540068216786025,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       25.0,
+       100.0,
+       30.0,
+       50.0
+      ],
+      "expected": -4.376695614336585,
+      "scipy_value": -4.376695614336505,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     },
+     {
+      "index": 3,
+      "value": 0.0
+     },
+     {
+      "index": 3,
+      "value": -1.0
+     },
+     {
+      "index": 3,
+      "value": Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "cdf": {
+    "file": "test/prob/beta_binomial/beta_binomial_cdf_test.hpp",
+    "arguments": "Ints, Ints, Doubles, Doubles",
+    "param_names": [
+     "n",
+     "N",
+     "alpha",
+     "beta"
+    ],
+    "valid": [
+     {
+      "params": [
+       17.0,
+       45.0,
+       13.0,
+       15.0
+      ],
+      "expected": 0.26805232961119024,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 3,
+      "value": -1.0
+     }
+    ],
+    "parse_problems": []
+   },
+   "lcdf": {
+    "file": "test/prob/beta_binomial/beta_binomial_cdf_log_test.hpp",
+    "arguments": "Ints, Ints, Doubles, Doubles",
+    "param_names": [
+     "n",
+     "N",
+     "alpha",
+     "beta"
+    ],
+    "valid": [
+     {
+      "params": [
+       17.0,
+       45.0,
+       13.0,
+       15.0
+      ],
+      "expected": -1.3165730577887358,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 3,
+      "value": -1.0
+     }
+    ],
+    "parse_problems": []
+   },
+   "lccdf": {
+    "file": "test/prob/beta_binomial/beta_binomial_ccdf_log_test.hpp",
+    "arguments": "Ints, Ints, Doubles, Doubles",
+    "param_names": [
+     "n",
+     "N",
+     "alpha",
+     "beta"
+    ],
+    "valid": [
+     {
+      "params": [
+       17.0,
+       45.0,
+       13.0,
+       15.0
+      ],
+      "expected": -0.3120462561161304,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 3,
+      "value": -1.0
+     }
+    ],
+    "parse_problems": []
+   }
+  },
+  "inv_gamma": {
+   "lpdf": {
+    "file": "test/prob/inv_gamma/inv_gamma_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "alpha",
+     "beta"
+    ],
+    "valid": [
+     {
+      "params": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "expected": -1.0,
+      "scipy_value": -1.0,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       0.5,
+       2.9,
+       3.1
+      ],
+      "expected": -0.8185294827413339,
+      "scipy_value": -0.8185294827413332,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": 0.0
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "cdf": {
+    "file": "test/prob/inv_gamma/inv_gamma_cdf_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "alpha",
+     "beta"
+    ],
+    "valid": [
+     {
+      "params": [
+       3.0,
+       0.5,
+       3.3
+      ],
+      "expected": 0.13801073756865956,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": 0.0
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "lcdf": {
+    "file": "test/prob/inv_gamma/inv_gamma_cdf_log_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "alpha",
+     "beta"
+    ],
+    "valid": [
+     {
+      "params": [
+       3.0,
+       0.5,
+       3.3
+      ],
+      "expected": -1.9804237883833067,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": 0.0
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "lccdf": {
+    "file": "test/prob/inv_gamma/inv_gamma_ccdf_log_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "alpha",
+     "beta"
+    ],
+    "valid": [
+     {
+      "params": [
+       3.0,
+       0.5,
+       3.3
+      ],
+      "expected": -0.14851246497219892,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": 0.0
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     }
+    ],
+    "parse_problems": []
+   }
+  },
+  "double_exponential": {
+   "lpdf": {
+    "file": "test/prob/double_exponential/double_exponential_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "mu",
+     "sigma"
+    ],
+    "valid": [
+     {
+      "params": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "expected": -0.6931471805599453,
+      "scipy_value": -0.6931471805599453,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       2.0,
+       1.0,
+       1.0
+      ],
+      "expected": -1.6931471805599454,
+      "scipy_value": -1.6931471805599452,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       -3.0,
+       2.0,
+       1.0
+      ],
+      "expected": -5.693147180559945,
+      "scipy_value": -5.693147180559945,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       1.0,
+       0.0,
+       2.0
+      ],
+      "expected": -1.8862943611198906,
+      "scipy_value": -1.8862943611198908,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       1.9,
+       2.3,
+       0.5
+      ],
+      "expected": -0.8,
+      "scipy_value": -0.7999999999999999,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       1.9,
+       2.3,
+       0.25
+      ],
+      "expected": -0.9068528194400547,
+      "scipy_value": -0.9068528194400545,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": Infinity
+     },
+     {
+      "index": 0,
+      "value": -Infinity
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "cdf": {
+    "file": "test/prob/double_exponential/double_exponential_cdf_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "mu",
+     "sigma"
+    ],
+    "valid": [
+     {
+      "params": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "expected": 0.5,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       2.0,
+       1.0,
+       1.0
+      ],
+      "expected": 0.8160602794142788,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       -3.0,
+       2.0,
+       1.0
+      ],
+      "expected": 0.0033689734995427335,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       1.0,
+       0.0,
+       2.0
+      ],
+      "expected": 0.6967346701436833,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       1.9,
+       2.3,
+       0.5
+      ],
+      "expected": 0.2246644820586108,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       1.9,
+       2.3,
+       0.25
+      ],
+      "expected": 0.1009482589973277,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "lcdf": {
+    "file": "test/prob/double_exponential/double_exponential_cdf_log_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "mu",
+     "sigma"
+    ],
+    "valid": [
+     {
+      "params": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "expected": -0.6931471805599453,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       2.0,
+       1.0,
+       1.0
+      ],
+      "expected": -0.20326705491519534,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       -3.0,
+       2.0,
+       1.0
+      ],
+      "expected": -5.693147180559945,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       1.0,
+       0.0,
+       2.0
+      ],
+      "expected": -0.3613506148087591,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       1.9,
+       2.3,
+       0.5
+      ],
+      "expected": -1.4931471805599452,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       1.9,
+       2.3,
+       0.25
+      ],
+      "expected": -2.2931471805599455,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "lccdf": {
+    "file": "test/prob/double_exponential/double_exponential_ccdf_log_test.hpp",
+    "arguments": "Doubles, Doubles, Doubles",
+    "param_names": [
+     "y",
+     "mu",
+     "sigma"
+    ],
+    "valid": [
+     {
+      "params": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "expected": -0.6931471805599453,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       2.0,
+       1.0,
+       1.0
+      ],
+      "expected": -1.6931471805599452,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       -3.0,
+       2.0,
+       1.0
+      ],
+      "expected": -0.003374661268985583,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       1.0,
+       0.0,
+       2.0
+      ],
+      "expected": -1.1931471805599454,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       1.9,
+       2.3,
+       0.5
+      ],
+      "expected": -0.25445941693838914,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       1.9,
+       2.3,
+       0.25
+      ],
+      "expected": -0.1064146922148774,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": Infinity
+     },
+     {
+      "index": 1,
+      "value": -Infinity
+     },
+     {
+      "index": 2,
+      "value": 0.0
+     },
+     {
+      "index": 2,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     },
+     {
+      "index": 2,
+      "value": -Infinity
+     }
+    ],
+    "parse_problems": []
+   }
+  },
+  "std_normal": {
+   "lpdf": {
+    "file": "test/prob/std_normal/std_normal_test.hpp",
+    "arguments": "Doubles",
+    "param_names": [
+     "y"
+    ],
+    "valid": [
+     {
+      "params": [
+       0.0
+      ],
+      "expected": -0.9189385332046727,
+      "scipy_value": -0.9189385332046727,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       1.0
+      ],
+      "expected": -1.4189385332046727,
+      "scipy_value": -1.4189385332046727,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       -2.0
+      ],
+      "expected": -2.9189385332046727,
+      "scipy_value": -2.9189385332046727,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [],
+    "parse_problems": []
+   },
+   "cdf": {
+    "file": "test/prob/std_normal/std_normal_cdf_test.hpp",
+    "arguments": "Doubles",
+    "param_names": [
+     "y"
+    ],
+    "valid": [
+     {
+      "params": [
+       0.1
+      ],
+      "expected": 0.539827837277029,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       1.0
+      ],
+      "expected": 0.8413447460685429,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       -2.0
+      ],
+      "expected": 0.02275013194817921,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       -3.5
+      ],
+      "expected": 0.00023262907903552504,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [],
+    "parse_problems": []
+   },
+   "lcdf": {
+    "file": "test/prob/std_normal/std_normal_cdf_log_test.hpp",
+    "arguments": "Doubles",
+    "param_names": [
+     "y"
+    ],
+    "valid": [
+     {
+      "params": [
+       0.0
+      ],
+      "expected": -0.6931471805599453,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       1.0
+      ],
+      "expected": -0.17275377902344993,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       -2.0
+      ],
+      "expected": -3.7831843336820317,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       -3.5
+      ],
+      "expected": -8.366065308344092,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       7.5
+      ],
+      "expected": -3.1908916729109475e-14,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [],
+    "parse_problems": []
+   },
+   "lccdf": {
+    "file": "test/prob/std_normal/std_normal_ccdf_log_test.hpp",
+    "arguments": "Doubles",
+    "param_names": [
+     "y"
+    ],
+    "valid": [
+     {
+      "params": [
+       0.0
+      ],
+      "expected": -0.6931471805599453,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       1.0
+      ],
+      "expected": -1.8410216450092634,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       -2.0
+      ],
+      "expected": -0.02301290932896349,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       -3.5
+      ],
+      "expected": -0.0002326561413768196,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [],
+    "parse_problems": []
+   }
+  },
+  "chi_square": {
+   "lpdf": {
+    "file": "test/prob/chi_square/chi_square_test.hpp",
+    "arguments": "Doubles, Doubles",
+    "param_names": [
+     "y",
+     "nu"
+    ],
+    "valid": [
+     {
+      "params": [
+       7.9,
+       3.0
+      ],
+      "expected": -3.835507153468185,
+      "scipy_value": -3.8355071534681846,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       1.9,
+       0.5
+      ],
+      "expected": -2.8926997344673593,
+      "scipy_value": -2.8926997344673597,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 1,
+      "value": 0.0
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "cdf": {
+    "file": "test/prob/chi_square/chi_square_cdf_test.hpp",
+    "arguments": "Doubles, Doubles",
+    "param_names": [
+     "y",
+     "nu"
+    ],
+    "valid": [
+     {
+      "params": [
+       7.9,
+       3.0
+      ],
+      "expected": 0.9518757481558399,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       1.9,
+       0.5
+      ],
+      "expected": 0.9267752080547182,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": 0.0
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "lcdf": {
+    "file": "test/prob/chi_square/chi_square_cdf_log_test.hpp",
+    "arguments": "Doubles, Doubles",
+    "param_names": [
+     "y",
+     "nu"
+    ],
+    "valid": [
+     {
+      "params": [
+       7.9,
+       3.0
+      ],
+      "expected": -0.04932076935183532,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       1.9,
+       0.5
+      ],
+      "expected": -0.07604423683056302,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": 0.0
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     }
+    ],
+    "parse_problems": []
+   },
+   "lccdf": {
+    "file": "test/prob/chi_square/chi_square_ccdf_log_test.hpp",
+    "arguments": "Doubles, Doubles",
+    "param_names": [
+     "y",
+     "nu"
+    ],
+    "valid": [
+     {
+      "params": [
+       7.9,
+       3.0
+      ],
+      "expected": -3.0339690325904045,
+      "scipy_check": "no_oracle"
+     },
+     {
+      "params": [
+       1.9,
+       0.5
+      ],
+      "expected": -2.614221227579556,
+      "scipy_check": "no_oracle"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": 0.0
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": Infinity
+     }
+    ],
+    "parse_problems": []
+   }
+  }
+ }
+}

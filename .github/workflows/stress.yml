@@ -1,0 +1,44 @@
+# Hand-written: sbt-typelevel only owns ci.yml and clean.yml.
+#
+# The slow statistical suites never block a pull request. They run once a week, and on demand,
+# with fresh seeds and more draws. A seed is never adjusted to make a test pass; it is this
+# workflow's job to say whether a threshold is too tight.
+name: Stress suites
+
+on:
+  schedule:
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+jobs:
+  stress:
+    name: Slow suites, fresh seeds
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+    env:
+      BAYES4S_PRIVATE_TERMS_KEY: ${{ secrets.BAYES4S_PRIVATE_TERMS_KEY }}
+    steps:
+      - name: Checkout current branch (full)
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup sbt
+        uses: sbt/setup-sbt@v1
+
+      - name: Setup Java (temurin@25)
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: sbt
+
+      # Each module's src/slow/scala: SBC, posteriordb, parameter recovery.
+      # Empty until phase 6; the command stays green until then.
+      - name: Slow statistical suites
+        run: sbt -Dbayes4s.stress=true 'slow:test'
+
+      # From phase 9 on, the `examples` programs run here with the manual's own settings, while
+      # ci.yml runs them with few draws to stay fast.
+      - name: Compile the examples
+        run: sbt examples/Test/compile

@@ -1,0 +1,550 @@
+{
+ "provenance": "stan-dev/stan unit tests (BSD-3-Clause), re-executed by tools/build_hmc_fixtures.py",
+ "leapfrog": [
+  {
+   "test": "begin_update_p",
+   "model": "V(q) = q^2/2 (1-D standard normal), g = dV/dq = q",
+   "initial": {
+    "V": 1.99974742955684,
+    "q(0)": 1.99987371079118,
+    "p(0)": -1.58612292129732,
+    "g(0)": 1.99987371079118
+   },
+   "epsilon": 0.1,
+   "operations": [
+    "begin_update_p"
+   ],
+   "repeat": 1,
+   "expected": {
+    "V": 1.99974742955684,
+    "q(0)": 1.99987371079118,
+    "p(0)": -1.68611660683688,
+    "g(0)": 1.99987371079118
+   },
+   "tolerance": 5e-14,
+   "numpy_port_ok": true
+  },
+  {
+   "test": "update_q",
+   "model": "V(q) = q^2/2 (1-D standard normal), g = dV/dq = q",
+   "initial": {
+    "V": 1.99974742955684,
+    "q(0)": 1.99987371079118,
+    "p(0)": -1.68611660683688,
+    "g(0)": 1.99987371079118
+   },
+   "epsilon": 0.1,
+   "operations": [
+    "update_q"
+   ],
+   "repeat": 1,
+   "expected": {
+    "V": 1.676760348081947,
+    "q(0)": 1.83126205010749,
+    "p(0)": -1.68611660683688,
+    "g(0)": 1.8312620501074919
+   },
+   "tolerance": 5e-14,
+   "numpy_port_ok": true
+  },
+  {
+   "test": "end_update_p",
+   "model": "V(q) = q^2/2 (1-D standard normal), g = dV/dq = q",
+   "initial": {
+    "V": 1.39887860643153,
+    "q(0)": 1.67264975797776,
+    "p(0)": -1.68611660683688,
+    "g(0)": 1.67264975797776
+   },
+   "epsilon": 0.1,
+   "operations": [
+    "end_update_p"
+   ],
+   "repeat": 1,
+   "expected": {
+    "V": 1.39887860643153,
+    "q(0)": 1.67264975797776,
+    "p(0)": -1.76974909473577,
+    "g(0)": 1.67264975797776
+   },
+   "tolerance": 5e-14,
+   "numpy_port_ok": true
+  },
+  {
+   "test": "evolve_1",
+   "model": "V(q) = q^2/2 (1-D standard normal), g = dV/dq = q",
+   "initial": {
+    "V": 1.99974742955684,
+    "q(0)": 1.99987371079118,
+    "p(0)": -1.58612292129732,
+    "g(0)": 1.99987371079118
+   },
+   "epsilon": 0.1,
+   "operations": [
+    "evolve"
+   ],
+   "repeat": 1,
+   "expected": {
+    "V": 1.67676034808195,
+    "q(0)": 1.83126205010749,
+    "p(0)": -1.77767970934226,
+    "g(0)": 1.83126205010749
+   },
+   "tolerance": 5e-14,
+   "numpy_port_ok": true
+  },
+  {
+   "test": "evolve_2",
+   "model": "V(q) = q^2/2 (1-D standard normal), g = dV/dq = q",
+   "initial": {
+    "V": 1.99974742955684,
+    "q(0)": 1.99987371079118,
+    "p(0)": 0.531143888645192,
+    "g(0)": 1.99987371079118
+   },
+   "epsilon": 0.2,
+   "operations": [
+    "evolve"
+   ],
+   "repeat": 1,
+   "expected": {
+    "V": 2.13439496506688,
+    "q(0)": 2.06610501430439,
+    "p(0)": 0.124546016135635,
+    "g(0)": 2.06610501430439
+   },
+   "tolerance": 5e-14,
+   "numpy_port_ok": true
+  },
+  {
+   "test": "evolve_3",
+   "model": "V(q) = q^2/2 (1-D standard normal), g = dV/dq = q",
+   "initial": {
+    "V": 1.99974742955684,
+    "q(0)": 1.99987371079118,
+    "p(0)": 0.531143888645192,
+    "g(0)": 1.99987371079118
+   },
+   "epsilon": 0.2,
+   "operations": [
+    "evolve"
+   ],
+   "repeat": 1,
+   "expected": {
+    "V": 2.13439496506688,
+    "q(0)": 2.06610501430439,
+    "p(0)": 0.124546016135635,
+    "g(0)": 2.06610501430439
+   },
+   "tolerance": 5e-14,
+   "numpy_port_ok": true
+  },
+  {
+   "test": "evolve_4",
+   "model": "V(q) = q^2/2 (1-D standard normal), g = dV/dq = q",
+   "initial": {
+    "V": 1.99974742955684,
+    "q(0)": 1.99987371079118,
+    "p(0)": -1.01150787313287,
+    "g(0)": 1.99987371079118
+   },
+   "epsilon": 0.4,
+   "operations": [
+    "evolve"
+   ],
+   "repeat": 1,
+   "expected": {
+    "V": 1.03001529319458,
+    "q(0)": 1.43528066467474,
+    "p(0)": -1.69853874822605,
+    "g(0)": 1.43528066467474
+   },
+   "tolerance": 5e-14,
+   "numpy_port_ok": true
+  },
+  {
+   "test": "evolve_5",
+   "model": "V(q) = q^2/2 (1-D standard normal), g = dV/dq = q",
+   "initial": {
+    "V": 1.99974742955684,
+    "q(0)": 1.99987371079118,
+    "p(0)": -0.141638464197442,
+    "g(0)": 1.99987371079118
+   },
+   "epsilon": 0.8,
+   "operations": [
+    "evolve"
+   ],
+   "repeat": 1,
+   "expected": {
+    "V": 0.777009958583946,
+    "q(0)": 1.24660335198005,
+    "p(0)": -1.44022928930593,
+    "g(0)": 1.24660335198005
+   },
+   "tolerance": 5e-14,
+   "numpy_port_ok": true
+  },
+  {
+   "test": "evolve_6",
+   "model": "V(q) = q^2/2 (1-D standard normal), g = dV/dq = q",
+   "initial": {
+    "V": 1.99974742955684,
+    "q(0)": 1.99987371079118,
+    "p(0)": 0.0942249427134016,
+    "g(0)": 1.99987371079118
+   },
+   "epsilon": 1.6,
+   "operations": [
+    "evolve"
+   ],
+   "repeat": 1,
+   "expected": {
+    "V": 0.0837242558054816,
+    "q(0)": -0.409204730680088,
+    "p(0)": -1.17831024137547,
+    "g(0)": -0.409204730680088
+   },
+   "tolerance": 5e-14,
+   "numpy_port_ok": true
+  },
+  {
+   "test": "evolve_7",
+   "model": "V(q) = q^2/2 (1-D standard normal), g = dV/dq = q",
+   "initial": {
+    "V": 1.99974742955684,
+    "q(0)": 1.99987371079118,
+    "p(0)": 1.01936184962275,
+    "g(0)": 1.99987371079118
+   },
+   "epsilon": 3.2,
+   "operations": [
+    "evolve"
+   ],
+   "repeat": 1,
+   "expected": {
+    "V": 12.3878614837537,
+    "q(0)": -4.97752176966686,
+    "p(0)": 5.78359874382383,
+    "g(0)": -4.97752176966686
+   },
+   "tolerance": 5e-13,
+   "numpy_port_ok": true
+  },
+  {
+   "test": "evolve_8",
+   "model": "V(q) = q^2/2 (1-D standard normal), g = dV/dq = q",
+   "initial": {
+    "V": 1.99974742955684,
+    "q(0)": 1.99987371079118,
+    "p(0)": -2.73131279771964,
+    "g(0)": 1.99987371079118
+   },
+   "epsilon": -1.0,
+   "operations": [
+    "evolve"
+   ],
+   "repeat": 1,
+   "expected": {
+    "V": 6.96111198693627,
+    "q(0)": 3.73124965311523,
+    "p(0)": 0.134248884233563,
+    "g(0)": 3.73124965311523
+   },
+   "tolerance": 5e-14,
+   "numpy_port_ok": true
+  }
+ ],
+ "nuts_build_tree_unit_e": {
+  "source": "src/test/unit/mcmc/hmc/nuts/unit_e_nuts_test.cpp, TEST(McmcUnitENuts, build_tree_test)",
+  "model": "gauss3D: x ~ normal(0, 1), 3 dimensions; V = x.x/2",
+  "setup": {
+   "q": [
+    1,
+    -1,
+    1
+   ],
+   "p": [
+    -1,
+    1,
+    -1
+   ],
+   "stepsize": 0.1,
+   "stepsize_jitter": 0,
+   "depth": 3,
+   "H0": -0.1,
+   "sign": 1,
+   "rho_init": "equal to p",
+   "log_sum_weight_init": "-inf",
+   "sum_metro_prob_init": 0
+  },
+  "expected": {
+   "valid_subtree": true,
+   "rho": [
+    -11.401228,
+    11.401228,
+    -11.401228
+   ],
+   "p_begin": [
+    -1.09475,
+    1.09475,
+    -1.09475
+   ],
+   "p_sharp_begin": [
+    -1.09475,
+    1.09475,
+    -1.09475
+   ],
+   "p_end": [
+    -1.4131583,
+    1.4131583,
+    -1.4131583
+   ],
+   "p_sharp_end": [
+    -1.4131583,
+    1.4131583,
+    -1.4131583
+   ],
+   "final_q": [
+    -0.022019938,
+    0.022019938,
+    -0.022019938
+   ],
+   "final_p": [
+    -1.4131583,
+    1.4131583,
+    -1.4131583
+   ],
+   "n_leapfrog": 8,
+   "log_sum_weight": -1.017917753480293,
+   "sum_metro_prob": 0.36134657
+  },
+  "tolerance": "EXPECT_FLOAT_EQ (about 4 ulp in float); use 1e-6 relative",
+  "numpy_port": {
+   "valid_subtree": true,
+   "rho": [
+    -11.401228011088186,
+    11.401228011088186,
+    -11.401228011088186
+   ],
+   "p_begin": [
+    -1.0947500000000001,
+    1.0947500000000001,
+    -1.0947500000000001
+   ],
+   "p_sharp_begin": [
+    -1.0947500000000001,
+    1.0947500000000001,
+    -1.0947500000000001
+   ],
+   "p_end": [
+    -1.4131582836252652,
+    1.4131582836252652,
+    -1.4131582836252652
+   ],
+   "p_sharp_end": [
+    -1.4131582836252652,
+    1.4131582836252652,
+    -1.4131582836252652
+   ],
+   "final_q": [
+    -0.022019936769478887,
+    0.022019936769478887,
+    -0.022019936769478887
+   ],
+   "final_p": [
+    -1.4131582836252652,
+    1.4131582836252652,
+    -1.4131582836252652
+   ],
+   "n_leapfrog": 8,
+   "log_sum_weight": -1.0179177340187409,
+   "sum_metro_prob": 0.3613465770323653
+  },
+  "numpy_port_ok": {
+   "valid_subtree": true,
+   "rho": true,
+   "p_begin": true,
+   "p_sharp_begin": true,
+   "p_end": true,
+   "p_sharp_end": true,
+   "final_q": true,
+   "final_p": true,
+   "n_leapfrog": true,
+   "log_sum_weight": true,
+   "sum_metro_prob": true
+  }
+ },
+ "nuts_criterion": [
+  {
+   "p_sharp_start": [
+    1
+   ],
+   "p_sharp_end": [
+    1
+   ],
+   "rho": [
+    2
+   ],
+   "expected": true
+  },
+  {
+   "p_sharp_start": [
+    1
+   ],
+   "p_sharp_end": [
+    -1
+   ],
+   "rho": [
+    0
+   ],
+   "expected": false
+  }
+ ],
+ "adaptation": {
+  "dual_averaging_stan_test": {
+   "mu": 0.0,
+   "delta": 0.65,
+   "accept_stats": [
+    0.65
+   ],
+   "expected_stepsize": 1.0,
+   "source": "stepsize_adaptation_test.cpp learn_stepsize"
+  },
+  "dual_averaging_port_trajectory": {
+   "note": "computed by the NumPy port of stepsize_adaptation.hpp (not by Stan itself); mu = log(10 * 0.5) as Stan sets mu = log(10 * epsilon) at each restart; accept statistics above 1 are capped",
+   "mu": 1.6094379124341003,
+   "delta": 0.8,
+   "gamma": 0.05,
+   "kappa": 0.75,
+   "t0": 10,
+   "accept_stats": [
+    0.95,
+    0.3,
+    0.99,
+    0.7,
+    0.85,
+    1.2,
+    0.1,
+    0.82,
+    0.79,
+    0.81
+   ],
+   "stepsizes": [
+    6.567709786269744,
+    2.191267187786462,
+    3.264435796967484,
+    2.378763392278251,
+    2.6733674065842186,
+    4.849226902267655,
+    0.5485139347162237,
+    0.5717674745905875,
+    0.5482146326170614,
+    0.5640943957812794
+   ],
+   "final_stepsize_exp_xbar": 1.1411619037506946
+  },
+  "variance_regularization_stan_test": {
+   "source": "var_adaptation_test.cpp learn_variance",
+   "setup": "dimension 10, set_window_params(num_warmup=50, init_buffer=0, term_buffer=0, base_window=10), 10 draws all equal to 0",
+   "expected_each_component": 0.0003333333333333333,
+   "rule": "var = n/(n+5) * sample_var + 1e-3 * 5/(n+5)"
+  },
+  "windows": {
+   "note": "0-based warmup iterations at which the metric is re-estimated; port of windowed_adaptation.hpp; n=100 case and the 1000 schedule are asserted by Stan",
+   "cases": {
+    "19": {
+     "adapt": false,
+     "ends": []
+    },
+    "20": {
+     "adapt": true,
+     "init_buffer": 3,
+     "term_buffer": 2,
+     "base_window": 15,
+     "ends": [
+      17
+     ]
+    },
+    "100": {
+     "adapt": true,
+     "init_buffer": 15,
+     "term_buffer": 10,
+     "base_window": 75,
+     "ends": [
+      89
+     ]
+    },
+    "150": {
+     "adapt": true,
+     "init_buffer": 75,
+     "term_buffer": 50,
+     "base_window": 25,
+     "ends": [
+      99
+     ]
+    },
+    "200": {
+     "adapt": true,
+     "init_buffer": 75,
+     "term_buffer": 50,
+     "base_window": 25,
+     "ends": [
+      99,
+      149
+     ]
+    },
+    "300": {
+     "adapt": true,
+     "init_buffer": 75,
+     "term_buffer": 50,
+     "base_window": 25,
+     "ends": [
+      99,
+      149,
+      249
+     ]
+    },
+    "500": {
+     "adapt": true,
+     "init_buffer": 75,
+     "term_buffer": 50,
+     "base_window": 25,
+     "ends": [
+      99,
+      149,
+      249,
+      449
+     ]
+    },
+    "1000": {
+     "adapt": true,
+     "init_buffer": 75,
+     "term_buffer": 50,
+     "base_window": 25,
+     "ends": [
+      99,
+      149,
+      249,
+      449,
+      949
+     ]
+    },
+    "2000": {
+     "adapt": true,
+     "init_buffer": 75,
+     "term_buffer": 50,
+     "base_window": 25,
+     "ends": [
+      99,
+      149,
+      249,
+      449,
+      849,
+      1949
+     ]
+    }
+   }
+  }
+ }
+}
