@@ -67,7 +67,9 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@25/libexec/openjdk.jdk/Contents/Home
 ```
 
 This deliberately is **not** written into a `.sbtopts`: that path exists on one machine and would
-break the Linux runners.
+break the Linux runners. On the development machine the export sits in `~/.zshenv`, which zsh
+reads for every shell, so sbt finds the right JDK from a script or a hook and not only from an
+interactive terminal.
 
 ### D-4. `testkit` depends on no bayes4s module
 
