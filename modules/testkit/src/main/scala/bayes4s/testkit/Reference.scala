@@ -81,6 +81,10 @@ object Reference:
       case other => Left(s"'$other' is neither a number nor an IEEE special value")
     })
 
+  /** A vector of doubles, each read with [[looseDouble]]. */
+  val doubleArray: Decoder[IArray[Double]] =
+    Decoder.decodeList(looseDouble).map(xs => IArray.unsafeFromArray(xs.toArray))
+
   /** Named columns of a CmdStan CSV: `#` comment lines are skipped and the first remaining line
     * carries the names.
     */

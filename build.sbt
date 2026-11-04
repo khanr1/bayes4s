@@ -61,6 +61,12 @@ ThisBuild / githubWorkflowBuildPreamble ++= Seq(
     ),
     name = Some("Refuse private terms in the commit messages"),
     cond = Some("github.event_name == 'pull_request'")
+  ),
+  // The annotated sites of encapsulated local mutation must match the register they are argued
+  // for in (docs/design.md, D-13).
+  WorkflowStep.Run(
+    commands = List("python3 scripts/check-mutation-register.py"),
+    name = Some("Check the register of local mutation")
   )
 )
 

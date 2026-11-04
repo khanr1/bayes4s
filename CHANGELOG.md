@@ -8,6 +8,37 @@ Versions follow git tags. Nothing is released yet.
 
 ## Unreleased
 
+### Phase 1 — the core and the laws as values (4 November 2026)
+
+Added
+
+- `core`: `Seed` (SplitMix64, checked bit for bit against `java.util.SplittableRandom`), `Rng[F]`
+  with its `State` interpreter, `Sampling` (gamma by Marsaglia and Tsang, Poisson by inversion and
+  Hormann's PTRS, beta, Dirichlet, categorical, alias), `Batch` and `AliasTable`, `BayesError`,
+  `Special` (lgamma, digamma, lbeta, the normal quantile by AS241), `LogExp`, type-7 `Quantile`,
+  a radix-2 `Fft`, and `Optimize` (Brent's minimum and Brent-Dekker root).
+- `distributions`: fourteen laws as values behind `ContinuousLaw` and `DiscreteLaw` — Normal,
+  HalfNormal, LogNormal, Gamma, Beta, Logistic, Poisson, PoissonLog, NegBinomial2, NegBinomial,
+  Binomial, Categorical, OrderedLogistic, Dirichlet — each built by a smart constructor that
+  returns `Either`, plus the Gamma-Poisson conjugate update and its negative binomial predictive.
+- 115 fast tests and 6 slow ones, against mpmath at 50 digits, the Stan Math test suite, the JDK's
+  own SplitMix64, Apache Commons cumulative functions, exact integer arithmetic and analytic
+  results. `StanMathCoverageSuite` asserts what of the fixture is covered and what is deferred, so
+  the record in `docs/validation.md` cannot quietly stop being true.
+- `scripts/check-mutation-register.py` and a CI step for it: the sites of encapsulated local
+  mutation annotated in the code must match the register they are argued for in `docs/design.md`.
+- Manual: chapter 1 on the concepts, appendix B on the error contract, appendix C on the classic
+  worked examples, every example compiled and run by mdoc.
+
+Found
+
+- Apache Commons Numbers' `Digamma` is 2e-10 relative away from the truth near x = 1, which misses
+  the 1e-13 the reference demands; `digamma` is implemented here instead (`docs/design.md`, D-17).
+- Stan Math's asserted value for `neg_binomial_lpmf(10 | 1e6, 1e5)` is wrong by 1.3e-12 relative,
+  and SciPy's by 2.0e-10, while this library is within 1.3e-15 of the exactly computable answer.
+  The suite asserts the exact value for that case (D-20).
+
+
 ### Phase 0 — skeleton (3 November 2026)
 
 Added

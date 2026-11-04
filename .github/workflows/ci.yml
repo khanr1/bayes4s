@@ -62,6 +62,9 @@ jobs:
         if: github.event_name == 'pull_request'
         run: python3 scripts/check-private-terms.py --commits ${{ github.event.pull_request.base.sha }}..${{ github.sha }}
 
+      - name: Check the register of local mutation
+        run: python3 scripts/check-mutation-register.py
+
       - name: Check that workflows are up to date
         run: sbt githubWorkflowCheck
 

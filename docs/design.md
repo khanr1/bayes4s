@@ -181,20 +181,24 @@ the design depends on, and it is syntactic, so it works on Scala 3 with no Seman
 SemanticDB being produced the way it expects, and there is almost no import in the tree to
 organise. It is to be enabled in phase 1, when there is real code to check it against.
 
-### D-13. The register of encapsulated local mutation is empty
+### D-13. The register of encapsulated local mutation
 
-The one allowed exception to referential transparency is mutation that is created inside a pure
-function and never escapes it. Every such site must carry
-`// scalafix:ok DisableSyntax.var` (or `.while`) with a sentence of justification, **and** be
-listed here.
+The one allowed exception to referential transparency is mutation created inside a pure function
+that never escapes it. Every such site carries `// scalafix:ok DisableSyntax.var` (or `.while`)
+with a sentence of justification, **and** a row below. `scripts/check-mutation-register.py`, run in
+CI, fails if the two disagree: an annotation silences the lint, and only the register makes someone
+argue the case in prose.
 
-**There is no such site yet.** The first ones are expected in phase 2 (the reverse-mode tape) and
-phase 4 (leapfrog, `build_tree`). The small CI script that compares the annotated sites in the
-code with this list is owed at the same time as the first site, and does not exist yet.
+<!-- mutation-register:begin -->
 
-| Site | Why mutation | Why it cannot escape |
-|---|---|---|
-| *(none)* | | |
+| File | Rule | Sites | Why mutation, and why it cannot escape |
+|---|---|---|---|
+| `modules/core/src/main/scala/bayes4s/Fft.scala` | `var` | 3 | The stage, block and butterfly indices of an in-place radix-2 transform. An immutable butterfly allocates a pair of arrays per stage and per block: for the thousand-draw autocovariance of the diagnostics that is tens of thousands of allocations where two suffice. The arrays are created in `run`, written there, wrapped as `IArray` on the way out, and no two calls share anything. |
+| `modules/core/src/main/scala/bayes4s/Fft.scala` | `while` | 3 | The three nested loops of the same transform. A tail recursion over three indices would say the same thing less clearly and no faster. |
+| `modules/core/src/main/scala/bayes4s/Batch.scala` | `var` | 6 | The threaded seed and the fill index of each batch sampler. A simulation of a hundred thousand futures would otherwise allocate a `State` step per draw. `BatchSuite` asserts that each batch equals the `State` program of the same seed, element by element, so the fast path cannot drift into being a different sampler. |
+| `modules/core/src/main/scala/bayes4s/Batch.scala` | `while` | 3 | The fill loop of each batch sampler, over an array created and returned by the same function. |
+
+<!-- mutation-register:end -->
 
 ### D-14. Formatting: 100 columns, no alignment, scaladoc in the Scala style
 
@@ -224,3 +228,124 @@ needs `contents: write`, which a repository's default `GITHUB_TOKEN` does not ha
 fail on every push to the default branch. It is worth turning back on, with the permission
 granted, once Dependabot is configured and the repository is one whose dependency graph anyone
 reads.
+
+---
+
+## Phase 1 — the core and the laws as values
+
+### D-16. One flat `bayes4s` package
+
+Every public type lives in `bayes4s`, whichever module defines it, so that `import bayes4s.*`
+gives a reader `Seed`, `Normal`, `Mcmc` and `Summary` at once. The modules are a unit of
+dependency and of publication, not a namespace: a reader should not have to know that `Seed` is in
+`core` and `Normal` in `distributions` to write a model. Package-private machinery uses
+`private[bayes4s]`.
+
+### D-17. `digamma` is ours, `lgamma` is Commons Numbers'
+
+`LogGamma` from Apache Commons Numbers holds 1e-13 relative against mpmath across the whole
+reference grid, negatives included, so it is used as it is, with the reflection formula added for
+the negative half line.
+
+`Digamma` does not: at x = 1.001 it is 2e-10 relative away from the truth, and the reflection
+formula then carries that error into every negative argument. It is replaced by the recurrence
+`psi(x) = psi(x + 1) - 1/x` up to x = 20 and the Bernoulli series above, whose first unused term
+there is below 1e-20. This is the only place in phase 1 where a dependency was found wanting; the
+test that found it is the 72-point grid, which is why it was written first.
+
+### D-18. The sine of a reflection is folded around the nearest integer
+
+Both reflection formulae need `sin(pi x)`. Folding `x` into one period and then using a quarter
+period identity gives `cos(pi (0.5 - r))` with an argument near pi/2, and the *absolute* error of
+that argument becomes the *relative* error of a small result: at x = -0.001 it costs three digits
+and `digamma` misses its target. Folding around the nearest integer instead keeps the argument of
+the sine small, where its relative accuracy is what it should be.
+
+### D-19. Cancellation is designed out of the count laws
+
+Three identities do the work, and each exists because the textbook form loses the answer:
+
+- `lbeta(a, b)` subtracts Stirling's approximation from each log gamma first. The plain
+  `lgamma(a) + lgamma(b) - lgamma(a + b)` at a = 300 adds three terms near 1400 to get -0.14:
+  eleven digits cancel and the 1e-13 target is unreachable.
+- `C(k + a - 1, k)` is computed as `-log(k + a) - lbeta(k + 1, a)`, which keeps every term the size
+  of the answer where the three cancelling log gammas would not. At a dispersion of 1e8 — the case
+  the specification calls out — the naive form has nothing left.
+- A ratio of parameters becomes a `log1p` of the *other* ratio: `alpha * (log beta - log1p(beta))`
+  is written `-alpha * log1p(1 / beta)`. The first form cancels six digits and then multiplies the
+  remainder by alpha, which at alpha = 1e6 is how a 1e-16 rounding becomes a 1e-10 answer.
+
+### D-20. Where the reference is wrong: `neg_binomial_lpmf(10 | 1e6, 1e5)`
+
+Stan is the reference for this library except where its numerics are demonstrably wrong, and this
+is such a place. For that case the coefficient C(1000009, 10) is an integer, so the log mass is
+computable exactly: with exact integer arithmetic and 40-digit decimal logarithms it is
+`-2.07856664311089194671129470824235`.
+
+| Source | Value | Relative error |
+|---|---|---|
+| exact | -2.078566643110891946... | — |
+| **this library** | -2.0785666431108893 | **1.3e-15** |
+| Stan Math asserts | -2.078566643108163 | 1.3e-12 |
+| SciPy | -2.078566642705411 | 2.0e-10 |
+
+The fixture recorded the two references as agreeing, because their errors have the same sign and
+its threshold was looser than both. Both compute the cancelling log gammas that D-19 exists to
+avoid. `StanMathDensitySuite` therefore asserts the exact value for this one case, at 1e-14, and
+names the reason in place.
+
+### D-21. Three test expectations that double arithmetic cannot witness
+
+Each of these was written as an assertion, failed, and was found to be asking the impossible
+rather than catching a defect. None of them was a tolerance widened to make a test pass; each is a
+grid or a direction changed because the arithmetic cannot hold the claim, with the reason in the
+test.
+
+- **The antisymmetry of the normal quantile** can only be checked where `1 - p` recovers `p`. At
+  p = 1e-12 the subtraction keeps eight digits, so comparing the two tails measures the
+  representation of `1 - p` and nothing about the quantile.
+- **`logit(logistic(x))`** cannot return `x` to 1e-10 beyond about 14: `logistic(30)` is
+  `1 - 9.4e-14`, and a double near 1 holds that deviation to three digits. The demanding assertion
+  is made on `logistic(logit(p))`, which keeps every digit even at p = 1e-300, and the saturation
+  point is asserted for what it is: `logistic(300)` is exactly 1 and the round trip is `+Inf`.
+- **The argument of a smooth minimum** is not worth 1e-10. The objective changes by less than a
+  double's resolution once the argument is within sqrt(eps), so `brentMinimize` is held to 1e-7 on
+  the argument and 1e-12 on the value. Roots are well conditioned and keep 1e-12 on the argument.
+
+### D-22. The standard error of a sample variance comes from the sample
+
+A variance test first used `sigma^2 sqrt(2 / n)` with a factor of three for safety, and that
+underestimates the real standard error by 2.6 for a gamma of shape 0.05 and by 4.7 for a Poisson of
+mean 0.0025 — both of which then failed. The suites now use `sqrt((m4 - s^4) / n)` from the
+sample's own fourth moment, which assumes nothing about the law and is the right budget for every
+one of them.
+
+### D-23. A law is a value behind a trait, and three laws stand apart
+
+`ContinuousLaw` and `DiscreteLaw` give `logPdf` or `logMass`, `mean`, `variance` and `sample`, so
+that a suite can hold every law to its own moments in one loop instead of thirteen copies. The
+specification sketched extension methods per law; a trait says the same thing once.
+
+`Categorical`, `OrderedLogistic` and `Dirichlet` implement neither: the mean of a category index is
+not a quantity anybody wants, and a Dirichlet draw is a vector. They carry their own shape and are
+tested against their mass summing to one and against a chi-squared on their frequencies.
+
+### D-24. A parameter must be finite, uniformly
+
+Every smart constructor refuses a parameter that is `NaN` or infinite, and then its own
+constraint. Stan's fixture is less uniform than that — it asserts that an infinite scale is
+rejected for the logistic and the gamma but not for the normal — so the 46 rejections it asserts
+are a subset of what this library refuses. A variate outside the support is not a parameter error:
+the density is `-Inf`, which is what lets a sampler reject a proposal instead of crashing on it.
+
+### D-25. `Seed.nextUniform` is the one uniform primitive
+
+The conversion from 64 bits to a double in the open interval (0, 1) lives on `Seed`, so the `State`
+interpreter and the batch path cannot disagree about it. The top 53 bits are placed at the centre
+of their bucket rather than at its floor, which is what keeps the result away from both ends
+without distorting it, and is why no density has to guard against `log(0)`.
+
+`split` and `fold` have no external oracle: `java.util.SplittableRandom` carries a gamma per
+instance while a `Seed` here is a single `Long`, so `next` is checked against the JDK bit for bit
+and the other two are our own derivation, held to determinism, distinctness and the absence of
+correlation. That limit is recorded in `docs/validation.md` rather than papered over.

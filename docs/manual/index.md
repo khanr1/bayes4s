@@ -4,12 +4,19 @@ This manual is written phase by phase, alongside the code it describes: each pha
 chapters that cover what it delivers, and every code block below is compiled by mdoc against the
 current build, so an example that stops compiling fails CI.
 
-Nothing is written yet. Phase 0 delivers only the skeleton: the build, the lint rules, the test
-kit and the reference data. The first chapters arrive with phase 1.
+Phase 1 delivers the core and the laws as values, so the first chapters are here: the concepts the
+whole library rests on, the error contract, and the classic worked examples. The quick start and
+the sampling chapters arrive with the sampler.
+
+| Chapter | State |
+|---|---|
+| [1. Concepts](01-concepts.md) | written, the `Real[A]` part pending phase 2 |
+| [Appendix B. Errors and contracts](appendix-b-errors.md) | written |
+| [Appendix C. Classic worked examples](appendix-c-worked-examples.md) | written |
 
 | Chapter | Arrives with phase |
 |---|---|
-| 1. Concepts | 1 to 3 |
+| 1. Concepts, continued | 2 to 3 |
 | 2. Writing a model | 3 |
 | 0. Quick start | 4, finalised in 11 |
 | 3. Sampling | 4 and 11 |
@@ -21,5 +28,5 @@ kit and the reference data. The first chapters arrive with phase 1.
 | 9. Interoperability | 5 and 11 |
 | 10. Performance and pitfalls | 2 and 12 |
 | Appendix A. Coming from Stan and NumPyro | 6 |
-| Appendix B. Errors and contracts | 1 and 12 |
-| Appendix C. Classic worked examples | 1, 4, 5 |
+| Appendix B, completed | 12 |
+| Appendix C, completed | 4 and 5 |
