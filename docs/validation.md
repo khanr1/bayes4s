@@ -52,14 +52,21 @@ not committed.
 
 ### Known gaps at the end of phase 0
 
-1. **`.private-terms.sha256` is absent**, so the guard passes without checking anything. Only the
-   maintainer can produce it, with `scripts/hash-private-terms.py` and a key that stays out of the
-   repository. Until then the rule rests on human review.
-2. **No CI run has happened.** The repository is local and has no remote; `ci.yml` and
-   `stress.yml` are written and generated but have never executed on a runner.
+1. **`.private-terms.sha256` is absent**, so the guard passes without checking anything, and the
+   `BAYES4S_PRIVATE_TERMS_KEY` secret is unset on the repository. Only the maintainer can produce
+   them, with `scripts/hash-private-terms.py` and a key that stays out of the repository. Until
+   then the rule rests on human review.
+2. **`stress.yml` has never run.** It is registered and scheduled weekly, but there is no slow
+   suite to run until phase 6, so nothing has exercised it yet.
 3. **The register of local mutation sites is empty and its CI cross-check is not written**
    (docs/design.md, D-13). Owed with the first annotated site, in phase 2.
 
-Closed on 4 November 2026: `sbt scalafmtCheckAll` now runs, on JDK 25.0.5. The four sources it
-reformatted carry no semantic change — split lines, and `case` arrows no longer aligned, as
-`align.preset = none` asks.
+### Closed on 4 November 2026
+
+- `sbt scalafmtCheckAll` runs, on JDK 25.0.5. The four sources it reformatted carry no semantic
+  change — split lines, and `case` arrows no longer aligned, as `align.preset = none` asks.
+- **The first CI run went green end to end**, on `ubuntu-latest` with temurin 25, in 4m07s:
+  headers and formatting, scalafix lints, the 9 tests (`Passed: Total 9, Failed 0, Errors 0`),
+  binary compatibility, the API documentation and the manual. The reference data loads from the
+  test classpath on a clean runner, not only from a warm local checkout. The private-term step
+  ran and reported that nothing is configured, which is what it must do while no digest exists.
