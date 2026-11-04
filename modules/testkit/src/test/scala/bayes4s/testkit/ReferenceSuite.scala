@@ -98,7 +98,9 @@ object ReferenceSuite extends SimpleIOSuite with Approx:
       .json("stan/diagnostics/expected.json")
       .left
       .map(_.message)
-      .flatMap(_.hcursor.downField("columns").downField("constant").as[String].left.map(_.getMessage))
+      .flatMap(
+        _.hcursor.downField("columns").downField("constant").as[String].left.map(_.getMessage)
+      )
     check(
       decoded == Right("column 'divergent__' (all zero): every diagnostic must return NaN"),
       s"columns.constant decoded as $decoded"

@@ -56,11 +56,18 @@ however, needs a newer JDK than that: scalafmt 3.11.5 loads a class compiled for
 and fails with `UnsupportedClassVersionError` on anything older. CI therefore runs on
 **temurin 25**, the current LTS.
 
-The machine this skeleton was built on has only Java 20 and Java 22 (Homebrew `openjdk`), so
-`sbt scalafmtCheckAll` **cannot run there yet**: it is the one item of phase 0 that is not
-verified locally. `sbt headerCheckAll`, `sbt "scalafixAll --check"`, `sbt test` and `sbt slow:test`
-all run on Java 22. Installing a JDK 25 (`brew install openjdk@25`) removes the gap; CI is already
-set up for it.
+The development machine runs **JDK 25.0.5** (Homebrew `openjdk@25`), installed on 4 November
+2026 for exactly this reason, and the whole pipeline including `scalafmtCheckAll` runs there.
+
+That formula is keg-only and is not registered with `/usr/libexec/java_home`, so sbt has to be
+told where it is:
+
+```
+export JAVA_HOME=/opt/homebrew/opt/openjdk@25/libexec/openjdk.jdk/Contents/Home
+```
+
+This deliberately is **not** written into a `.sbtopts`: that path exists on one machine and would
+break the Linux runners.
 
 ### D-4. `testkit` depends on no bayes4s module
 
@@ -170,18 +177,6 @@ the design depends on, and it is syntactic, so it works on Scala 3 with no Seman
 SemanticDB being produced the way it expects, and there is almost no import in the tree to
 organise. It is to be enabled in phase 1, when there is real code to check it against.
 
-### D-14. CI runs on `ubuntu-latest`, and the dependency-graph job is off
-
-sbt-typelevel 0.8.7 still pins `ubuntu-22.04`, an image GitHub has deprecated; a workflow that
-names a retired image does not fail a step, it fails to find a runner at all.
-`githubWorkflowOSes := Seq("ubuntu-latest")` is right whether or not that image is still served.
-
-`tlCiDependencyGraphJob := false` removes the "Submit Dependencies" job. It calls an API that
-needs `contents: write`, which a repository's default `GITHUB_TOKEN` does not have, so it would
-fail on every push to the default branch. It is worth turning back on, with the permission
-granted, once Dependabot is configured and the repository is one whose dependency graph anyone
-reads.
-
 ### D-13. The register of encapsulated local mutation is empty
 
 The one allowed exception to referential transparency is mutation that is created inside a pure
@@ -196,3 +191,32 @@ code with this list is owed at the same time as the first site, and does not exi
 | Site | Why mutation | Why it cannot escape |
 |---|---|---|
 | *(none)* | | |
+
+### D-14. Formatting: 100 columns, no alignment, scaladoc in the Scala style
+
+`.scalafmt.conf` sets `maxColumn = 100`, `align.preset = none` and
+`docstrings.style = SpaceAsterisk`. The last one matters more than it looks: scalafmt's default
+rewrites every scaladoc into the javadoc shape, `/**` alone on its line and asterisks at column
+2, whereas cats, fs2 and the rest of the ecosystem write
+
+```scala
+/** First line of the text.
+  *
+  * Continued here.
+  */
+```
+
+which is what `SpaceAsterisk` produces. Settling this at phase 0 avoids reformatting every
+comment in the library later.
+
+### D-15. CI runs on `ubuntu-latest`, and the dependency-graph job is off
+
+sbt-typelevel 0.8.7 still pins `ubuntu-22.04`, an image GitHub has deprecated; a workflow that
+names a retired image does not fail a step, it fails to find a runner at all.
+`githubWorkflowOSes := Seq("ubuntu-latest")` is right whether or not that image is still served.
+
+`tlCiDependencyGraphJob := false` removes the "Submit Dependencies" job. It calls an API that
+needs `contents: write`, which a repository's default `GITHUB_TOKEN` does not have, so it would
+fail on every push to the default branch. It is worth turning back on, with the permission
+granted, once Dependabot is configured and the repository is one whose dependency graph anyone
+reads.

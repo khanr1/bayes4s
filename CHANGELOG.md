@@ -40,5 +40,7 @@ Added
 Notes
 
 - Publishing is deliberately off: no release branch, no release tag, no publish job.
-- `sbt scalafmtCheckAll` was not run: scalafmt 3.11.5 needs a JDK 23 or newer and the machine had
-  Java 22 (`docs/design.md`, D-3). CI runs on temurin 25.
+- The build needs a JDK 23 or newer, because scalafmt 3.11.5 does; the artefacts target Java 17.
+  CI runs on temurin 25 and `ubuntu-latest`.
+- Formatting settled at phase 0 so it never has to be redone: 100 columns, no alignment, and
+  scaladoc in the Scala style rather than scalafmt's javadoc default (`docs/design.md`, D-14).

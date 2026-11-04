@@ -30,7 +30,7 @@ ThisBuild / githubWorkflowOSes := Seq("ubuntu-latest")
 
 // The dependency-submission job calls an API that needs `contents: write`, which a repository's
 // GITHUB_TOKEN does not have by default: it would fail on every push to the default branch. It
-// buys nothing until Dependabot is configured, so it is off (docs/design.md, D-14).
+// buys nothing until Dependabot is configured, so it is off (docs/design.md, D-15).
 ThisBuild / tlCiDependencyGraphJob := false
 
 // Publishing is off (docs/design.md, D-1): no release branch and no release tag, so ci.yml

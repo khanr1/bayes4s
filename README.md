@@ -19,7 +19,11 @@ place; there is no numerics yet. Nothing is published, and the library is built 
 ## Building
 
 Requires **sbt** and a **JDK 23 or newer** (scalafmt needs it; see `docs/design.md`, D-3). The
-artefacts themselves target Java 17.
+artefacts themselves target Java 17. Homebrew's `openjdk@25` is keg-only, so point sbt at it:
+
+```
+export JAVA_HOME=/opt/homebrew/opt/openjdk@25/libexec/openjdk.jdk/Contents/Home
+```
 
 ```
 sbt test                         # fast suites

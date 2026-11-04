@@ -13,7 +13,9 @@ conforming to Stan, diagnostics, predictive simulation, forecast scoring, nowcas
 - Stress mode (fresh seeds, more draws): `sbt -Dbayes4s.stress=true slow:test`
 - Docs: `sbt docs/mdoc` (every code block must compile)
 - Private-term check: `python3 scripts/check-private-terms.py`
-- The build needs a JDK 23 or newer (scalafmt does); the artefacts target Java 17
+- The build needs a JDK 23 or newer (scalafmt does); the artefacts target Java 17. Homebrew's
+  `openjdk@25` is keg-only, so sbt needs
+  `export JAVA_HOME=/opt/homebrew/opt/openjdk@25/libexec/openjdk.jdk/Contents/Home`
 
 ## How we work
 

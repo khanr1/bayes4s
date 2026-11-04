@@ -51,11 +51,11 @@ object Reference:
     case NotANumber(path: String, where: String, raw: String)
 
     def message: String = this match
-      case NotFound(p)          => s"reference file not on the classpath: $root$p"
-      case Unreadable(p, d)     => s"cannot read $root$p: $d"
-      case Malformed(p, d)      => s"$root$p is malformed: $d"
-      case MissingColumn(p, n)  => s"$root$p has no column named '$n'"
-      case NotANumber(p, w, r)  => s"$root$p, $w: '$r' is not a number"
+      case NotFound(p) => s"reference file not on the classpath: $root$p"
+      case Unreadable(p, d) => s"cannot read $root$p: $d"
+      case Malformed(p, d) => s"$root$p is malformed: $d"
+      case MissingColumn(p, n) => s"$root$p has no column named '$n'"
+      case NotANumber(p, w, r) => s"$root$p, $w: '$r' is not a number"
 
   /** Raw contents of a reference file. */
   def text(path: String): Either[Error, String] =
@@ -75,10 +75,10 @@ object Reference:
     */
   val looseDouble: Decoder[Double] =
     Decoder.decodeDouble.or(Decoder.decodeString.emap {
-      case "NaN"       => Right(Double.NaN)
-      case "Infinity"  => Right(Double.PositiveInfinity)
+      case "NaN" => Right(Double.NaN)
+      case "Infinity" => Right(Double.PositiveInfinity)
       case "-Infinity" => Right(Double.NegativeInfinity)
-      case other       => Left(s"'$other' is neither a number nor an IEEE special value")
+      case other => Left(s"'$other' is neither a number nor an IEEE special value")
     })
 
   /** Named columns of a CmdStan CSV: `#` comment lines are skipped and the first remaining line
@@ -87,9 +87,11 @@ object Reference:
   def csvColumns(path: String, columns: List[String]): Either[Error, Map[String, IArray[Double]]] =
     text(path).flatMap: raw =>
       val rows = dataRows(raw)
-      rows.headOption.toRight(Error.Malformed(path, "no row outside the '#' comments")).flatMap: header =>
-        val index = header.split(",", -1).toVector.map(unquote).zipWithIndex.toMap
-        columns.traverse(column => column1(path, rows.tail, index, column)).map(_.toMap)
+      rows.headOption
+        .toRight(Error.Malformed(path, "no row outside the '#' comments"))
+        .flatMap: header =>
+          val index = header.split(",", -1).toVector.map(unquote).zipWithIndex.toMap
+          columns.traverse(column => column1(path, rows.tail, index, column)).map(_.toMap)
 
   /** Values of a single-column CSV with no header line, such as `ar1.csv`. */
   def csvValues(path: String): Either[Error, IArray[Double]] =
@@ -210,7 +212,9 @@ object Reference:
       .map(unsafeToIArray)
 
   private def parseDouble(path: String, where: String, raw: String): Either[Error, Double] =
-    Try(java.lang.Double.parseDouble(raw.trim)).toEither.leftMap(_ => Error.NotANumber(path, where, raw))
+    Try(java.lang.Double.parseDouble(raw.trim)).toEither.leftMap(_ =>
+      Error.NotANumber(path, where, raw)
+    )
 
   private def unquote(s: String): String =
     val t = s.trim

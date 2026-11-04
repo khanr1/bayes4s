@@ -27,6 +27,7 @@ and that the private-term guard really fires.
 | `ar1.csv` is 1000 values, first value exact | the committed series | exact (tolerance 0) |
 | A missing file and a missing column are `Left`, not exceptions | — | green |
 | `sbt "scalafixAll --check"` | — | green on the tree |
+| `sbt scalafmtCheckAll` and `sbt scalafmtSbtCheck` | scalafmt 3.11.5, `.scalafmt.conf` | green after one reformatting pass (JDK 25, see D-3) |
 | `sbt slow:test` | — | green (no slow suite yet) |
 | `sbt headerCreateAll` / Apache headers | sbt-typelevel from `licenses` and `startYear` | every source carries the ALv2 header |
 | `scripts/check-private-terms.py` with no digest file | — | passes, says nothing is configured |
@@ -51,14 +52,14 @@ not committed.
 
 ### Known gaps at the end of phase 0
 
-1. **`sbt scalafmtCheckAll` has not been run.** scalafmt 3.11.5 needs a JDK >= 23 and this machine
-   has Java 22 at most (docs/design.md, D-3). CI runs on temurin 25, where it will run. Formatting
-   is therefore unverified locally: the sources are hand-formatted to the 100-column rule of
-   `.scalafmt.conf`, which is not the same thing as scalafmt agreeing.
-2. **`.private-terms.sha256` is absent**, so the guard passes without checking anything. Only the
+1. **`.private-terms.sha256` is absent**, so the guard passes without checking anything. Only the
    maintainer can produce it, with `scripts/hash-private-terms.py` and a key that stays out of the
    repository. Until then the rule rests on human review.
-3. **No CI run has happened.** The repository is local and private; `ci.yml` and `stress.yml` are
-   written and generated but have never executed on a runner.
-4. **The register of local mutation sites is empty and its CI cross-check is not written**
+2. **No CI run has happened.** The repository is local and has no remote; `ci.yml` and
+   `stress.yml` are written and generated but have never executed on a runner.
+3. **The register of local mutation sites is empty and its CI cross-check is not written**
    (docs/design.md, D-13). Owed with the first annotated site, in phase 2.
+
+Closed on 4 November 2026: `sbt scalafmtCheckAll` now runs, on JDK 25.0.5. The four sources it
+reformatted carry no semantic change — split lines, and `case` arrows no longer aligned, as
+`align.preset = none` asks.
