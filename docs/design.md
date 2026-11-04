@@ -22,14 +22,16 @@ of the repository and is never cited from it.
 - **No BridgeStan module, and no native dependency at all in v1.** If the sampler ever falls
   behind, the fallback is `stan-io`: read CmdStan draws and run the predictive simulation, the
   scores and the backtest on them.
-- **Publishing is off.** The repository stays private for now, so `tlCiReleaseBranches` and
-  `tlCiReleaseTags` are empty and `githubWorkflowPublishTargetBranches` is empty: `ci.yml` carries
-  no publish job, no Sonatype credentials and no PGP step. There is deliberately no `release.yml`.
+- **Publishing is off.** The repository stays private for now, and
+  `githubWorkflowPublishTargetBranches := Seq()` is what removes the job: `ci.yml` carries no
+  publish job, no Sonatype credentials and no PGP step. sbt-typelevel's `tlCiReleaseBranches` and
+  `tlCiReleaseTags` feed into that key, so setting them as well would be dead configuration — sbt
+  says as much, through `lintUnused`. There is deliberately no `release.yml` either.
 
-  Turning publishing on later means: confirm the decision, set `tlCiReleaseBranches := Seq("main")`
-  and `tlCiReleaseTags := true`, pick a group id that matches a verified Sonatype namespace (the
-  current `io.github.bayes4s` is a placeholder and has **not** been claimed), fill in `developers`,
-  then run `sbt githubWorkflowGenerate` and commit the result.
+  Turning publishing on later means: confirm the decision, drop that line, set
+  `tlCiReleaseBranches := Seq("main")`, pick a group id that matches a verified Sonatype namespace
+  (the current `io.github.bayes4s` is a placeholder and has **not** been claimed), fill in
+  `developers`, then run `sbt githubWorkflowGenerate` and commit the result.
 
 ### D-2. Dependency versions, checked on 3 November 2026
 

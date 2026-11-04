@@ -35,8 +35,10 @@ ThisBuild / tlCiDependencyGraphJob := false
 
 // Publishing is off (docs/design.md, D-1): no release branch and no release tag, so ci.yml
 // carries no publish job at all. Turning it on is three settings and one regeneration.
-ThisBuild / tlCiReleaseBranches := Seq()
-ThisBuild / tlCiReleaseTags := false
+// An empty set of publish target branches is what actually removes the job; sbt-typelevel's
+// tlCiReleaseBranches and tlCiReleaseTags feed into it, so setting them too would be dead
+// configuration. To publish: set `tlCiReleaseBranches := Seq("main")`, drop this line, and
+// regenerate the workflows.
 ThisBuild / githubWorkflowPublishTargetBranches := Seq()
 ThisBuild / tlCiHeaderCheck := true
 ThisBuild / tlCiScalafmtCheck := true
