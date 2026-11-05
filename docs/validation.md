@@ -306,3 +306,190 @@ repeats the error.
 4. **The glossary is a starting point**, as the plan says. It will grow as the manual does, and the
    check is only worth the rows the table lists.
 
+
+## Phase 2 — automatic differentiation
+
+190 tests, 184 fast and 6 slow, up from 149 — 41 added by this phase. The 143 fast tests of
+phases 0, 1 and 1b are untouched except for one that was **strengthened** by a surviving mutation
+(below); no tolerance, seed or assertion was weakened anywhere.
+
+The phase's claim is narrow and worth stating precisely: a log density is written once, and the
+value, the gradient and the oracle are three readings of that one text. What follows is what each
+reading was checked against.
+
+### The primitives, against the oracle and against finite differences
+
+The dual-number oracle implements the scalar operations and **inherits** every vectorised primitive
+from the defaults of `Real[A]`, which are written in terms of those scalar operations. The
+reverse-mode interpreter overrides them with hand-written adjoints that push a single node.
+Comparing the two is comparing a hand-written derivative against the derivative of the composition
+it claims to equal (design D-36).
+
+| Check | Against | Tolerance | Result |
+|---|---|---|---|
+| every scalar operation of `Real[A]` in one function, at an ordinary point | the oracle | 1e-12 relative | green |
+| a variable read by four paths | the oracle | 1e-12 relative | green: the adjoint accumulates all four |
+| an input never read | — | exact | green: a gradient of exactly 0.0, not merely small |
+| `sum`, `cumulativeSum`, `logSumExp`, `dot` | the oracle | 1e-12 relative | green |
+| `gather` with a repeated index (three observations in one cluster) and an empty cluster | the oracle | 1e-12 relative | green |
+| the three `normalSum`, `poissonSum`, `poissonLogSum`, `bernoulliLogitSum`, `binomialLogitSum` | the oracle | 1e-12 relative | green |
+| `lowerSolve` and `matVec` on a 3 by 3 factor | the oracle | 1e-12 relative | green |
+| the same eight functions | central differences, `h = 1e-6 max(1, \|x\|)` | 1e-6 | green |
+| a planted sign error in a gradient | central differences | — | green: detected, which is what makes the check above worth running |
+| `poissonSum` at a rate of 0, 1e-300 and 1e-9 | the closed form, and the oracle | value 1e-15, gradient exact | green: value exactly 0 and gradient exactly -1 at a rate of zero, through all three interpreters |
+| a tape of 200 000 operations | the closed form of 100 000 additions | 1e-9 relative | green |
+| 16 gradients computed with `parTraverse` | the same 16 computed in sequence | bit for bit | green |
+| two calls with the same arguments | each other, and the input array afterwards | bit for bit | green |
+
+### The densities of `LogDensity` and `LogMass`
+
+Three kinds of reference, and the difference between them is the point. Stan Math and mpmath are
+independent; the law layer is not, and is used only for what it can say.
+
+| Check | Against | Tolerance | Result |
+|---|---|---|---|
+| the 53 valid density cases, evaluated through `Real[Double]` | Stan Math `test/prob`, with the exact value for the one case Stan gets wrong (D-20) | 1e-12 relative, 1e-14 for the corrected case | green |
+| the 72 invalid parameters of the density families | Stan Math, read under our contract | exact | green: `NaN` on this layer, where the law layer gives `Left` — the two halves the plan asks for |
+| the 14 variates outside the support | Stan Math, read under our contract | exact | green: `-Inf`, and `NaN` for the `NaN` |
+| 9 half-law densities — `halfNormal`, `halfStudentT`, `halfCauchy` | **mpmath at 50 digits**, computed for this phase; Stan has no half law to port | 1e-12 relative | green |
+| 14 ordered-logistic masses, including four saturated, two with cut points a rounding apart and two with a gap of 7e9 between them | **mpmath at 50 digits** | 1e-12 relative | green |
+| the five categories of an ordered logistic sum to one, at five log odds from -40 to 40 | exact arithmetic | 1e-13 | green |
+| the 19 scalar laws, each at an ordinary point | the law layer's own `logPdf`/`logMass` | 1e-14 relative | green: the two layers evaluate the same formula, which is what carries the phase 1 and 1b validation onto this one |
+| 13 multivariate Gaussian densities | `multilevel.json` | 1e-12 relative | green |
+| 9 LKJ densities, and the 20 normalising constants read through the density of the identity factor | `multilevel.json` | 1e-12 relative | green |
+| a factor that is not a factor — an upper entry, a zero pivot, a negative pivot, a wrong length, a `NaN` | — | exact | green: `NaN` in every case |
+| an infinite or `NaN` parameter where Stan's fixture is silent | the uniform rule of D-24 | exact | green: `NaN` |
+| the vectorised `normal` | the sum of its scalar terms, in value and in gradient | 1e-14 and 1e-13 | green |
+
+Gradients, over the same cases:
+
+| Check | Against | Tolerance | Result |
+|---|---|---|---|
+| the gradient of all **53** Stan Math cases | the oracle | 1e-12 relative | green; all 53 turn out to be differentiable at the arguments Stan asserts, and the count is asserted so that a silently dropped case fails |
+| the gradient of each of the 20 densities | central differences, `h = 1e-5` | 1e-8 | green |
+| the gradient of the multivariate Gaussian, in the variate, the mean and the six entries of the factor | the oracle, and central differences | 1e-12, 1e-8 | green |
+| the gradient of the LKJ density in the concentration and the six entries | the oracle | 1e-12 relative | green |
+| the three off-diagonal entries of the LKJ factor | — | exact | green: exactly 0.0, because the density does not read them |
+
+### Totality, the §6.9 property for this phase
+
+ScalaCheck over arbitrary doubles — `NaN`, `±Inf`, `-0.0`, subnormals, `1e-320`, `Double.MaxValue`
+— with the domain rule **restated in the test** rather than read from the code, because a test that
+asked the implementation what its rule was would agree with any rule at all.
+
+| Property | Result |
+|---|---|
+| the four location-scale densities return a value and are `NaN` exactly where the rule says | green |
+| the five positive-support densities likewise, and `-Inf` below zero | green |
+| the beta density likewise, and `-Inf` outside the unit interval | green |
+| the eight masses likewise, and `-Inf` for a negative count | green |
+| the ordered logistic likewise, and its categories never hold more than all the mass | **found a bug, see below** |
+| the tape returns a value and a gradient of the right length at any point, and agrees with the `Double` interpreter to 1e-12 wherever both are numbers | green |
+
+**The totality property found a real overflow.** The first implementation of a middle ordered-logit
+category used the identity `log(expm1(a - b)) + log1mInvLogit(a) + logInvLogit(b)`, which is exact
+and, as written, not total: `expm1` overflows above 710, so two cut points 7.07e9 apart gave
+`log(+Inf) = +Inf` for the category's log mass — a probability above one, which is the assertion
+that failed. The implementation now uses Stan's `log_inv_logit_diff` identity instead,
+`logInvLogit(a) + log(1 - exp(b - a)) + log1mInvLogit(b)`, where no term can overflow; both
+forms were checked against mpmath over fourteen cases and agree to 2e-16 everywhere the first one
+does not overflow (design D-41). The two cases the property produced are now asserted as values,
+with mpmath references, so the regression does not depend on a random seed.
+
+### The two models
+
+`ar1PoissonOrdinal` is a reporting triangle: a non-centred AR(1) log rate over 36 months, an
+ordered-logit delay over 12 lags whose cut points drift with calendar time, and Poisson counts on
+the 234 visible cells. 52 parameters. `varyingIntercepts` is ten thousand observations in fifty
+clusters. Both are fictional by construction — the data is a deterministic function of the row
+number (2.8).
+
+| Check | Against | Tolerance | Result |
+|---|---|---|---|
+| the gradient of `ar1PoissonOrdinal`, all 52 coordinates | the oracle | 1e-12 relative | green |
+| the same | central differences, `h = 1e-6` | 1e-6 | green |
+| its value | the `Double` interpreter and the oracle | 1e-14 relative | green, and **not** bit for bit: see D-43 |
+| 16 gradients of it computed concurrently | the same 16 in sequence | bit for bit | green |
+| the gradient of `varyingIntercepts` at 1 000 and at 10 000 observations | the oracle | 1e-12 relative | green |
+| its tape at 100, 10 000 and 100 000 observations | each other | exact | green: **89 nodes in all three cases**, of which 53 are the parameters themselves |
+| the tape of the same model with a scalar predictor written out per observation | the count at 100 observations | exact | green: exactly 3 more nodes per observation — the constant `predictor(i)` is itself a leaf |
+
+### The benchmark
+
+JMH, 3 warmup and 5 measurement iterations, one fork, one thread, on an Apple M2 Pro with 16 GB and
+OpenJDK 25. Average time per call, with the 99.9 % interval JMH reports:
+
+| Benchmark | Time |
+|---|---|
+| `ar1PoissonOrdinal`, value only | 73.9 ± 0.2 µs |
+| `ar1PoissonOrdinal`, value and gradient | **148.9 ± 0.5 µs** |
+| `varyingIntercepts`, 10 000 observations, value and gradient | **79.0 ± 1.6 µs** |
+| `varyingIntercepts`, 100 observations, value and gradient | 2.5 ± 0.0 µs |
+| `varyingIntercepts`, 10 000 observations, value only | 83.1 ± 0.3 µs |
+| the same 10 000 observations with the slope written out per observation | 458.4 ± 0.6 µs |
+
+Three readings, all recorded in chapter 10 of the manual:
+
+1. **A gradient costs 2.01 times a value** on a 52-parameter model. That is the claim reverse-mode
+   differentiation is made for, and it holds; forward differences would have cost 52 values.
+2. **A vectorised density is 5.8 times faster** than the same arithmetic written out, on the same
+   model and for the same answer, with 89 tape nodes against 30 103.
+3. **The value-only path is slower than the gradient** on the vectorised model — 83.1 against
+   79.0 µs — because `Real[Double]` inherits the boxing defaults while the tape overrides them.
+   That is surprising, it is understood, and it is left alone on purpose (D-46).
+
+### Mutations tried
+
+| Component | Mutation | Test that failed | What it said |
+|---|---|---|---|
+| `Tape.gradient` | adjoints assigned instead of accumulated | 4 of the 9 `ReverseSuite` tests | `the gradient after 100 000 additions: obtained 1.0E-5, expected 1.0` |
+| `RevReal.normalSum` | the sign of the adjoint of the scale flipped | 3 tests, including the model at 10 000 observations | `d/dx(52): obtained 54270.25, expected 36088.43` |
+| `RevReal.normalSum` | the override removed, so the primitive falls back to the default | `varyingIntercepts: the tape does not grow with the data` | the three node counts stop being equal |
+| `Real[Double].lbeta` | `Special.lbeta` replaced by the definition, three `lgamma`s | the 53 density cases | `neg_binomial.lpdf(10, 1e6, 1e5): obtained -2.0785666421134295, expected -2.078566643110892` — 1.0e-9 away, which is design D-38's whole argument |
+| `LogDensity.normal` | the check on the scale removed | 2 tests | `normal sigma: got -Infinity, expected NaN` |
+| `Real.poissonSum` | the zero-count branch removed, so `0 log 0` is formed | `poissonSum is exact at a rate of 0, 1e-300 and 1e-9` | see below — **it survived first** |
+| `LogDensity.orderedLogistic` | the stable difference replaced by the difference of two probabilities | the mpmath cases | see below — **it survived first** |
+
+**Two mutations survived, and fixing that is the only change made to an existing test.**
+
+The `poissonSum` mutation survived because the suite read the zero-rate case through
+`Reverse.valueAndGradient` only, and the reverse-mode interpreter has its **own** `poissonSum`: the
+mutation was in the default that `Real[Double]` and the oracle inherit, and no assertion reached
+it. The test now also reads the rate of zero through the `Double` interpreter and through the
+oracle, in value and in derivative — four assertions where there were none — and the mutation is
+caught. The gap was not in the code but in which interpreter the test happened to use, which is
+exactly the kind of thing only a mutation finds.
+
+The `orderedLogistic` mutation survived because of an accident of binary arithmetic. The case meant
+to catch it was two cut points one rounding apart — 1.0 and 1.0 + 1e-15 — and there the naive
+difference is *exact*: the gap is five units in the last place of 1, and five units in the last
+place of a half is exactly representable too, so the subtraction near a half loses nothing. The
+discriminating case is a **saturated** category instead: for the second of four categories at a log
+odds of 30 both probabilities are within 1e-13 of one, their difference keeps three digits of
+sixteen, and the naive form is 1.3e-5 relative away from mpmath. Four such cases were added, at log
+odds 15 and 30, and the tiny-gap cases were kept with a comment saying what they do *not* test.
+
+### No statistical test in this phase
+
+The definition of done asks every statistical test to state its standard error and its threshold.
+This phase has none to state: differentiation is deterministic, so every comparison here is against
+an analytic value, an independent implementation or a 50-digit reference, at a stated tolerance. The
+one randomised test is a ScalaCheck property over arbitrary doubles, whose assertion is a contract
+rather than an estimate.
+
+### Known limits at the end of phase 2
+
+1. **No `LogDensityUnnormalized`** (D-45): the variant without the normalising constants waits for
+   the sampler that benefits from it, in phase 4.
+2. **`Real[Double]` is not optimised** (D-46): the value-only path inherits the boxing defaults and
+   is measurably slower than the taped path on a vectorised model.
+3. **A continuous predictor is not vectorised** (D-47): a multilevel regression with a covariate has
+   a tape linear in the number of observations. The measurement is recorded; the fix is a fused
+   linear-predictor primitive, for the phase that has such a model.
+4. **The oracle's `lbeta` derivative is the same formula typed twice** (D-38), not an independent
+   derivation; the independent check for it is central differences.
+5. **The gradient at an invalid parameter is zeros, not `NaN`** (D-40). Harmless because the value
+   is `NaN` and the proposal is rejected on the value, but it is a thing to know before reading a
+   gradient without looking at the log density first.
+6. **No cumulative distribution functions** still, as at the end of phase 1b: the 152 deferred
+   values of the Stan Math fixture are unchanged by this phase, which adds no new law.

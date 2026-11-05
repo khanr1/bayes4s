@@ -141,7 +141,9 @@ lazy val core = mod("core")
 
 lazy val ad = mod("ad").dependsOn(core, testkit % Test)
 
-lazy val distributions = mod("distributions").dependsOn(ad, testkit % Test)
+// L'oracle `Dual` vit dans les tests de `ad` et sert aux tests d'aval (section 4 du design).
+lazy val distributions =
+  mod("distributions").dependsOn(ad, ad % "test->test", testkit % Test)
 
 lazy val transforms = mod("transforms").dependsOn(ad, testkit % Test)
 
@@ -187,9 +189,12 @@ lazy val testkit = mod("testkit")
     )
   )
 
+// The benchmarked models are the test models of `distributions` (`TestModels`): a benchmark that
+// measured a model written for it would measure something no suite checks. `compile->test` is what
+// puts them on the benchmark classpath.
 lazy val benchmarks = mod("benchmarks")
   .enablePlugins(JmhPlugin, NoPublishPlugin)
-  .dependsOn(nowcast)
+  .dependsOn(nowcast, distributions % "compile->test")
 
 lazy val examples = mod("examples")
   .enablePlugins(NoPublishPlugin)

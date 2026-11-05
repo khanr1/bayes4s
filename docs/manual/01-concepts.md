@@ -4,7 +4,7 @@ Three ideas carry the whole library. Randomness is a value, errors are values, a
 functions are total. None of them is a matter of taste: each one buys something you can point at.
 
 A fourth idea — that a log density is written once against an abstract arithmetic and read by
-several interpreters — arrives with the automatic differentiation, in the next phase.
+several interpreters — is the subject of the last section.
 
 ## A seed is a value
 
@@ -106,3 +106,72 @@ Poisson.of(2.0).map(law => (law.logMass(3), law.logMass(-1)))
 An invalid *parameter* is refused by the constructor; an impossible *observation* is a density of
 zero. The distinction is the contract, and it is what keeps the sampler and the model honest about
 different kinds of trouble.
+
+## A density is written once, for three interpreters
+
+A sampler needs the gradient of a log density, not only its value. Writing the derivative by hand
+is how a model gets a subtle sign error that no test on the value can see, so nothing here is
+written twice: a density is written once against an abstract scalar, `Real[A]`, and read by several
+interpreters.
+
+```scala mdoc:silent
+import bayes4s.syntax.*
+
+/** A Gaussian location with a half-Gaussian scale, as a model's target is: a function of the
+  * parameter vector and nothing else.
+  */
+val target: DiffFn = new DiffFn:
+  def apply[A: Real](x: IArray[A]): A =
+    val mu = x(0)
+    val sigma = x(1)
+    val observations = IArray(1.2, 0.8, 1.9, 1.1, 0.4)
+    LogDensity.normal(observations, Real[A].filled(5)(mu), sigma) +
+      LogDensity.normal(mu, 0.0.lift[A], 5.0.lift[A]) +
+      LogDensity.halfNormal(sigma, 1.0.lift[A])
+```
+
+`DiffFn` takes its scalar type at the call, not at the class: that is what stops a value of type
+`A` from being kept after the call returns, and therefore what stops a tape from leaking out of the
+gradient that owns it.
+
+The value comes from the `Double` interpreter, with no tape at all:
+
+```scala mdoc
+Reverse.value(target, IArray(1.0, 1.5))
+```
+
+The gradient comes from the same function read by a reverse-mode tape, which records the forward
+computation and sweeps it backwards once:
+
+```scala mdoc
+Reverse.valueAndGradient(target, IArray(1.0, 1.5))
+```
+
+The cost of that gradient is a small multiple of the cost of the value — about two on the models
+measured in [chapter 10](10-performance.md) — and the multiple does not grow with the number of
+parameters. That is the whole reason a sampler can afford gradients.
+
+Nothing above asked for a derivative to be written by hand, and nothing in your model will. If you
+want to check one anyway, `GradientCheck` compares the tape against central differences:
+
+```scala mdoc
+GradientCheck(target, IArray(1.0, 1.5)).maxError
+```
+
+The library's own suites go further and compare the tape against a third interpreter, dual numbers,
+which carries an exact derivative through every operation and shares no code with the tape. That
+oracle lives in the test sources, because it is not something a model needs; what it buys is in
+`docs/validation.md`.
+
+### Vectorised primitives, and why your model should use them
+
+`LogDensity.normal(observations, means, sigma)` above took a whole vector. It is not a convenience:
+the vectorised form is **one node of the tape**, whatever the length of the vector, where the same
+sum written as a loop is a node per term. `Reverse.nodeCount` shows the difference, and
+[chapter 10](10-performance.md) measures what it costs.
+
+The same holds for a parameter indexed by cluster. `gather(alpha, group)` gives every observation
+its own cluster's parameter and costs no node at all — it is index aliasing, and its adjoint
+accumulates, for each cluster, the adjoints of all its observations. A multilevel model with ten
+thousand observations in fifty clusters therefore has a tape whose size does not depend on the ten
+thousand.

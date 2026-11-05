@@ -197,6 +197,8 @@ argue the case in prose.
 | `modules/core/src/main/scala/bayes4s/Fft.scala` | `while` | 3 | The three nested loops of the same transform. A tail recursion over three indices would say the same thing less clearly and no faster. |
 | `modules/core/src/main/scala/bayes4s/Batch.scala` | `var` | 6 | The threaded seed and the fill index of each batch sampler. A simulation of a hundred thousand futures would otherwise allocate a `State` step per draw. `BatchSuite` asserts that each batch equals the `State` program of the same seed, element by element, so the fast path cannot drift into being a different sampler. |
 | `modules/core/src/main/scala/bayes4s/Batch.scala` | `while` | 3 | The fill loop of each batch sampler, over an array created and returned by the same function. |
+| `modules/ad/src/main/scala/bayes4s/Reverse.scala` | `var` | 9 | The tape of one gradient: four growable arrays — node values, edge offsets, parents, partial derivatives — two write cursors, and the three index cursors of the reverse sweep. An immutable tape would allocate a structure per elementary operation, and a realistic model's gradient is hundreds of thousands of them; this is the one place in the library where that cost would decide whether a sampler is usable at all. The tape is created in `valueAndGradient`, written only through the methods of `Tape`, read once backwards and dropped. It appears in no public signature, `Rev` is opaque outside `ad`, and `LogDensityGradientSuite` asserts that sixteen gradients computed concurrently are bit for bit the sixteen computed in sequence. |
+| `modules/ad/src/main/scala/bayes4s/Reverse.scala` | `while` | 3 | The edge-filling loop of a vectorised node and the two nested loops of the reverse sweep. The sweep walks node indices downwards and, for each, its own slice of a flat edge array; written as a fold it would allocate a map of adjoints per node, which is the allocation the flat arrays exist to avoid. |
 
 <!-- mutation-register:end -->
 
@@ -484,3 +486,207 @@ A line ending in `<!-- term-ok -->` keeps its term, for the places where the wor
 else — a draw from a random number generator is not a sample from a posterior. The escape is meant
 to stay rare enough to read as a list; it is currently used nowhere.
 
+
+## Phase 2 — automatic differentiation
+
+### D-35. `Real[A]` carries its own `ClassTag`
+
+Every operation that returns a vector has to build an `IArray[A]`, and that needs the runtime class
+of `A`. The alternative was a second context bound on every signature that touches a vector —
+`def apply[A: Real: ClassTag]` on `DiffFn`, on every model, on every density — a bound that says
+nothing about the mathematics and that a user would have to carry forever. `Real[A]` has a `tag`
+member instead: the type class that knows how to add two `A`s is a reasonable place to know what an
+`A` is. The sketch in the plan has no such member, and this is the only change to it that was
+needed to make the sketch compile.
+
+`bayes4s.syntax` additionally publishes `given tagFromReal[A](using Real[A]): ClassTag[A]`, so a
+model that wants `IArray.tabulate` directly can have one. It is behind the import rather than in
+`Real`'s companion, so it is opt-in: a `given ClassTag` in implicit scope for every type is more
+than anyone asked for.
+
+### D-36. The vectorised primitives carry defaults, and that is what makes the oracle independent
+
+Each vectorised primitive of `Real[A]` has a **default implementation in terms of the scalar
+operations**. That is not a convenience for implementers; it is the test design. The default
+*defines* what the primitive means; `Real[Double]` and the dual-number oracle inherit it; the
+reverse-mode interpreter overrides it with a hand-written adjoint that pushes a single node. A
+suite then compares the two, which is comparing a hand-written derivative against the derivative of
+the composition it claims to equal — the thing that can be silently wrong and that no comparison of
+values would see.
+
+An interpreter that overrode a primitive *and* was used as the oracle would make the comparison
+circular, which is why the oracle implements only the scalar operations. The one consequence to
+accept is D-43.
+
+### D-37. `Rev` is an opaque `Int`, and the tape lives in its companion
+
+A node of the tape is an index into arrays owned by the current call. `opaque type Rev = Int` gives
+that index a type the outside cannot see through, so no value of type `Rev` means anything outside
+the gradient that made it, and `DiffFn`'s rank-2 signature stops one being kept at all.
+
+The consequence is a file layout that looks odd and is not: `Tape` and `RevReal` live in
+`object Rev`, not in `object Reverse`, because an opaque alias is transparent **only** in its own
+companion, and those two are exactly the places where an index has to be read as an index.
+`Reverse` is the facade and holds nothing but `value`, `valueAndGradient` and `nodeCount`.
+
+### D-38. `lbeta` is a primitive of `Real[A]` — one addition to the plan's sketch
+
+The trait sketched in the plan has `lgamma` and not `lbeta`, and the negative binomial, the
+beta-binomial and the LKJ constant all need `log B(a, b)` of two **parameters**. Written as
+`lgamma(a) + lgamma(b) - lgamma(a + b)` it loses what the law layer exists to keep: at a
+concentration of 1e6 the two large terms are near 1.3e7 and their difference near 152, so the
+result carries an absolute error near 3e-9. Measured, not predicted — this is the mutation recorded
+in `docs/validation.md`: with the definition in place of `Special.lbeta`, the Stan Math case
+`neg_binomial_lpmf(10 | 1e6, 1e5)` comes out 1.0e-9 away from the exact value, where the suite
+asserts 1e-14.
+
+So `lbeta(a, b)` is abstract on `Real[A]` and implemented by each interpreter, like `lgamma`:
+`Special.lbeta` for the value, one tape node with the two digamma differences for the reverse mode,
+and the same two differences carried forward by the oracle. The oracle's derivative is therefore the
+same formula typed twice rather than an independent derivation, which is why `lbeta` is also in the
+scalar function that `ReverseSuite` checks against central differences.
+
+**This is an addition to a public signature beyond the renamings of 2.9, and it is flagged as such:
+the trait is new in this phase, so nothing was broken, but the decision is open to review.**
+
+### D-39. `@targetName` where the overloads erase alike
+
+`normalSum(ys: IArray[Double], mus: IArray[A], sigma: A)` and
+`normalSum(ys: IArray[Double], mus: IArray[A], sigmas: IArray[A])` are both asked for by the
+specification and both erase to three `Object`s. The same holds for the three vectorised
+`LogDensity.normal`. `@targetName` gives each a distinct JVM name and keeps the Scala-level
+overload the specification asks for; the alternative — renaming one of them — would have put a name
+in the API that the plan does not use.
+
+### D-40. The out-of-domain contract, read on an abstract scalar
+
+`LogDensity` and `LogMass` branch on the **primal** value of a parameter: `Real[A].value(sigma)`
+decides whether to return the formula or `NaN`. Three consequences, all deliberate:
+
+- the branch is a pure function of the inputs, so referential transparency is untouched;
+- on the valid side of the branch no test is taken at all, so a gradient in the interior of the
+  support is exactly the gradient of the formula;
+- a `NaN` returned as a constant is a leaf of the tape, so a model evaluated at an invalid
+  parameter has a log density of `NaN` and a gradient of zeros. That is harmless because the
+  sampler reads the value first and rejects the proposal; nothing downstream reads the gradient of
+  a rejected point.
+
+The rule itself is uniform and slightly stricter than Stan's: every parameter must be finite, and a
+scale strictly positive. Stan rejects an infinite scale for some laws and not for others, so its
+fixture asserts a subset of what is refused here; `LogDensitySuite` states the extra cases
+separately rather than leaving them to the fixture.
+
+### D-41. The ordered logistic goes through Stan's `log_inv_logit_diff`
+
+A middle category is the difference of two logistic functions, and the form that difference is
+written in is the whole of its numerical content. Subtracting the two probabilities — the way the
+definition reads — gives 1.3e-5 relative error for the second of four categories at a log odds of
+30, and 9.4e-12 at a log odds of 15, because both probabilities are then within 1e-13 of one. The
+identity used instead is Stan's, with `a = eta - cuts(k-2)` and `b = eta - cuts(k-1)`:
+
+```
+log(invLogit(a) - invLogit(b)) = logInvLogit(a) + log(1 - exp(b - a)) + log1mInvLogit(b)
+```
+
+Every term is computed where it keeps its digits, and the gap `a - b` is the difference of the two
+cut points rather than of two numbers that nearly agree.
+
+The mirror identity, `log(expm1(a - b)) + log1mInvLogit(a) + logInvLogit(b)`, is equally exact and
+was what this phase wrote first. `LogDensityTotalitySuite` rejected it: `expm1` overflows above
+710, so a gap of 7e9 between two cut points made the log mass `+Inf` — a probability above one —
+where the answer is zero to every digit. The two forms are algebraically the same and only one of
+them is total, which is the kind of thing a property test exists to find.
+
+Two further decisions fall out of it. **Equal cut points are allowed** and leave their category
+exactly no mass, `-Inf`: that is the correct limit, it keeps the function total, and `expm1(0) = 0`
+produces it with no branch — where Stan's `check_ordered` refuses them. **Decreasing cut points
+give `NaN`**, because they are not an ordering; the middle categories would produce it on their own
+through the log of a negative number, and the check is explicit so that the first and last
+categories answer the same way.
+
+### D-42. The multivariate densities take a plain matrix, and check it
+
+`MultiNormalCholesky` the law takes a `Cholesky`, the opaque type that carries its invariant
+(D-28). `LogDensity.multiNormalCholesky` cannot: in a model the entries of the factor are
+parameters, so the invariant has to be re-established at every evaluation and a type built once
+says nothing about it. The matrix is checked instead — lower triangular, positive finite diagonal,
+consistent lengths — and anything else is an invalid parameter, so `NaN`. The same holds for
+`lkjCorrCholesky`.
+
+### D-43. The three interpreters agree to 1e-14, not bit for bit
+
+A vectorised override is free to compute its primitive in a different order from the default it
+replaces, and `normalSum` does: the default adds `-0.5 z²` term by term, the override sums `z²` and
+scales once, because it needs that sum for the adjoint of the scale anyway. The two therefore
+differ in the last two bits — on the reporting-triangle model, a log density near -4357 comes out
+`...735293` through the `Double` interpreter and `...735291` through the tape.
+
+Making them agree bit for bit would mean a second pass over the observations inside the hot
+primitive of a ten-thousand-row model, to buy a property nothing needs: the sampler reads the tape
+and only the tape. The suites therefore assert a relative 1e-14 between interpreters, and say why.
+Reproducibility (2.4) is about seeds and thread scheduling and is unaffected: the same seed and the
+same interpreter give the same answer, always.
+
+### D-44. The oracle and the test models are shared through `test->test`
+
+The dual-number oracle is a test fixture, not a published interpreter, so it lives in `ad`'s test
+sources — and `distributions` needs it, because the densities to differentiate are there.
+`distributions.dependsOn(ad % "test->test")` is what shares it, which is also what the plan's
+module section describes.
+
+The two realistic models (`TestModels`) live in `distributions`' test sources for the same reason,
+and `benchmarks.dependsOn(distributions % "compile->test")` is what lets the benchmarks measure
+*them* rather than a third model written for the benchmark alone. A benchmark that measures
+something no suite checks measures nothing.
+
+### D-45. `LogDensityUnnormalized` waits for the sampler
+
+The specification asks for a variant without the normalising constants, "for the sampler". There is
+no sampler yet, and a second copy of nineteen densities whose only caller is hypothetical is a
+second copy to keep correct. It arrives with phase 4, where the thing that benefits from it exists
+and can show the benefit.
+
+### D-46. `Real[Double]` inherits the boxing defaults, measured and left alone
+
+The `Double` interpreter overrides only `logSumExp`. Everything else vectorised it inherits from
+the defaults, which build an `IndexedSeq` of boxed doubles per primitive. The benchmark makes the
+consequence visible and it is startling at first sight: on the ten-thousand-observation model,
+`Reverse.value` takes 83 µs while `Reverse.valueAndGradient` — which does strictly more work —
+takes 79 µs, because the tape's overrides are loops over primitives and the default is not.
+
+It is left alone for now, deliberately. Overriding the vectorised primitives in `Real[Double]` would
+add a third hand-written copy of each one, and the comparison that validates the first two would
+not cover it: `Reverse.value` is used for diagnostics and for the value-only path of a
+Metropolis-style sampler, neither of which exists yet. The measurement is recorded so that the
+decision can be taken by the phase that has a caller to speed up.
+
+### D-47. What "a node count independent of 10 000" means, and what it costs to keep
+
+The criterion of the phase is a model with ten thousand observations in fifty clusters whose tape
+size does not depend on the ten thousand. It is met by the varying-intercepts model —
+`normalSum(ys, gather(alpha, group), sigma)` is one node for the likelihood and zero for the
+indexing — and the suite asserts not that the counts are similar for 100, 10 000 and 100 000
+observations but that they are **equal**.
+
+Adding one continuous predictor breaks it, and the measurement is the point: `slope * predictor(i)`
+written per observation costs three nodes a row — the constant `predictor(i)` is itself a leaf of
+the tape — so the tape grows from 89 nodes to 30 103 and the gradient takes 5.8 times as long. The
+fix is not a vectorised `+` on vectors, which would still be a node per element, but fusing the
+linear predictor into the density, as Stan's `normal_id_glm_lpdf` does. That is a new primitive and
+a new adjoint; the plan allows adding vectorised primitives when the measurement asks for it, and
+this records that the measurement asks for one, for the phase that has a multilevel regression to
+run.
+
+### D-48. `LogMass.negativeBinomial` exists, and so do the vectorised overloads
+
+The specification sketches `LogMass` with `negativeBinomial2` and not the `(alpha, beta)`
+parameterisation. The law layer has both, because `GammaPoisson.predictive` returns one, and a
+density layer that could not evaluate the predictive of a conjugate update the library computes
+would be a gap with no argument behind it. `LogMass.negativeBinomial(k, alpha, beta)` is therefore
+there too, written through the same `lbeta` and checked against the same Stan Math cases.
+
+The vectorised overloads — `LogDensity.normal` in three shapes, `LogMass.poisson`, `poissonLog`,
+`bernoulliLogit` and `binomialLogit` on vectors — are what the specification asks for in so many
+words: the `...Sum` primitives of `Real[A]` are not meant to be called by a user, and these are how
+a model reaches them. Each one checks the lengths and the scale and then delegates; the primitive
+keeps the whole vector to one node.

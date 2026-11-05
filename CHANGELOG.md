@@ -110,3 +110,51 @@ Notes
   CI runs on temurin 25 and `ubuntu-latest`.
 - Formatting settled at phase 0 so it never has to be redone: 100 columns, no alignment, and
   scaladoc in the Scala style rather than scalafmt's javadoc default (`docs/design.md`, D-14).
+
+### Phase 2 — automatic differentiation (5 November 2026)
+
+Added
+
+- `Real[A]`, the arithmetic a log density is written against, with the three interpreters the plan
+  asks for: `Double` for values, a reverse-mode tape for gradients, and dual numbers as an exact
+  oracle in the tests. Every vectorised primitive carries a default written in terms of the scalar
+  operations, which is what makes the oracle independent of the adjoints it checks.
+- `DiffFn`, whose rank-2 signature stops a tape from leaking out of the gradient that owns it;
+  `Reverse.value`, `Reverse.valueAndGradient` and `Reverse.nodeCount`; `GradientCheck` for central
+  differences; and `bayes4s.syntax`, so that a model reads as a formula.
+- Vectorised primitives: `sum`, `cumulativeSum`, `logSumExp`, `poissonSum`, `poissonLogSum`, three
+  `normalSum`, `bernoulliLogitSum`, `binomialLogitSum`, `dot`, `matVec`, `lowerSolve` and
+  `gather` — each one node of the tape, and `gather` none at all.
+- `LogDensity` and `LogMass`: nineteen scalar densities, the ordered logistic, the multivariate
+  Gaussian and the LKJ prior on a Cholesky factor, all written against `Real[A]`, with vectorised
+  overloads for the five primitives a model would otherwise reach for directly.
+- `lbeta` as a primitive of `Real[A]`, the one addition to the trait the plan sketches: written as
+  three `lgamma`s it loses 1.0e-9 on a negative binomial at a concentration of 1e6 (design D-38).
+- A JMH benchmark of both models, and chapter 10 of the manual, which reports what it measured: a
+  gradient costs 2.0 times a value, and a vectorised density is 5.8 times faster than the same
+  arithmetic written out, with 89 tape nodes against 30 103.
+- Chapter 1 of the manual gains its `Real[A]` section, so the same density is shown evaluated,
+  differentiated and checked.
+- 41 tests, for 190 in all. The gradient of all 53 Stan Math density cases is checked against the
+  oracle, the 72 invalid parameters of those cases give `NaN` on this layer where the law layer
+  gives `Left`, and the four densities Stan has no test for — the three half laws and the ordered
+  logistic — are checked against mpmath at 50 digits.
+
+Found
+
+- **The ordered logistic needed Stan's identity, not its mirror.** A middle category written as
+  `log(expm1(gap)) + ...` is exact and not total: `expm1` overflows above 710, so two cut points
+  7e9 apart gave a probability above one. The totality property of §6.9 found it; the fix is
+  `log_inv_logit_diff`, where no term can overflow (D-41).
+- **Two mutations survived the first time and strengthened a test each.** The zero-count branch of
+  `poissonSum` was read through the tape only, which has its own copy, so the default that the
+  other two interpreters inherit was never exercised at a rate of zero. And the ordered-logistic
+  case meant to catch a naive difference of probabilities — two cut points one rounding apart — is
+  a case where the naive difference happens to be exact; a saturated category at a log odds of 30
+  is what discriminates, and the naive form is 1.3e-5 away there.
+- **The value-only path is slower than the gradient** on a vectorised model with ten thousand
+  observations, because `Real[Double]` inherits the boxing defaults while the tape overrides them.
+  Measured, understood and deliberately left alone until something needs it (D-46).
+- **A continuous predictor is not vectorised yet**: written out per observation it costs three tape
+  nodes a row and 5.8 times the time. The fix is a fused linear-predictor primitive, for the phase
+  that has a multilevel regression to run (D-47).

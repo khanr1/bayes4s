@@ -181,3 +181,72 @@ object StanMathFixtureSupport:
 
   def substituted(p: IArray[Double], index: Int, value: Double): IArray[Double] =
     IArray.from(p.toList.updated(index, value))
+
+  /** One fixture case read by the `Real[A]` layer: the continuous arguments as the inputs of a
+    * [[DiffFn]], the integer ones captured.
+    *
+    * The same value can then be obtained from three interpreters — `Double` for the comparison
+    * against Stan Math, the tape and the dual numbers for the gradient — without writing the
+    * density three times. The integers are captured rather than passed as inputs because a count
+    * is not something to differentiate with respect to.
+    */
+  final case class RealCase(inputs: IArray[Double], fn: DiffFn)
+
+  /** The density of a covered law, written against `Real[A]`.
+    *
+    * `bernoulli_lpmf` goes through `LogMass.binomial(k, 1, theta)` for the same reason the law
+    * layer goes through `Binomial(1, theta)`: it is the same mass function, exactly.
+    */
+  def realCase(law: String, function: String, p: IArray[Double]): Either[String, RealCase] =
+    def scalar(n: Int)(body: [A] => IArray[A] => Real[A] ?=> A): Either[String, RealCase] =
+      Right(
+        RealCase(
+          IArray.from(p.toList.slice(p.length - n, p.length)),
+          new DiffFn:
+            def apply[A: Real](x: IArray[A]): A = body[A](x)
+        )
+      )
+    val k = if p.isEmpty then 0 else p(0).toInt
+    (law, function) match
+      case ("normal", "lpdf") =>
+        scalar(3)([A] => (x: IArray[A]) => LogDensity.normal(x(0), x(1), x(2)))
+      case ("std_normal", "lpdf") =>
+        scalar(1)([A] =>
+          (x: IArray[A]) => LogDensity.normal(x(0), Real[A].const(0.0), Real[A].const(1.0))
+        )
+      case ("lognormal", "lpdf") =>
+        scalar(3)([A] => (x: IArray[A]) => LogDensity.logNormal(x(0), x(1), x(2)))
+      case ("gamma", "lpdf") =>
+        scalar(3)([A] => (x: IArray[A]) => LogDensity.gamma(x(0), x(1), x(2)))
+      case ("beta", "lpdf") =>
+        scalar(3)([A] => (x: IArray[A]) => LogDensity.beta(x(0), x(1), x(2)))
+      case ("logistic", "lpdf") =>
+        scalar(3)([A] => (x: IArray[A]) => LogDensity.logistic(x(0), x(1), x(2)))
+      case ("student_t", "lpdf") =>
+        scalar(4)([A] => (x: IArray[A]) => LogDensity.studentT(x(0), x(1), x(2), x(3)))
+      case ("cauchy", "lpdf") =>
+        scalar(3)([A] => (x: IArray[A]) => LogDensity.cauchy(x(0), x(1), x(2)))
+      case ("exponential", "lpdf") =>
+        scalar(2)([A] => (x: IArray[A]) => LogDensity.exponential(x(0), x(1)))
+      case ("poisson", "lpdf") =>
+        scalar(1)([A] => (x: IArray[A]) => LogMass.poisson(k, x(0)))
+      case ("poisson", "lpdf_log_param") =>
+        scalar(1)([A] => (x: IArray[A]) => LogMass.poissonLog(k, x(0)))
+      case ("neg_binomial_2", "lpdf") =>
+        scalar(2)([A] => (x: IArray[A]) => LogMass.negativeBinomial2(k, x(0), x(1)))
+      case ("neg_binomial", "lpdf") =>
+        scalar(2)([A] => (x: IArray[A]) => LogMass.negativeBinomial(k, x(0), x(1)))
+      case ("binomial", "lpdf") =>
+        val n = p(1).toInt
+        scalar(1)([A] => (x: IArray[A]) => LogMass.binomial(k, n, x(0)))
+      case ("binomial", "lpdf_logit") =>
+        val n = p(1).toInt
+        scalar(1)([A] => (x: IArray[A]) => LogMass.binomialLogit(k, n, x(0)))
+      case ("bernoulli", "lpdf") =>
+        scalar(1)([A] => (x: IArray[A]) => LogMass.binomial(k, 1, x(0)))
+      case ("bernoulli", "lpdf_logit") =>
+        scalar(1)([A] => (x: IArray[A]) => LogMass.bernoulliLogit(k, x(0)))
+      case ("beta_binomial", "lpdf") =>
+        val n = p(1).toInt
+        scalar(2)([A] => (x: IArray[A]) => LogMass.betaBinomial(k, n, x(0), x(1)))
+      case other => Left(s"no Real[A] mapping for $other")
