@@ -110,7 +110,7 @@ has a source; none comes from an earlier run of this library.
 | `digamma` on 72 points | mpmath, 50 digits | 1e-13 | green **after replacing Commons Numbers**, which is 2e-10 relative away near x = 1 (design D-17) |
 | `lbeta` on 6 pairs, including (300, 0.25) and (1e5, 1e5) | mpmath, 50 digits | 1e-13 | green after the Stirling-difference form (D-19); the textbook form reaches 2.3e-13 on (300, 0.25) and cannot do better |
 | normal quantile on 16 points down to p = 1e-300 | mpmath, 50 digits | 1e-13 | green, Wichura's AS241 |
-| `logistic`, `logSigmoid`, `log1pExp` at ±800, `log1mExp`, `logit` to p = 1e-300, `logSumExp` | mpmath, 50 digits | 1e-13 | green, 85 points |
+| `logistic`, `logInvLogit`, `log1pExp` at ±800, `log1mExp`, `logit` to p = 1e-300, `logSumExp` | mpmath, 50 digits | 1e-13 | green, 85 points |
 | `lgamma(x+1) - lgamma(x) = log x` and `digamma(x+1) - digamma(x) = 1/x` | analytic | `4e-13 * max(1, \|f(x)\|)` | green on 11 points each |
 | type-7 quantiles | NumPy and R, 8 cases | 1e-12 | green, plus the closed form on 1..101 |
 | radix-2 FFT, lengths 1 to 64 | a naive O(n²) discrete Fourier transform written in the test | `1e-13 * magnitude` | green, plus Parseval, the impulse, the constant signal and the inverse round trip |
@@ -215,3 +215,94 @@ that does not advance is not a wrong generator, it is a deadlock, and that is a 
    the cap exists so that a corrupted rate cannot produce an unbounded loop.
 4. **No cumulative distribution functions**, by the scope decision of this phase. The 166 deferred
    values are the measure of it.
+
+---
+
+## Phase 1b — the multilevel laws, the linear algebra, the names and the vocabulary
+
+149 tests, 143 fast and 6 slow, up from 122. The 81 tests of phases 0 and 1 are untouched in
+substance: not one assertion or tolerance changed, only the names they call (design D-26).
+
+### The ten laws
+
+| Check | Against | Tolerance | Result |
+|---|---|---|---|
+| 53 valid density cases, up from 30 | Stan Math `test/prob`, with the exact value substituted for the one case Stan gets wrong (D-20) | 1e-12 relative | green |
+| 78 distinct invalid parameters, up from 46 | Stan Math | exact | green: each a `Left(InvalidArgument)` naming that parameter |
+| 14 variates outside the support, up from 7 | Stan Math, read under our own contract | exact | green: `-Inf` for the thirteen finite ones, `NaN` for the `NaN` of `exponential` (D-33) |
+| `bernoulliLogit(0 \| 25)` | mpmath, 50 digits: -25.000000000013888 | 1e-12 relative | green, and asserted **not** to agree with SciPy's -24.99999582 |
+| 13 multivariate Gaussian densities | ports of `multi_normal_cholesky_lpdf` | 1e-12 relative | green |
+| what the multivariate Gaussian must refuse | the four prose descriptions of the fixture, built as inputs in the test | exact | green |
+| 20 LKJ normalising constants, across four dimensions and four concentrations | `multilevel.json` | 1e-12 relative | green, with no special case at `eta = 1` (D-29) |
+| 9 LKJ densities on a Cholesky factor | `multilevel.json` | 1e-12 relative | green |
+| the onion sampler's marginal correlations | the theorem: Beta(eta - 1 + K/2) on (-1, 1), as `lkj_corr_test.cpp` checks | chi-squared 27.877, 9 degrees of freedom, 0.1 % | green at three combinations of dimension and concentration |
+| moments of the eight new scalar laws | their own `mean` and `variance`, standard error from the sample's fourth moment (D-22) | 4 standard errors | green |
+| Cauchy, half Cauchy and Student-t with three degrees of freedom | Kolmogorov-Smirnov against closed-form cumulatives | 1.95/sqrt(n), the 0.1 % point | green — these laws have no moments to test (D-30) |
+| the multivariate sampler | `mu` and `L L'` | 4 standard errors | green, on both variances and the covariance |
+
+### The linear algebra
+
+| Check | Against | Tolerance | Result |
+|---|---|---|---|
+| 4 matrix-vector products, 3 Cholesky factors, 3 triangular solves, 1 group indexing | `multilevel.json` | 1e-12 relative | green |
+| `L L' = S` and `logDetFromCholesky` against the sum of the logs of the diagonal | the input itself | 1e-12 relative | green |
+| a matrix that is not positive definite | — | exact | green, and the message **names the pivot** |
+| asymmetry, ragged rows, an upper triangle, a negative diagonal, a rectangular factor, a wrong length, an index out of range, a size below one | — | exact | green: all `Left` |
+
+### The names and the vocabulary
+
+| Check | Result |
+|---|---|
+| the five deprecated aliases return exactly what their replacements return, `NaN` and the far tails included | green |
+| `scripts/check-terminology.py` over the manual | green: 5 pages, 25 terms, none to replace |
+| the three chapters of phase 1 brought into line | three terms rewritten — "the same samples" for "the same draws", "the Gaussian quantile" for "the normal quantile", "a stream of samples" for "a stream of draws" — and the escape hatch used nowhere |
+
+### Mutations tried
+
+| Component | Mutation | Test that failed | What it said |
+|---|---|---|---|
+| `Linalg.cholesky` | the pivot no longer checked | `a matrix that is not positive definite is refused, and the pivot is named` | see below |
+| `BernoulliLogit` | through the probability instead of `log1mInvLogit` | the exact value at a log odds of 25 | `obtained -24.99999582410784, expected -25.000000000013888` |
+| `LkjCorrCholesky` | the Jacobian half of the diagonal weight dropped | the 9 densities | `obtained -2.248185272379627, expected -2.479271433218281` |
+| `MultiNormalCholesky` | the log determinant dropped | the 13 cases | `obtained -9.286445229243647, expected -11.739082618462863` |
+| a deprecated alias | `logSigmoid` forwarding to `logInvLogit(-x)` | `DeprecatedNamesSuite`, at -800 | the alias and its replacement disagree |
+| `check-terminology.py` | "a vague prior and a credible interval" planted in chapter 1 | the script | both terms reported with their replacements; adding `<!-- term-ok -->` to the line made it green again, which is the only test the escape hatch gets |
+
+Two of these are worth more than a line.
+
+**The first mutation survived, and that was the finding.** Removing the pivot check left all nine
+linear-algebra tests green: `sqrt` of a negative gives `NaN`, and `Cholesky.ofLower` caught the
+`NaN` diagonal one layer down, so the function still returned a `Left`. The test accepted the right
+outcome for the wrong reason. It now asserts the **diagnosis** — that the message names the pivot
+and says what positive definite means — and the mutation is caught. The redundancy between the two
+guards is kept; what changed is that the useful one is the one that speaks.
+
+**The second mutation reproduced SciPy's error to nine digits.** Going through the probability
+returns -24.99999582410784, against SciPy's documented -24.99999582. That is not a coincidence and
+it is the whole argument for `logInvLogit` and `log1mInvLogit`: the error is not in SciPy's
+arithmetic, it is in the order of its operations, and any implementation that repeats the order
+repeats the error.
+
+### Coverage of the Stan Math fixture, after phase 1b
+
+| Part | Was | Is |
+|---|---|---|
+| valid density cases covered | 30 | **53** |
+| distinct parameter rejections covered | 46 | **78** |
+| variates outside the support covered | 7 | **14** |
+| valid cases deferred (the cumulative families, and `neg_binomial_2_log`) | 175 | 152 |
+| distinct parameter rejections deferred | 49 | 17 |
+| variates outside the support deferred | 37 | 30 |
+| laws outside the specification | 8 | **3**: `chi_square`, `double_exponential`, `inv_gamma` |
+
+### Known limits at the end of phase 1b
+
+1. **No cumulative distribution functions still**, which is what the 152 deferred values measure.
+2. **`lkj_corr` on a correlation matrix** — the three `corr_cases` of `multilevel.json` — is not
+   covered: the specification asks for the Cholesky form only, and the matrix form belongs to the
+   optional `rethinking` module of phase 13.
+3. **`cholesky_corr_transform`, `psis_loo` and `power_scaling`** of `multilevel.json` are read by
+   no test yet: they belong to phases 3 and 6b.
+4. **The glossary is a starting point**, as the plan says. It will grow as the manual does, and the
+   check is only worth the rows the table lists.
+

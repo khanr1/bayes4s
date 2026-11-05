@@ -67,6 +67,11 @@ ThisBuild / githubWorkflowBuildPreamble ++= Seq(
   WorkflowStep.Run(
     commands = List("python3 scripts/check-mutation-register.py"),
     name = Some("Check the register of local mutation")
+  ),
+  // The manual's prose keeps the vocabulary of the glossary (docs/manual/glossary.md).
+  WorkflowStep.Run(
+    commands = List("python3 scripts/check-terminology.py"),
+    name = Some("Check the manual's vocabulary")
   )
 )
 

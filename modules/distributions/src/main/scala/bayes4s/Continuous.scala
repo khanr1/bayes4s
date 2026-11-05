@@ -35,7 +35,11 @@ object Normal:
       _ <- Laws.positiveFinite("Normal.of", "sigma", sigma)
     yield Normal(mu, sigma)
 
-  def standard: Normal = Normal(0.0, 1.0)
+  /** The standard Gaussian, Stan's `std_normal`. */
+  def stdNormal: Normal = Normal(0.0, 1.0)
+
+  @deprecated("renamed to stdNormal, the Stan name (std_normal)", "0.1")
+  def standard: Normal = stdNormal
 
 /** The positive half of a normal centred on zero, which is how a scale gets a weakly informative
   * prior throughout the library.

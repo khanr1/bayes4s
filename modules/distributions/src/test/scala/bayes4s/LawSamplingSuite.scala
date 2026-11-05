@@ -16,6 +16,8 @@
 
 package bayes4s
 
+import org.apache.commons.numbers.gamma.RegularizedBeta
+
 import bayes4s.testkit.Approx
 import bayes4s.testkit.MonteCarlo
 import cats.Monad
@@ -99,6 +101,24 @@ object LawSamplingSuite extends SimpleIOSuite with Approx with MonteCarlo:
           )
         ).and(check(xs.forall(_ >= 0.0), s"$name produced a negative count"))
 
+  /** The Cauchy cumulative distribution, in closed form: a heavy tail has no moments to test. */
+  private def cauchyCdf(mu: Double, sigma: Double)(x: Double): Double =
+    0.5 + math.atan((x - mu) / sigma) / math.Pi
+
+  /** The Student-t cumulative distribution, through the regularised incomplete beta. */
+  private def studentTCdf(nu: Double, mu: Double, sigma: Double)(x: Double): Double =
+    val t = (x - mu) / sigma
+    val tail = 0.5 * RegularizedBeta.value(nu / (nu + t * t), nu / 2.0, 0.5)
+    if t > 0.0 then 1.0 - tail else tail
+
+  private def ks(xs: List[Double], cdf: Double => Double): Double =
+    val sorted = xs.sorted
+    val size = sorted.length.toDouble
+    sorted.zipWithIndex.map { (x, i) =>
+      val f = cdf(x)
+      math.max(math.abs(f - i / size), math.abs(f - (i + 1) / size))
+    }.max
+
   pureTest("the continuous laws sample what they claim") {
     continuous("Normal(1.5, 2)", Normal.of(1.5, 2.0), 1L)
       .and(continuous("HalfNormal(2)", HalfNormal.of(2.0), 2L))
@@ -108,6 +128,49 @@ object LawSamplingSuite extends SimpleIOSuite with Approx with MonteCarlo:
       .and(continuous("Beta(2, 5)", Beta.of(2.0, 5.0), 6L))
       .and(continuous("Beta(0.5, 0.5)", Beta.of(0.5, 0.5), 7L))
       .and(continuous("Logistic(-1, 3)", Logistic.of(-1.0, 3.0), 8L))
+      // nu = 10: the variance needs nu > 2 and the standard error of a sample variance needs the
+      // fourth moment, which needs nu > 4.
+      .and(continuous("StudentT(10, 1.5, 2)", StudentT.of(10.0, 1.5, 2.0), 31L))
+      .and(continuous("HalfStudentT(10, 2)", HalfStudentT.of(10.0, 2.0), 32L))
+      .and(continuous("Exponential(0.5)", Exponential.of(0.5), 33L))
+  }
+
+  // A Cauchy has no mean and a Student-t of three degrees of freedom has no fourth moment, so a
+  // moment test says nothing about either. Their whole distribution is compared instead, against
+  // closed forms, at the 0.1 % point of the Kolmogorov statistic.
+  pureTest("the heavy tails are judged by their distribution, not by their moments") {
+    val cauchy = Cauchy.of(-1.0, 2.0) match
+      case Left(error) => failure(error.message)
+      case Right(law) =>
+        val xs = draws(law.sample[Rand], seed.fold(41L))
+        val statistic = ks(xs, cauchyCdf(-1.0, 2.0))
+        check(
+          statistic <= 1.95 / math.sqrt(n),
+          s"Cauchy(-1, 2): Kolmogorov-Smirnov = $statistic against ${1.95 / math.sqrt(n)}"
+        )
+    val halfCauchy = HalfCauchy.of(1.5) match
+      case Left(error) => failure(error.message)
+      case Right(law) =>
+        val xs = draws(law.sample[Rand], seed.fold(42L))
+        // The half law is the full one folded at zero: F(x) = 2 F_full(x) - 1 for x >= 0.
+        val statistic = ks(xs, x => 2.0 * cauchyCdf(0.0, 1.5)(x) - 1.0)
+        check(xs.forall(_ >= 0.0), "a half Cauchy produced a negative draw")
+          .and(
+            check(
+              statistic <= 1.95 / math.sqrt(n),
+              s"HalfCauchy(1.5): Kolmogorov-Smirnov = $statistic"
+            )
+          )
+    val student = StudentT.of(3.0, 0.0, 1.0) match
+      case Left(error) => failure(error.message)
+      case Right(law) =>
+        val xs = draws(law.sample[Rand], seed.fold(43L))
+        val statistic = ks(xs, studentTCdf(3.0, 0.0, 1.0))
+        check(
+          statistic <= 1.95 / math.sqrt(n),
+          s"StudentT(3, 0, 1): Kolmogorov-Smirnov = $statistic"
+        )
+    cauchy.and(halfCauchy).and(student)
   }
 
   pureTest("the discrete laws sample what they claim") {
@@ -117,6 +180,9 @@ object LawSamplingSuite extends SimpleIOSuite with Approx with MonteCarlo:
       .and(discrete("NegBinomial2(4, 2)", NegBinomial2.of(4.0, 2.0), 14L))
       .and(discrete("NegBinomial(8.5, 1.2)", NegBinomial.of(8.5, 1.2), 15L))
       .and(discrete("Binomial(20, 0.3)", Binomial.of(20, 0.3), 16L))
+      .and(discrete("BernoulliLogit(0.7)", BernoulliLogit.of(0.7), 34L))
+      .and(discrete("BinomialLogit(20, -0.4)", BinomialLogit.of(20, -0.4), 35L))
+      .and(discrete("BetaBinomial(30, 2, 5)", BetaBinomial.of(30, 2.0, 5.0), 36L))
   }
 
   pureTest("a law's mass function sums to one over its support") {
@@ -124,7 +190,18 @@ object LawSamplingSuite extends SimpleIOSuite with Approx with MonteCarlo:
       ("Poisson(3.5)", Poisson.of(3.5).map(l => (k: Int) => l.logMass(k)), 200),
       ("NegBinomial2(4, 2)", NegBinomial2.of(4.0, 2.0).map(l => (k: Int) => l.logMass(k)), 400),
       ("NegBinomial(8.5, 1.2)", NegBinomial.of(8.5, 1.2).map(l => (k: Int) => l.logMass(k)), 400),
-      ("Binomial(20, 0.3)", Binomial.of(20, 0.3).map(l => (k: Int) => l.logMass(k)), 20)
+      ("Binomial(20, 0.3)", Binomial.of(20, 0.3).map(l => (k: Int) => l.logMass(k)), 20),
+      ("BernoulliLogit(0.7)", BernoulliLogit.of(0.7).map(l => (k: Int) => l.logMass(k)), 1),
+      (
+        "BinomialLogit(20, -0.4)",
+        BinomialLogit.of(20, -0.4).map(l => (k: Int) => l.logMass(k)),
+        20
+      ),
+      (
+        "BetaBinomial(30, 2, 5)",
+        BetaBinomial.of(30, 2.0, 5.0).map(l => (k: Int) => l.logMass(k)),
+        30
+      )
     )
     forEach(cases) { (name, built, bound) =>
       built match
@@ -188,4 +265,17 @@ object LawSamplingSuite extends SimpleIOSuite with Approx with MonteCarlo:
       .and(
         check(Dirichlet.of(IArray(1.0, -1.0)).isLeft, "Dirichlet accepted a negative concentration")
       )
+      .and(check(StudentT.of(0.0, 0.0, 1.0).isLeft, "StudentT accepted nu = 0"))
+      .and(check(StudentT.of(3.0, 0.0, -1.0).isLeft, "StudentT accepted a negative scale"))
+      .and(check(Cauchy.of(0.0, 0.0).isLeft, "Cauchy accepted a scale of 0"))
+      .and(
+        check(
+          HalfCauchy.of(Double.PositiveInfinity).isLeft,
+          "HalfCauchy accepted an infinite scale"
+        )
+      )
+      .and(check(Exponential.of(0.0).isLeft, "Exponential accepted a rate of 0"))
+      .and(check(BinomialLogit.of(-1, 0.0).isLeft, "BinomialLogit accepted negative trials"))
+      .and(check(BetaBinomial.of(10, 0.0, 1.0).isLeft, "BetaBinomial accepted alpha = 0"))
+      .and(check(BetaBinomial.of(-1, 1.0, 1.0).isLeft, "BetaBinomial accepted negative trials"))
   }

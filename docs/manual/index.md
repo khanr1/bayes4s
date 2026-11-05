@@ -10,6 +10,7 @@ the sampling chapters arrive with the sampler.
 
 | Chapter | State |
 |---|---|
+| [Glossary](glossary.md) | written; the vocabulary of *Statistical Rethinking*, checked in CI |
 | [1. Concepts](01-concepts.md) | written, the `Real[A]` part pending phase 2 |
 | [Appendix B. Errors and contracts](appendix-b-errors.md) | written |
 | [Appendix C. Classic worked examples](appendix-c-worked-examples.md) | written |

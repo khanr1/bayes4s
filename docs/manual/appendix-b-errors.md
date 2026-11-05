@@ -63,5 +63,5 @@ yield predictive.mean
 model.fold(error => s"could not build the model: ${error.message}", mean => s"mean $mean")
 ```
 
-Inside `effect`, the same errors are raised in `F` through `MonadThrow`, so a stream of draws fails
+Inside `effect`, the same errors are raised in `F` through `MonadThrow`, so a stream of samples fails
 the way the rest of your program fails. Nothing is caught and ignored.

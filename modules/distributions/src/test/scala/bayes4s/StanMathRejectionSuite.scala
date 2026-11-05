@@ -35,7 +35,7 @@ import weaver.SimpleIOSuite
   */
 object StanMathRejectionSuite extends SimpleIOSuite with Approx:
 
-  pureTest("46 invalid parameters are refused by name") {
+  pureTest("78 invalid parameters are refused by name") {
     Fixtures.stanMath match
       case Left(message) => failure(message)
       case Right(fixture) =>
@@ -45,12 +45,18 @@ object StanMathRejectionSuite extends SimpleIOSuite with Approx:
           (function, body) <- functions.toList
           invalid <- body.invalid
           if invalid.index > 0
-          ours <- parameterName(law, body.paramNames(invalid.index)).toList
+          ours <- parameterName(law, function, body.paramNames(invalid.index)).toList
           params <- base(fixture, law, function).toList
-        yield (law, ours, invalid.value, substituted(params, invalid.index, invalid.value))
-        val distinct = wanted.distinctBy((law, name, value, _) => (law, name, value))
-        val assertions = forEach(distinct) { (law, name, value, params) =>
-          construct(law, params) match
+        yield (
+          law,
+          function,
+          ours,
+          invalid.value,
+          substituted(params, invalid.index, invalid.value)
+        )
+        val distinct = wanted.distinctBy((law, _, name, value, _) => (law, name, value))
+        val assertions = forEach(distinct) { (law, function, name, value, params) =>
+          construct(law, function, params) match
             case Left(message) => failure(message)
             case Right(Right(_)) =>
               failure(s"$law accepted $name = $value, which Stan Math rejects")
@@ -65,11 +71,16 @@ object StanMathRejectionSuite extends SimpleIOSuite with Approx:
                 )
               )
         }
-        check(distinct.length == 46, s"${distinct.length} distinct rejections, expected 46")
+        check(distinct.length == 78, s"${distinct.length} distinct rejections, expected 78")
           .and(assertions)
   }
 
-  pureTest("7 variates outside the support give -Inf, not an error") {
+  // Thirteen of the fourteen carry a finite value outside the support, and one — `exponential` —
+  // carries a NaN. The two are not the same thing and the contract does not treat them alike: a
+  // finite value the law cannot produce has density zero, while a NaN is not a value at all and
+  // propagates as IEEE arithmetic requires. Asserting -Inf for both would have been asserting
+  // something false about one of them.
+  pureTest("14 variates outside the support follow the contract: -Inf, or NaN for a NaN") {
     Fixtures.stanMath match
       case Left(message) => failure(message)
       case Right(fixture) =>
@@ -86,12 +97,15 @@ object StanMathRejectionSuite extends SimpleIOSuite with Approx:
           density(law, function, params) match
             case Left(message) => failure(s"$law.$function: $message")
             case Right(got) =>
-              check(
-                got == Double.NegativeInfinity,
-                s"$law.$function at a variate of $value gave $got, expected -Inf"
-              )
+              if value.isNaN then
+                check(got.isNaN, s"$law.$function at a NaN variate gave $got, expected NaN")
+              else
+                check(
+                  got == Double.NegativeInfinity,
+                  s"$law.$function at a variate of $value gave $got, expected -Inf"
+                )
         }
-        check(wanted.length == 7, s"${wanted.length} out-of-support cases, expected 7")
+        check(wanted.length == 14, s"${wanted.length} out-of-support cases, expected 14")
           .and(assertions)
   }
 

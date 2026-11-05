@@ -16,6 +16,7 @@
 
 package bayes4s.testkit
 
+import cats.syntax.all.*
 import io.circe.Decoder
 import io.circe.Json
 
@@ -57,6 +58,43 @@ final case class StanMathFixture(laws: Map[String, Map[String, StanFunction]]):
     function(law, name).map(_.valid).getOrElse(Nil)
   def invalid(law: String, name: String): List[StanInvalid] =
     function(law, name).map(_.invalid).getOrElse(Nil)
+
+/** One case of `multi_normal_cholesky_lpdf`.
+  *
+  * One case carries a `source`, the Stan test it was ported from; the other twelve carry a `scipy`
+  * value instead, which is the independent confirmation. [[label]] says which, so a failure names
+  * what asserted the number.
+  */
+final case class MultiNormalCase(
+    source: Option[String],
+    scipy: Option[Double],
+    y: IArray[Double],
+    mu: IArray[Double],
+    l: IArray[IArray[Double]],
+    value: Double
+):
+  def label: String = source.getOrElse(scipy.fold("no source")(v => s"confirmed by SciPy at $v"))
+
+/** One LKJ normalising constant, for a dimension and a concentration. */
+final case class LkjConstantCase(k: Int, eta: Double, constant: Double)
+
+/** One LKJ density, evaluated on the Cholesky factor of a correlation matrix. */
+final case class LkjCholeskyCase(
+    k: Int,
+    eta: Double,
+    l: IArray[IArray[Double]],
+    value: Double
+)
+
+/** The four shapes of the linear-algebra cases, one per operation. */
+final case class MatVecCase(a: IArray[IArray[Double]], x: IArray[Double], value: IArray[Double])
+final case class CholeskyCase(s: IArray[IArray[Double]], value: IArray[IArray[Double]])
+final case class LowerSolveCase(
+    l: IArray[IArray[Double]],
+    b: IArray[Double],
+    value: IArray[Double]
+)
+final case class GatherCase(values: IArray[Double], index: IArray[Int], value: IArray[Double])
 
 /** Typed readers for the reference files, so that the suites read as assertions rather than as
   * JSON navigation, and the decoding itself is written once.
@@ -155,6 +193,91 @@ object Fixtures:
       "stan-math/distributions.json",
       List("distributions")
     ).map(StanMathFixture.apply)
+
+  private val ms: Decoder[IArray[IArray[Double]]] = Reference.doubleMatrix
+
+  private given multiNormalCase: Decoder[MultiNormalCase] = Decoder.instance: c =>
+    for
+      source <- c.get[Option[String]]("source")
+      scipy <- c.getOrElse[Option[Double]]("scipy")(None)
+      y <- c.get("y")(using ds)
+      mu <- c.get("mu")(using ds)
+      l <- c.get("L")(using ms)
+      v <- c.get("value")(using d)
+    yield MultiNormalCase(source, scipy, y, mu, l, v)
+
+  private given lkjConstantCase: Decoder[LkjConstantCase] = Decoder.instance: c =>
+    for
+      k <- c.get[Int]("K")
+      eta <- c.get("eta")(using d)
+      constant <- c.get("constant")(using d)
+    yield LkjConstantCase(k, eta, constant)
+
+  private given lkjCholeskyCase: Decoder[LkjCholeskyCase] = Decoder.instance: c =>
+    for
+      k <- c.get[Int]("K")
+      eta <- c.get("eta")(using d)
+      l <- c.get("L")(using ms)
+      v <- c.get("lkj_corr_cholesky")(using d)
+    yield LkjCholeskyCase(k, eta, l, v)
+
+  private given matVecCase: Decoder[MatVecCase] = Decoder.instance: c =>
+    for
+      a <- c.get("A")(using ms)
+      x <- c.get("x")(using ds)
+      v <- c.get("value")(using ds)
+    yield MatVecCase(a, x, v)
+
+  private given choleskyCase: Decoder[CholeskyCase] = Decoder.instance: c =>
+    for
+      s <- c.get("S")(using ms)
+      v <- c.get("value")(using ms)
+    yield CholeskyCase(s, v)
+
+  private given lowerSolveCase: Decoder[LowerSolveCase] = Decoder.instance: c =>
+    for
+      l <- c.get("L")(using ms)
+      b <- c.get("b")(using ds)
+      v <- c.get("value")(using ds)
+    yield LowerSolveCase(l, b, v)
+
+  private given gatherCase: Decoder[GatherCase] = Decoder.instance: c =>
+    for
+      values <- c.get("values")(using ds)
+      index <- c.get[List[Int]]("index")
+      v <- c.get("value")(using ds)
+    yield GatherCase(values, IArray.unsafeFromArray(index.toArray), v)
+
+  /** The 13 multivariate normal cases of `multilevel.json`. */
+  def multiNormalCases: Either[String, List[MultiNormalCase]] =
+    at[List[MultiNormalCase]](Multilevel, List("multi_normal_cholesky", "cases"))
+
+  /** The prose descriptions of what `multi_normal_cholesky` must refuse. */
+  def multiNormalInvalid: Either[String, List[String]] =
+    at[List[String]](Multilevel, List("multi_normal_cholesky", "invalid"))
+
+  /** The 20 LKJ normalising constants. */
+  def lkjConstants: Either[String, List[LkjConstantCase]] =
+    at[List[LkjConstantCase]](Multilevel, List("lkj", "constant_cases"))
+
+  /** The 9 LKJ densities on a Cholesky factor. */
+  def lkjCholesky: Either[String, List[LkjCholeskyCase]] =
+    at[List[LkjCholeskyCase]](Multilevel, List("lkj", "cholesky_cases"))
+
+  /** The linear-algebra cases of one operation. */
+  def matVecCases: Either[String, List[MatVecCase]] = linalg[MatVecCase]("mat_vec")
+  def choleskyCases: Either[String, List[CholeskyCase]] = linalg[CholeskyCase]("cholesky")
+  def lowerSolveCases: Either[String, List[LowerSolveCase]] =
+    linalg[LowerSolveCase]("lower_triangular_solve")
+  def gatherCases: Either[String, List[GatherCase]] = linalg[GatherCase]("gather")
+
+  private val Multilevel = "multilevel/multilevel.json"
+
+  private def linalg[A](operation: String)(using Decoder[A]): Either[String, List[A]] =
+    at[List[Json]](Multilevel, List("linear_algebra")).flatMap: cases =>
+      cases
+        .filter(_.hcursor.get[String]("op").contains(operation))
+        .traverse(_.as[A].left.map(f => s"$Multilevel, $operation: ${f.getMessage}"))
 
   /** One section of `worked_examples.json`, left as JSON: every section has its own shape. */
   def workedExample(section: String): Either[String, Json] =

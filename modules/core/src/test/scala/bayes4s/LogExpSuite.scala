@@ -32,15 +32,17 @@ object LogExpSuite extends SimpleIOSuite with Approx:
       case Left(message) => failure(message)
       case Right(cases) =>
         check(cases.length == 21, s"${cases.length} points, expected 21").and(
-          forEach(cases)(c => closeRel(LogExp.logistic(c.x), c.value, 1e-13, s"logistic(${c.x})"))
+          forEach(cases)(c => closeRel(LogExp.invLogit(c.x), c.value, 1e-13, s"logistic(${c.x})"))
         )
   }
 
-  pureTest("logSigmoid on 21 points (mpmath, 50 digits)") {
+  pureTest("logInvLogit on 21 points (mpmath, 50 digits)") {
     Fixtures.specialPoints("log_sigmoid") match
       case Left(message) => failure(message)
       case Right(cases) =>
-        forEach(cases)(c => closeRel(LogExp.logSigmoid(c.x), c.value, 1e-13, s"logSigmoid(${c.x})"))
+        forEach(cases)(c =>
+          closeRel(LogExp.logInvLogit(c.x), c.value, 1e-13, s"logInvLogit(${c.x})")
+        )
   }
 
   pureTest("log1pExp on 21 points, the softplus (mpmath, 50 digits)") {
@@ -108,11 +110,11 @@ object LogExpSuite extends SimpleIOSuite with Approx:
   }
 
   pureTest("the far tails stay finite") {
-    check(LogExp.logistic(-800.0) == 0.0, s"logistic(-800) = ${LogExp.logistic(-800.0)}")
-      .and(check(LogExp.logistic(800.0) == 1.0, s"logistic(800) = ${LogExp.logistic(800.0)}"))
+    check(LogExp.invLogit(-800.0) == 0.0, s"logistic(-800) = ${LogExp.invLogit(-800.0)}")
+      .and(check(LogExp.invLogit(800.0) == 1.0, s"logistic(800) = ${LogExp.invLogit(800.0)}"))
       .and(close(LogExp.log1pExp(800.0), 800.0, 1e-13, "log1pExp(800) = 800"))
       .and(check(LogExp.log1pExp(-800.0) == 0.0, s"log1pExp(-800) = ${LogExp.log1pExp(-800.0)}"))
-      .and(close(LogExp.logSigmoid(-800.0), -800.0, 1e-13, "logSigmoid(-800) = -800"))
+      .and(close(LogExp.logInvLogit(-800.0), -800.0, 1e-13, "logInvLogit(-800) = -800"))
   }
 
   // The two directions of this round trip are not equally informative. Going from a probability
@@ -123,23 +125,23 @@ object LogExpSuite extends SimpleIOSuite with Approx:
   // demanding assertion is made on the direction that does.
   pureTest("logistic and logit undo each other, each where its arithmetic allows") {
     val fromProbability = forEach(List(1e-300, 1e-30, 1e-10, 0.001, 0.25, 0.5, 0.75, 0.9)) { p =>
-      closeRel(LogExp.logistic(LogExp.logit(p)), p, 1e-14, s"logistic(logit($p))")
+      closeRel(LogExp.invLogit(LogExp.logit(p)), p, 1e-14, s"logistic(logit($p))")
     }
     val fromLogOdds = forEach(List(-14.0, -5.0, -0.5, 0.0, 0.5, 5.0, 14.0)) { x =>
-      closeRel(LogExp.logit(LogExp.logistic(x)), x, 1e-10, s"logit(logistic($x))")
+      closeRel(LogExp.logit(LogExp.invLogit(x)), x, 1e-10, s"logit(logistic($x))")
     }
     // Where the round trip gives up, and what it gives up to: at 30 the odds come back to three
     // digits, at 300 the probability has saturated to exactly 1 and the only honest answer is an
     // infinity. A model that works on log odds of this size has to stay on the log scale.
     val beyond = close(
-      LogExp.logit(LogExp.logistic(30.0)),
+      LogExp.logit(LogExp.invLogit(30.0)),
       30.0,
       1e-2,
       "at a log odds of 30 the round trip keeps three digits"
-    ).and(check(LogExp.logistic(300.0) == 1.0, "logistic(300) saturates to exactly 1"))
+    ).and(check(LogExp.invLogit(300.0) == 1.0, "logistic(300) saturates to exactly 1"))
       .and(
         check(
-          LogExp.logit(LogExp.logistic(300.0)) == Double.PositiveInfinity,
+          LogExp.logit(LogExp.invLogit(300.0)) == Double.PositiveInfinity,
           "and the round trip through a saturated probability is +Inf, not a wrong number"
         )
       )

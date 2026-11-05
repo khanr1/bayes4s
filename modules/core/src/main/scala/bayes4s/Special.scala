@@ -88,7 +88,7 @@ object Special:
     * p = 1e-300 and beyond. `erfinv(2p - 1)` is not used: it loses every digit below p of about
     * 1e-50, which is exactly where the rank normalisation of the diagnostics needs it.
     */
-  def normalQuantile(p: Double): Double =
+  def invPhi(p: Double): Double =
     if p.isNaN || p < 0.0 || p > 1.0 then Double.NaN
     else if p == 0.0 then Double.NegativeInfinity
     else if p == 1.0 then Double.PositiveInfinity
@@ -108,6 +108,9 @@ object Special:
             val s = r - 5.0
             farNumerator(s) / farDenominator(s)
         if q < 0.0 then -value else value
+
+  @deprecated("renamed to invPhi, the Stan name (inv_Phi)", "0.1")
+  def normalQuantile(p: Double): Double = invPhi(p)
 
   // --- internals ----------------------------------------------------------------------------
 

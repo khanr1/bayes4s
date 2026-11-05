@@ -1,0 +1,29 @@
+# The vocabulary of the manual. The prose uses the Rethinking term; the API keeps the Stan name.
+# avoid: the term scripts/check-terminology.py flags in prose, outside code blocks and inline code.
+# prefer: what to write instead.  note: why, when it is not obvious.
+avoid,prefer,note
+normal,Gaussian,"the API keeps Normal and LogDensity.normal; this is about prose only"
+negative binomial,gamma-Poisson,
+ordinal regression,ordered categorical,
+logit scale,log-odds,
+extra-Poisson variation,over-dispersion,
+prior predictive check,prior predictive simulation,
+draws,samples from the posterior,"a draw from a generator is not a sample from a posterior: use term-ok there"
+posterior mode,maximum a posteriori,
+credible interval,compatibility interval,
+confidence interval,compatibility interval,
+equal-tailed interval,percentile interval,
+HPD,highest posterior density interval,
+burn-in,warmup,
+divergences,divergent transitions,
+effective sample size,effective number of samples,
+ESS,effective number of samples,"essBulk and essTail stay as code names"
+Gelman-Rubin statistic,Rhat,
+vague prior,regularizing prior,
+hierarchical model,multilevel model,
+mixed model,multilevel model,
+random effects,varying effects,
+random intercepts,varying intercepts,
+random slopes,varying slopes,
+levels,clusters,"when it means the groups of a multilevel model"
+synthetic data,fake data,

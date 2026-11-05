@@ -47,7 +47,7 @@ object StanMathDensitySuite extends SimpleIOSuite with Approx:
     ("neg_binomial", "lpdf", List(10.0, 1000000.0, 100000.0)) -> (-2.078566643110892, 1e-14)
   )
 
-  pureTest("the 30 density cases of the 10 laws in scope") {
+  pureTest("the 53 density cases of the 15 laws in scope") {
     Fixtures.stanMath match
       case Left(message) => failure(message)
       case Right(fixture) =>
@@ -66,7 +66,7 @@ object StanMathDensitySuite extends SimpleIOSuite with Approx:
             case Left(message) => failure(s"$law.$function($arguments): $message")
             case Right(got) => closeRel(got, expected, tolerance, s"$law.$function($arguments)")
         }
-        check(cases.length == 30, s"${cases.length} density cases, expected 30").and(assertions)
+        check(cases.length == 53, s"${cases.length} density cases, expected 53").and(assertions)
   }
 
   pureTest("the standard normal agrees with Normal(0, 1) on the same arguments") {
@@ -78,7 +78,7 @@ object StanMathDensitySuite extends SimpleIOSuite with Approx:
           case Right(unit) =>
             forEach(fixture.valid("std_normal", "lpdf")) { valid =>
               check(
-                Normal.standard.logPdf(valid.params(0)) == unit.logPdf(valid.params(0)),
+                Normal.stdNormal.logPdf(valid.params(0)) == unit.logPdf(valid.params(0)),
                 s"std_normal and Normal(0, 1) disagree at ${valid.params(0)}"
               )
             }

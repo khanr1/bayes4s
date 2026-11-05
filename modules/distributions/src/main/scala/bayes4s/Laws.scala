@@ -25,6 +25,10 @@ package bayes4s
 private[bayes4s] object Laws:
 
   val HalfLog2Pi: Double = 0.5 * math.log(2.0 * math.Pi)
+  val Log2Pi: Double = math.log(2.0 * math.Pi)
+  val LogPi: Double = math.log(math.Pi)
+  val HalfLogPi: Double = 0.5 * math.log(math.Pi)
+  val Log2: Double = math.log(2.0)
   val HalfLog2OverPi: Double = 0.5 * math.log(2.0 / math.Pi)
 
   def finite(where: String, name: String, value: Double): Either[BayesError.InvalidArgument, Unit] =

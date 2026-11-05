@@ -25,12 +25,15 @@ package bayes4s
   */
 object Quantile:
 
-  /** Quantile of unsorted values. `p` outside [0, 1], or no values at all, gives `NaN`. */
-  def type7(xs: IArray[Double], p: Double): Double =
-    if xs.length == 0 then Double.NaN else type7OfSorted(sortedCopy(xs), p)
+  /** Quantile of unsorted values, type 7. `p` outside [0, 1], or no values at all, gives `NaN`.
+    *
+    * Stan's `quantile`, which is type 7; R offers nine definitions and this is its default too.
+    */
+  def quantile(xs: IArray[Double], p: Double): Double =
+    if xs.length == 0 then Double.NaN else quantileOfSorted(sortedCopy(xs), p)
 
   /** The same, when the caller already holds sorted values. */
-  def type7OfSorted(sorted: IArray[Double], p: Double): Double =
+  def quantileOfSorted(sorted: IArray[Double], p: Double): Double =
     val n = sorted.length
     if n == 0 || p.isNaN || p < 0.0 || p > 1.0 then Double.NaN
     else if n == 1 then sorted(0)
@@ -41,6 +44,12 @@ object Quantile:
       val fraction = position - below
       if fraction == 0.0 then sorted(index)
       else sorted(index) + fraction * (sorted(index + 1) - sorted(index))
+
+  @deprecated("renamed to quantile, the Stan name", "0.1")
+  def type7(xs: IArray[Double], p: Double): Double = quantile(xs, p)
+
+  @deprecated("renamed to quantileOfSorted", "0.1")
+  def type7OfSorted(sorted: IArray[Double], p: Double): Double = quantileOfSorted(sorted, p)
 
   /** A fresh array, sorted in place. The array is created here and never leaves, so the mutation
     * cannot be observed; `Arrays.sort` on primitives is what makes the summaries of a thousand

@@ -60,12 +60,12 @@ final case class OrderedLogistic private (eta: Double, cuts: IArray[Double]):
   def logMass(k: Int): Double =
     val last = cuts.length + 1
     if k < 1 || k > last then Double.NegativeInfinity
-    else if k == 1 then LogExp.logSigmoid(cuts(0) - eta)
-    else if k == last then LogExp.logSigmoid(eta - cuts(cuts.length - 1))
+    else if k == 1 then LogExp.logInvLogit(cuts(0) - eta)
+    else if k == last then LogExp.logInvLogit(eta - cuts(cuts.length - 1))
     else
       LogExp.logDiffExp(
-        LogExp.logSigmoid(eta - cuts(k - 2)),
-        LogExp.logSigmoid(eta - cuts(k - 1))
+        LogExp.logInvLogit(eta - cuts(k - 2)),
+        LogExp.logInvLogit(eta - cuts(k - 1))
       )
   def sample[F[_]: Monad: Rng]: F[Int] = Sampling.categorical[F](cumulative).map(_ + 1)
   private val cumulative: IArray[Double] =

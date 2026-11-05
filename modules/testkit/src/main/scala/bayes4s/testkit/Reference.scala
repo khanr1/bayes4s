@@ -85,6 +85,10 @@ object Reference:
   val doubleArray: Decoder[IArray[Double]] =
     Decoder.decodeList(looseDouble).map(xs => IArray.unsafeFromArray(xs.toArray))
 
+  /** A matrix given as nested rows, which is how the fixtures write one. */
+  val doubleMatrix: Decoder[IArray[IArray[Double]]] =
+    Decoder.decodeList(doubleArray).map(rows => IArray.unsafeFromArray(rows.toArray))
+
   /** Named columns of a CmdStan CSV: `#` comment lines are skipped and the first remaining line
     * carries the names.
     */

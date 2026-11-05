@@ -26,7 +26,7 @@ seed.next == seed.next
 ```
 
 That is what makes a run reproducible, and it is why four chains computed in parallel give
-bit-for-bit the same draws as four chains computed in sequence. For independent streams, derive
+bit-for-bit the same samples as four chains computed in sequence. For independent streams, derive
 them by index rather than by sharing a counter:
 
 ```scala mdoc
@@ -87,13 +87,13 @@ Every numeric function returns a documented value for every double, including th
 textbook formulas. It never throws.
 
 ```scala mdoc
-LogExp.logistic(-800.0)
+LogExp.invLogit(-800.0)
 LogExp.log1pExp(800.0)
 Special.lgamma(0.0)
-Special.normalQuantile(1e-300)
+Special.invPhi(1e-300)
 ```
 
-The last one matters later: the rank normalisation of the diagnostics needs the normal quantile far
+The last one matters later: the rank normalisation of the diagnostics needs the Gaussian quantile far
 into the tail, where `erfinv(2p - 1)` has no digits left.
 
 A value outside a distribution's support is not an error either. It is `-Inf`, which is exactly

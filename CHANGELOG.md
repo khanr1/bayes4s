@@ -8,6 +8,41 @@ Versions follow git tags. Nothing is released yet.
 
 ## Unreleased
 
+### Phase 1b — the multilevel laws, the linear algebra, the names (5 November 2026)
+
+Added
+
+- Ten laws as values: `StudentT`, `Cauchy`, `HalfStudentT`, `HalfCauchy`, `Exponential`,
+  `BernoulliLogit`, `BinomialLogit`, `BetaBinomial`, `MultiNormalCholesky`, `LkjCorrCholesky`,
+  each with a smart constructor, a density and a sampler. The laws on the log-odds scale never
+  pass through the probability; the heavy-tailed ones report `NaN` for the moments they do not
+  have, and are tested against their whole distribution instead.
+- `core.linalg`: `Matrix`, an opaque `Cholesky` carrying its invariant, and the five operations the
+  multilevel models need — `matVec`, `cholesky`, `lowerSolve`, `logDetFromCholesky`, `gather`.
+- `docs/manual/glossary.md`, `docs/manual/terminology.csv` and
+  `scripts/check-terminology.py` in CI: the manual's prose keeps the vocabulary of *Statistical
+  Rethinking* while the API keeps the names of Stan.
+- 27 tests, for 149 in all. Coverage of the Stan Math fixture rises from 30 valid density cases to
+  53, from 46 distinct parameter rejections to 78, and the laws outside the specification fall from
+  eight to three.
+
+Changed
+
+- The naming rule is applied: `invLogit`, `logInvLogit`, `invPhi`, `quantile`, `quantileOfSorted`
+  and `Normal.stdNormal` replace their former names, which stay as `@deprecated` forwarders until
+  v0.1 and are asserted to agree with their replacements.
+- `Matrix.identity` and `Linalg.lowerSolve` return `Either`, like every other constructor and
+  partial operation in the library.
+
+Found
+
+- The LKJ normalising constant needs no special case at `eta = 1`: the product form of Theorem 5
+  reproduces all twenty reference constants, the four uniform ones included, to 1.8e-14. Stan's
+  separate branch is an optimisation (`docs/design.md`, D-29).
+- Computing a Bernoulli on the log-odds scale through the probability reproduces SciPy's error to
+  nine digits, which is what the mutation test showed (`docs/validation.md`).
+
+
 ### Phase 1 — the core and the laws as values (4 November 2026)
 
 Added

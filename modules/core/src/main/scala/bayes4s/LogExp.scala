@@ -62,16 +62,26 @@ object LogExp:
     else if a == Double.PositiveInfinity then Double.PositiveInfinity
     else a + log1mExp(b - a)
 
-  /** 1 / (1 + exp(-x)), computed on whichever side cannot overflow. */
-  def logistic(x: Double): Double =
+  /** 1 / (1 + exp(-x)), computed on whichever side cannot overflow. Stan's `inv_logit`. */
+  def invLogit(x: Double): Double =
     if x.isNaN then Double.NaN
     else if x >= 0.0 then 1.0 / (1.0 + math.exp(-x))
     else
       val e = math.exp(x)
       e / (1.0 + e)
 
-  /** log of the logistic, accurate in the far left tail where `log(logistic(x))` underflows. */
-  def logSigmoid(x: Double): Double = if x.isNaN then Double.NaN else -log1pExp(-x)
+  /** log of the inverse logit, accurate in the far left tail where `log(invLogit(x))` underflows.
+    * Stan's `log_inv_logit`.
+    */
+  def logInvLogit(x: Double): Double = if x.isNaN then Double.NaN else -log1pExp(-x)
+
+  /** log(1 - invLogit(x)), Stan's `log1m_inv_logit`.
+    *
+    * The complement of [[logInvLogit]], and the other half of what a Bernoulli on the log-odds
+    * scale needs: it must stay exact at eta = 25, where going through the probability leaves
+    * nothing.
+    */
+  def log1mInvLogit(x: Double): Double = if x.isNaN then Double.NaN else -log1pExp(x)
 
   /** The log odds. `NaN` outside [0, 1], infinite at the ends. */
   def logit(p: Double): Double =
@@ -79,5 +89,14 @@ object LogExp:
     else if p == 0.0 then Double.NegativeInfinity
     else if p == 1.0 then Double.PositiveInfinity
     else math.log(p) - math.log1p(-p)
+
+  // --- deprecated aliases, kept until v0.1 -------------------------------------------------
+  // Renamed to the Stan names the naming rule requires. They forward, so they cannot drift.
+
+  @deprecated("renamed to invLogit, the Stan name (inv_logit)", "0.1")
+  def logistic(x: Double): Double = invLogit(x)
+
+  @deprecated("renamed to logInvLogit, the Stan name (log_inv_logit)", "0.1")
+  def logSigmoid(x: Double): Double = logInvLogit(x)
 
   private val Ln2: Double = math.log(2.0)

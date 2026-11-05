@@ -64,7 +64,7 @@ object SpecialFunctionsSuite extends SimpleIOSuite with Approx:
       case Right(cases) =>
         check(cases.length == 16, s"${cases.length} points, expected 16").and(
           forEach(cases) { c =>
-            closeRel(Special.normalQuantile(c.p), c.value, 1e-13, s"normalQuantile(${c.p})")
+            closeRel(Special.invPhi(c.p), c.value, 1e-13, s"invPhi(${c.p})")
           }
         )
   }
@@ -76,23 +76,23 @@ object SpecialFunctionsSuite extends SimpleIOSuite with Approx:
     val ps = List(0.001, 0.01, 0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9, 0.99, 0.999)
     val antisymmetric = forEach(ps.filter(_ <= 0.5)) { p =>
       closeRel(
-        Special.normalQuantile(p),
-        -Special.normalQuantile(1.0 - p),
+        Special.invPhi(p),
+        -Special.invPhi(1.0 - p),
         1e-12,
-        s"normalQuantile($p) = -normalQuantile(${1.0 - p})"
+        s"invPhi($p) = -invPhi(${1.0 - p})"
       )
     }
     val increasing = forEach(ps.zip(ps.tail)) { (a, b) =>
       check(
-        Special.normalQuantile(a) < Special.normalQuantile(b),
-        s"normalQuantile($a) < normalQuantile($b)"
+        Special.invPhi(a) < Special.invPhi(b),
+        s"invPhi($a) < invPhi($b)"
       )
     }
-    val edges = check(Special.normalQuantile(0.5) == 0.0, "normalQuantile(0.5) is exactly 0")
-      .and(check(Special.normalQuantile(0.0) == Double.NegativeInfinity, "p = 0 gives -Inf"))
-      .and(check(Special.normalQuantile(1.0) == Double.PositiveInfinity, "p = 1 gives +Inf"))
-      .and(check(Special.normalQuantile(1.5).isNaN, "p outside [0, 1] gives NaN"))
-      .and(check(Special.normalQuantile(Double.NaN).isNaN, "p = NaN gives NaN"))
+    val edges = check(Special.invPhi(0.5) == 0.0, "invPhi(0.5) is exactly 0")
+      .and(check(Special.invPhi(0.0) == Double.NegativeInfinity, "p = 0 gives -Inf"))
+      .and(check(Special.invPhi(1.0) == Double.PositiveInfinity, "p = 1 gives +Inf"))
+      .and(check(Special.invPhi(1.5).isNaN, "p outside [0, 1] gives NaN"))
+      .and(check(Special.invPhi(Double.NaN).isNaN, "p = NaN gives NaN"))
     antisymmetric.and(increasing).and(edges)
   }
 

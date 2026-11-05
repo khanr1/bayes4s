@@ -52,13 +52,14 @@ object StanMathCoverageSuite extends SimpleIOSuite with Approx:
           (law, function, body) <- entries
           invalid <- body.invalid
           if invalid.index > 0
-        yield (law, body.paramNames(invalid.index), invalid.value, lawsInScope(law))
+        yield (law, function, body.paramNames(invalid.index), invalid.value, lawsInScope(law))
         val coveredParameters = parameterCases.collect {
-          case (law, name, value, true) if parameterName(law, name).isDefined =>
-            (law, parameterName(law, name).get, value)
+          case (law, function, name, value, true) if parameterName(law, function, name).isDefined =>
+            (law, parameterName(law, function, name).get, value)
         }.distinct
         val deferredParameters = parameterCases.collect {
-          case (law, name, value, inScope) if !inScope || parameterName(law, name).isEmpty =>
+          case (law, function, name, value, inScope)
+              if !inScope || parameterName(law, function, name).isEmpty =>
             (law, name, value)
         }.distinct
 
@@ -72,8 +73,8 @@ object StanMathCoverageSuite extends SimpleIOSuite with Approx:
 
         val outOfScope = fixture.laws.keySet.diff(lawsInScope)
 
-        check(validCovered == 30, s"$validCovered valid density cases covered, expected 30")
-          .and(check(validDeferred == 175, s"$validDeferred valid cases deferred, expected 175"))
+        check(validCovered == 53, s"$validCovered valid density cases covered, expected 53")
+          .and(check(validDeferred == 152, s"$validDeferred valid cases deferred, expected 152"))
           .and(
             check(
               validCovered + validDeferred == 205,
@@ -82,24 +83,24 @@ object StanMathCoverageSuite extends SimpleIOSuite with Approx:
           )
           .and(
             check(
-              coveredParameters.length == 46,
-              s"${coveredParameters.length} distinct parameter rejections covered, expected 46"
+              coveredParameters.length == 78,
+              s"${coveredParameters.length} distinct parameter rejections covered, expected 78"
             )
           )
           .and(
             check(
-              deferredParameters.length == 49,
-              s"${deferredParameters.length} distinct parameter rejections deferred, expected 49"
+              deferredParameters.length == 17,
+              s"${deferredParameters.length} distinct parameter rejections deferred, expected 17"
             )
           )
-          .and(check(coveredVariates == 7, s"$coveredVariates variate cases covered, expected 7"))
+          .and(check(coveredVariates == 14, s"$coveredVariates variate cases covered, expected 14"))
           .and(
-            check(deferredVariates == 37, s"$deferredVariates variate cases deferred, expected 37")
+            check(deferredVariates == 30, s"$deferredVariates variate cases deferred, expected 30")
           )
           .and(
             check(
-              outOfScope.size == 8,
-              s"${outOfScope.size} laws out of scope (${outOfScope.toList.sorted.mkString(", ")}), expected 8"
+              outOfScope.size == 3,
+              s"${outOfScope.size} laws out of scope (${outOfScope.toList.sorted.mkString(", ")}), expected 3"
             )
           )
   }
@@ -111,21 +112,21 @@ object StanMathCoverageSuite extends SimpleIOSuite with Approx:
         val names = for
           (law, functions) <- fixture.laws.toList
           if lawsInScope(law)
-          (_, body) <- functions.toList
+          (function, body) <- functions.toList
           (name, index) <- body.paramNames.zipWithIndex
           if index > 0
-        yield (law, name)
-        forEach(names.distinct) { (law, name) =>
-          parameterName(law, name) match
+        yield (law, function, name)
+        forEach(names.distinct) { (law, function, name) =>
+          parameterName(law, function, name) match
             case None =>
               check(
-                notYetImplemented((law, name)),
-                s"$law.$name maps to nothing and is not listed as not yet implemented"
+                notYetImplemented((law, function, name)),
+                s"$law.$function.$name maps to nothing and is not listed as not yet implemented"
               )
             case Some(ours) =>
               check(
                 parametersOf.getOrElse(law, Set.empty).contains(ours),
-                s"$law.$name maps to '$ours', which is not a parameter of our constructor"
+                s"$law.$function.$name maps to '$ours', which is not a parameter of our constructor"
               )
         }
   }
@@ -137,7 +138,8 @@ object StanMathCoverageSuite extends SimpleIOSuite with Approx:
         forEach(lawsInScope.toList.sorted) { law =>
           val params = base(fixture, law, "lpdf")
           val hasDensity = params.exists(p => density(law, "lpdf", p).isRight)
-          val hasConstructor = law == "std_normal" || params.exists(p => construct(law, p).isRight)
+          val hasConstructor =
+            law == "std_normal" || params.exists(p => construct(law, "lpdf", p).isRight)
           check(hasDensity, s"$law has no density mapping")
             .and(check(hasConstructor, s"$law has no constructor mapping"))
         }

@@ -349,3 +349,138 @@ without distorting it, and is why no density has to guard against `log(0)`.
 instance while a `Seed` here is a single `Long`, so `next` is checked against the JDK bit for bit
 and the other two are our own derivation, held to determinism, distinctness and the absence of
 correlation. That limit is recorded in `docs/validation.md` rather than papered over.
+
+---
+
+## Phase 1b — multilevel laws, linear algebra, naming, vocabulary
+
+### D-26. The Stan names, with the old ones deprecated
+
+The naming rule was written after phase 1, and five public names contradicted it. They are renamed
+and the old name stays as a `@deprecated` forwarder until v0.1:
+
+| was | is | Stan |
+|---|---|---|
+| `LogExp.logistic` | `LogExp.invLogit` | `inv_logit` |
+| `LogExp.logSigmoid` | `LogExp.logInvLogit` | `log_inv_logit` |
+| `Special.normalQuantile` | `Special.invPhi` | `inv_Phi` |
+| `Quantile.type7` | `Quantile.quantile` | `quantile` |
+| `Quantile.type7OfSorted` | `Quantile.quantileOfSorted` | — |
+| `Normal.standard` | `Normal.stdNormal` | `std_normal` |
+
+`LogExp.log1mInvLogit` is new, and belongs here rather than to the automatic differentiation: the
+Bernoulli on the log-odds scale needs it now.
+
+Two consequences worth stating. First, the call sites in the existing suites were updated, which
+the phase criterion could be read as forbidding — "the existing tests stay green without
+modification". They do stay green, and not one assertion or tolerance moved; only the name being
+called did, which is what a rename is. Leaving them on the deprecated names would have made CI
+red, since it turns warnings into errors.
+
+Second, `DeprecatedNamesSuite` is the one place where deprecation warnings are silenced, with
+`@nowarn`, because calling those names is its job. It asserts that every alias returns exactly
+what its replacement returns, `NaN` and the far tails included: an alias that drifted would be
+worse than no alias, since code written against the old name would keep compiling and start
+computing something else.
+
+The parameters of the laws keep their own names — `Poisson(rate)`, `Binomial(trials,
+probability)` — because the rule governs function names and argument order, not field names, and
+because `N` and `theta` appear in public error messages where `trials` and `probability` read
+better. The correspondence lives in appendix A and in the glossary.
+
+### D-27. Linear algebra needed no mutation, and two more signatures return `Either`
+
+The plan allowed the encapsulated mutation of 2.1 for `core.linalg` and predicted two annotated
+sites. It turned out not to be needed: Cholesky and the triangular solve are folds over a `Vector`
+of rows, each row built from the ones before it, and at the sizes this module targets — the
+covariance of a few group effects — the difference is not measurable. **The register of mutation
+sites stays at fifteen.**
+
+Two signatures depart from the sketch in the plan, both to keep errors as values:
+
+- `Matrix.identity(n)` returns `Either`, because there is no identity below size one and
+  returning something for `identity(0)` would be a lie;
+- `Linalg.lowerSolve` returns `Either`, because a right-hand side of the wrong length is a
+  dimension mismatch like any other.
+
+### D-28. `Cholesky` is an opaque type with a smart constructor
+
+`opaque type Cholesky = Matrix` carries the invariant — lower triangular, positive diagonal — so
+that `lowerSolve`, `logDetFromCholesky` and `MultiNormalCholesky` cannot be handed a matrix that is
+merely square. `Cholesky.ofLower` validates a factor the caller already has, which the reference
+cases need: they give `L`, they do not give the covariance to decompose.
+
+`Linalg.cholesky` refuses an asymmetric matrix rather than silently using one triangle, and names
+the **pivot** when a matrix is not positive definite. The message matters: a `NaN` diagonal would
+be caught one layer down by `ofLower`, which would report a bad diagonal — true, and useless to
+someone whose covariance is not positive definite.
+
+### D-29. The LKJ constant needs no special case at `eta = 1`
+
+The product form of Theorem 5 (Lewandowski, Kurowicka and Joe 2009),
+
+```
+log c(K, eta) = sum over k in 1..K-1 of
+    (2 eta - 2 + K - k) (K - k) log 2 + (K - k) lbeta(a_k, a_k),    a_k = eta + (K-k-1)/2
+```
+
+reproduces all twenty reference constants to 1.8e-14, **including the four at `eta = 1`**. Stan
+keeps a separate branch there and the reference data notes that the uniform case has its own
+closed form; both are true, and neither is necessary. The separate branch is an optimisation, not
+a mathematical requirement, and one formula is easier to keep right than two.
+
+The density is `logConstant + sum over i of (2(eta - 1) + K - i - 1) log L(i,i)`, where the weight
+is the exponent of the determinant and the Jacobian of `Sigma = L L'` added together. Dropping the
+second half of that weight is a mistake no single case would reveal, which is why the nine
+reference densities span three dimensions and four concentrations.
+
+### D-30. A missing moment is reported, not invented
+
+A Cauchy has no mean and a Student-t has no variance below two degrees of freedom. `mean` and
+`variance` return `NaN` there, and `+Inf` where the variance is genuinely infinite (one to two
+degrees of freedom). The suites then judge those laws by their whole distribution — a
+Kolmogorov-Smirnov statistic against the closed-form cumulative — rather than by moments that do
+not exist. A library that returned a number there would be lying in a way nothing would catch.
+
+### D-31. Two small things that avoid a public name
+
+`bernoulli_lpmf` is tested through `Binomial(1, theta)`, which is the same mass function exactly;
+the specification lists no plain Bernoulli, and adding one would be a public law that says nothing
+new.
+
+`StudentT` and `Cauchy` have `private[bayes4s]` constructors rather than `private` ones, so that
+`HalfStudentT` and `HalfCauchy` can delegate to the full law instead of duplicating its density.
+The constructor stays out of the public API; only the package can reach it.
+
+### D-32. The fixture mapping is keyed by law, function **and** parameter
+
+`bernoulli` calls its parameter `theta` in both `lpdf` and `lpdf_logit`, where it is a probability
+in the first and a log odds in the second. Keyed by law and name alone, the test mapping would
+have sent a log odds to a constructor expecting a probability, and the rejection suite would have
+passed while asserting one case fewer than it reported. The key is now the triple, and
+`notYetImplemented` is down to a single entry: `neg_binomial_2.lpdf_log_param.eta`, the log-mean
+parameterisation the specification does not ask for.
+
+### D-33. The contract distinguishes a value outside the support from a `NaN`
+
+Thirteen of the fourteen out-of-support cases carry a finite value the law cannot produce, and the
+density is `-Inf`. One — `exponential` — carries a `NaN`, which is not a value at all and
+propagates as IEEE arithmetic requires. The suite asserts each according to the contract; asserting
+`-Inf` for both, as it first did, was asserting something false about one of them.
+
+### D-34. The terminology check, and what it does not read
+
+`scripts/check-terminology.py` reads `docs/manual/terminology.csv` and flags the avoided terms in
+the manual's prose. Three exclusions, each for a reason:
+
+- fenced code blocks and inline code spans, because `LogDensity.normal` is the very name the
+  glossary tells us to keep;
+- `appendix-a-*.md`, whose job is to speak Stan;
+- the **table rows** of `glossary.md`, which is the list of avoided terms itself. Its prose stays
+  under the rule: the page that states the convention is not exempt from following it, only from
+  quoting it.
+
+A line ending in `<!-- term-ok -->` keeps its term, for the places where the word means something
+else — a draw from a random number generator is not a sample from a posterior. The escape is meant
+to stay rare enough to read as a list; it is currently used nowhere.
+

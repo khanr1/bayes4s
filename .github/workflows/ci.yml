@@ -65,6 +65,9 @@ jobs:
       - name: Check the register of local mutation
         run: python3 scripts/check-mutation-register.py
 
+      - name: Check the manual's vocabulary
+        run: python3 scripts/check-terminology.py
+
       - name: Check that workflows are up to date
         run: sbt githubWorkflowCheck
 

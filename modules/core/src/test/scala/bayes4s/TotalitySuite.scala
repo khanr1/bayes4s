@@ -64,23 +64,27 @@ object TotalitySuite extends SimpleIOSuite with Checkers with Approx:
 
   test("the log-exp family never throws and respects its ranges") {
     forall(anyDouble) { x =>
-      val l = LogExp.logistic(x)
+      val l = LogExp.invLogit(x)
       val sp = LogExp.log1pExp(x)
-      val ls = LogExp.logSigmoid(x)
+      val ls = LogExp.logInvLogit(x)
       check(l.isNaN || (l >= 0.0 && l <= 1.0), s"logistic($x) = $l is outside [0, 1]")
         .and(check(sp.isNaN || sp >= 0.0, s"log1pExp($x) = $sp is negative"))
-        .and(check(ls.isNaN || ls <= 0.0, s"logSigmoid($x) = $ls is positive"))
+        .and(check(ls.isNaN || ls <= 0.0, s"logInvLogit($x) = $ls is positive"))
         .and(check(LogExp.log1mExp(x) <= 0.0 || LogExp.log1mExp(x).isNaN, s"log1mExp($x)"))
+        .and {
+          val lm = LogExp.log1mInvLogit(x)
+          check(lm.isNaN || lm <= 0.0, s"log1mInvLogit($x) = $lm is positive")
+        }
     }
   }
 
   test("the normal quantile and logit never throw") {
     forall(anyDouble) { p =>
-      val q = Special.normalQuantile(p)
+      val q = Special.invPhi(p)
       val lg = LogExp.logit(p)
       val inRange = p >= 0.0 && p <= 1.0
-      check(!inRange || !q.isNaN || p.isNaN, s"normalQuantile($p) = $q inside [0, 1]")
-        .and(check(inRange || q.isNaN, s"normalQuantile($p) = $q outside [0, 1] should be NaN"))
+      check(!inRange || !q.isNaN || p.isNaN, s"invPhi($p) = $q inside [0, 1]")
+        .and(check(inRange || q.isNaN, s"invPhi($p) = $q outside [0, 1] should be NaN"))
         .and(check(lg == lg || lg.isNaN, s"logit($p) = $lg"))
     }
   }
@@ -99,7 +103,7 @@ object TotalitySuite extends SimpleIOSuite with Checkers with Approx:
 
   test("the quantile never throws on any data or any p") {
     forall(Gen.zip(Gen.listOfN(7, anyDouble), anyDouble)) { (xs, p) =>
-      val got = Quantile.type7(IArray.from(xs), p)
+      val got = Quantile.quantile(IArray.from(xs), p)
       check(got == got || got.isNaN, s"type7 gave $got")
     }
   }
