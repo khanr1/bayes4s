@@ -546,8 +546,10 @@ and the same two differences carried forward by the oracle. The oracle's derivat
 same formula typed twice rather than an independent derivation, which is why `lbeta` is also in the
 scalar function that `ReverseSuite` checks against central differences.
 
-**This is an addition to a public signature beyond the renamings of 2.9, and it is flagged as such:
-the trait is new in this phase, so nothing was broken, but the decision is open to review.**
+This is an addition to a public signature beyond the renamings of 2.9, so it was put to the
+maintainer with the alternative — porting Stan Math's `stirling_diff` series against `Real[A]`,
+which would duplicate `Special.lbeta` inside a module that holds no reference data for it.
+**Confirmed on 5 November 2026: `lbeta` stays a primitive.**
 
 ### D-39. `@targetName` where the overloads erase alike
 
@@ -737,7 +739,22 @@ error says `Found: (Any, Any, …) => Nowcast[Any]`. The model writes the wrappe
 
 which is a line per model and is explained in chapter 2 of the manual, because the reason is worth
 knowing: the assembling function has to work for **every** scalar, since that is what lets one
-model be read by the value interpreter, the tape and the oracle.
+model be read by the value interpreter, the tape and the oracle. The parameter annotations cannot
+be dropped either — `A` is bound by the lambda itself, so there is nothing to infer them from.
+
+The cost is not the verbosity. The field names are declared twice, in the case class and in the
+lambda, and two fields of the same type can be swapped without anything failing to compile:
+`(tau, mu, theta) => Schools(tau, mu, theta)` is a model wired backwards. The rule that follows,
+and that the suites keep: **a model whose blocks share a type needs a test that tells them apart** —
+read a point whose blocks have different values and check each field got its own. For the eight
+schools that test is already there, because only `tau` is constrained and the log Jacobian is
+therefore `u(1)`: a swap makes it fail.
+
+The two alternatives were weighed and refused. A macro building the spec from the case class cannot
+use `Mirror`, which does not work on a type constructor `T[_]`, so it would mean hand-written
+`Expr`/`TypeRepr` metaprogramming in a library that has none. Dropping the case class for a tuple
+puts `p._1._1` in every density. **Confirmed on 5 November 2026: the lambda stays, to be looked at
+again at phase 9, where the nowcasting models carry eight blocks and will say whether it hurts.**
 
 ### D-53. `ParamSpec` is sealed, and names are checked by `validated`
 
@@ -753,7 +770,10 @@ check.
 ### D-54. `BayesError.DuplicateParameter`
 
 A new predictable failure, so a new case: bending `Malformed` (whose job is external input) would
-have made the error's own documentation wrong. Appendix B of the manual describes it with the rest.
+have made the error's own documentation wrong, and `InvalidArgument` would need a `Double` to carry
+a clashing name. Adding a case to a sealed trait obliges every exhaustive match on `BayesError` to
+grow a branch; none exists, in this repository or outside it, since nothing is published. Appendix
+B of the manual describes it with the rest. **Confirmed on 5 November 2026.**
 
 ### D-55. `Model.values`, which the sketch does not have
 
@@ -761,7 +781,8 @@ Nothing generic can look inside a `T[Double]`: there is no way to turn a model's
 back into named values. Two things need exactly that — a CSV row is a map from name to values, and
 a round trip test needs to go from a point to names and back — so `Model.values(m, q)` reads the
 blocks again and names what it finds. It is the inverse of `Model.unconstrain` and the suite
-asserts the round trip over random points.
+asserts the round trip over random points. Phase 5 needs it twice more: a CmdStan row *is* this
+map, and `Summary` reports by name. **Confirmed on 5 November 2026.**
 
 ### D-56. `GenerativeModel` carries the data and how to read a model on other data
 
