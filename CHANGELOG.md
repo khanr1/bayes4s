@@ -244,3 +244,48 @@ Found
   effective samples. The suites give it its own target and also check the span of its draws.
 - **The sampler needed no local mutation.** The specification allows the leapfrog and the tree to
   mutate local arrays; neither did, and the register stays at the 27 sites it had.
+
+### Phase 5 — the diagnostics and CmdStan's CSV (5 November 2026)
+
+Added
+
+- `diagnostics`: the convergence statistics of Vehtari et al. (2021) **as Stan implements them** —
+  biased autocovariance by FFT, Geyer's initial positive and monotone sequence, the split at
+  `floor((n+1)/2)`, rank normalisation, R-hat basic and rank-normalised, the basic, bulk and tail
+  effective numbers of samples, and both Monte Carlo errors. The fourteen values Stan's own tests
+  assert are reproduced at Stan's tolerances and at 1e-10 against the repository's line-by-line
+  port.
+- `Summary` and `Summary.table`, a `stansummary`-shaped report whose rows are named by the model's
+  own `ParamSpec`; `SamplerReport` for divergent transitions, saturated tree depths and E-BFMI; and
+  `Intervals` for the percentile interval, the shortest interval and an exceedance probability.
+- `Draws` in `core`: posterior samples as a rectangle, built only through a smart constructor, with
+  access by name, by chain, flattened, and repeated per draw.
+- `stan-io`: `StanCsv.parse` and `render` as pure functions of lines, `parseAll` and `renderAll` for
+  a fit of several chains, and `PosteriordbSummary` for the reference summaries phase 6 compares
+  against. The round trip is exact to the last bit, `NaN` and `±Inf` included.
+- Chapters 4 and 9 of the manual — diagnosing a fit, and reading and writing CmdStan's files — and
+  an intervals section in appendix C. The chapter-4 example fits the **centred** eight schools on
+  purpose: it reports 91 divergent transitions and an E-BFMI of 0.32 and 0.27, which is what the
+  chapter is about.
+- `reference/check_cmdstan_csv.py`, which asks Stan's own tooling to read what this library writes.
+- 33 tests, for 330 in all. Fourteen mutations, one per component.
+
+Found
+
+- **A file CmdStan's reader accepts needs more than well-formed rows.** `cmdstanpy.from_csv`
+  refused the first renderer's output twice: once for having no trailing comment block, which is
+  how it finds where the sampled rows end, and once for declaring `num_warmup = 0` while the
+  adaptation was engaged. Neither would have been found by reading the format. All four of its
+  structural rules are now asserted in Scala, so `sbt test` catches a regression without Python.
+- **`arviz.from_cmdstan` no longer exists.** ArviZ 1.3 moved the CmdStan reader out to `cmdstanpy`
+  and converts through `arviz_base.from_cmdstanpy`, so the check goes through both — which is
+  stricter than the original, since the file must satisfy Stan's own parser first. The rendered
+  chains come back identical to the originals to the last bit.
+- **`f"%.4f"` formats in the default locale**, so the summary table printed `-54,1903` here and
+  would print `-54.1903` on CI. A table that differs between machines is not a table;
+  `Locale.ROOT` everywhere, and the suite asserts that no comma appears.
+- **Two of the fourteen mutations survived**, both because Stan's own chains cannot separate two of
+  its conventions: the upper tail's inclusive comparison, which is invisible when the lower tail is
+  the smaller of the two, and the floor on `tau`, which binds only for a strongly antithetic
+  sample. Without the floor such a sample reports an effective size of **-344 524**; the two tests
+  that close the gaps are built to separate the conventions on purpose.

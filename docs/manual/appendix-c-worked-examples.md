@@ -97,3 +97,38 @@ yield (interval(counts.logMass, 400), interval(plugin.logMass, 200))
 
 intervals
 ```
+
+## Intervals and exceedance probabilities, from the same posterior
+
+The conjugate update above gives a Gamma(33.5, 4.2) posterior for the rate. Everything a report
+needs comes from samples of it, and `worked_examples.json` states each quantity in closed form so
+that the sampled version can be checked rather than trusted.
+
+```scala mdoc:silent
+import cats.Monad
+
+val sampled = Gamma
+  .of(33.5, 4.2)
+  .map(law => IArray.from(Monad[Rand].replicateA(200_000, law.sample[Rand]).runA(Seed(5L)).value))
+```
+
+```scala mdoc
+sampled.map { draws =>
+  (
+    Intervals.equalTailed(draws, 0.9),
+    Intervals.hpd(draws, 0.9),
+    Intervals.probabilityAbove(draws, 10.0),
+    Intervals.probabilityAbove(draws, 6.0)
+  )
+}
+```
+
+The closed forms are 5.8527 to 10.3700 for the percentile interval, 5.7102 to 10.1973 for the
+shortest one, 0.0783 for the probability of exceeding 10 and 0.9350 for exceeding 6. The sampled
+answers agree to within four Monte Carlo standard errors, which for a quantile is
+`sqrt(p(1-p)/n)` divided by the density there — the suite states that error rather than picking a
+tolerance.
+
+Two things to notice. The shortest interval is **narrower** and sits **lower**, which is what a
+right-skewed posterior does; and the probability of exceeding a threshold is a count, so its own
+error is `sqrt(p(1-p)/n)` and nothing more exotic.

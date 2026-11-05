@@ -158,7 +158,11 @@ lazy val transforms = mod("transforms")
 lazy val inference = mod("inference")
   .dependsOn(transforms, transforms % "test->test", distributions, testkit % Test)
 
-lazy val diagnostics = mod("diagnostics").dependsOn(inference, testkit % Test)
+// `inference % "test->test"` and `transforms % "test->test"` share the targets and the eight
+// schools: a summary has to be checked on a real fit, and those models already have their own
+// tests behind them.
+lazy val diagnostics = mod("diagnostics")
+  .dependsOn(inference, inference % "test->test", transforms % "test->test", testkit % Test)
 
 lazy val predictive = mod("predictive").dependsOn(distributions, testkit % Test)
 

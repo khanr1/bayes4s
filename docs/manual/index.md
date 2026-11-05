@@ -5,10 +5,10 @@ chapters that cover what it delivers, and every code block below is compiled by 
 current build, so an example that stops compiling fails CI.
 
 Phase 1 delivers the core and the laws as values, phase 2 the automatic differentiation, phase 3 the
-models and phase 4 the sampler, so the chapters here are: a quick start, the concepts the whole
-library rests on — `Real[A]` included — how to write a model, how to sample it, the cost of those
-concepts, the error contract, and the classic worked examples. The diagnostics arrive with the next
-phase.
+models, phase 4 the sampler and phase 5 the diagnostics, so the chapters here are: a quick start,
+the concepts the whole library rests on — `Real[A]` included — how to write a model, how to sample
+it, how to tell whether to believe the fit, how to read and write CmdStan's files, the cost of those
+concepts, the error contract, and the classic worked examples.
 
 | Chapter | State |
 |---|---|
@@ -17,6 +17,8 @@ phase.
 | [1. Concepts](01-concepts.md) | written, including `Real[A]` and the three interpreters |
 | [2. Writing a model](02-writing-a-model.md) | written; the generative part is used in earnest with simulation-based calibration |
 | [3. Sampling](03-sampling.md) | written for the pure sampler; the `IO` half arrives with the `effect` module |
+| [4. Diagnosing](04-diagnosing.md) | written; the model-criticism half arrives with LOO |
+| [9. Interoperability](09-interoperability.md) | written for the pure parser; reading and writing files arrives with the `effect` module |
 | [10. Performance and pitfalls](10-performance.md) | the cost of `Real[A]` is measured; the pitfalls arrive with phase 12 |
 | [Appendix B. Errors and contracts](appendix-b-errors.md) | written |
 | [Appendix C. Classic worked examples](appendix-c-worked-examples.md) | written |
@@ -25,12 +27,12 @@ phase.
 |---|---|
 | 1. Concepts, continued | 3 |
 | 3. Sampling, the `IO` half | 11 |
-| 4. Diagnosing | 5 and 6 |
+| 4. Diagnosing, with LOO | 6b |
 | 5. Checking a model | 3 and 9 |
 | 6. Predicting | 7 |
 | 7. Nowcasting step by step | 9 and 10 |
 | 8. Scoring a forecast | 8 and 10 |
-| 9. Interoperability | 5 and 11 |
+| 9. Interoperability, with files | 11 |
 | 10. Performance, completed | 12 |
 | Appendix A. Coming from Stan and NumPyro | 6 |
 | Appendix B, completed | 12 |

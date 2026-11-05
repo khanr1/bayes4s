@@ -785,3 +785,151 @@ the *unit-metric* case, where several distinctions collapse.
 6. **`Init.PriorMedian` without a generative part runs the sampler on the prior**, which costs a
    short warmup of its own. That is what the specification asks for, and the generative route is
    much cheaper when a model has one.
+
+## Phase 5 — the diagnostics and CmdStan's CSV
+
+330 tests, 324 fast and 6 slow, up from 297 — 33 added by this phase. The 291 fast tests of phases
+0 to 4 are untouched; no tolerance, seed or assertion was weakened, and the register of
+encapsulated local mutation stays at 27 sites.
+
+### The fourteen values
+
+Seven statistics on each of two columns of the four Bernoulli chains Stan's own tests use, each
+asserted **twice**: against Stan's assertion at Stan's own tolerance, and against the repository's
+line-by-line port at 1e-10, which is the sharper comparison wherever Stan's tolerance is loose.
+
+| Statistic | `lp__` | `theta` | Stan's tolerance | Result |
+|---|---|---|---|---|
+| `rhat_basic_split` | 1.00035489482 | 1.00721797217 | 1e-10 | green |
+| `ess_basic` | 1335.41366787 | 1377.5030282 | 1e-8 | green |
+| `rhat_rank` | 1.00073 | — | 1e-5 | green |
+| `ess_bulk` | 1512.7684 | — | 1e-4 | green |
+| `ess_tail` | 1591.9707 | — | 1e-4 | green |
+| `mcse_mean` | 0.02016 | — | 1e-4 | green |
+| `mcse_sd` | 0.03553 | — | 1e-4 | green |
+
+| Other check | Against | Tolerance | Result |
+|---|---|---|---|
+| the autocovariance of `ar1.csv`, first six lags and its length | `autocovariance_test.cpp`, and the port | 0.01, and 1e-12 against the port | green: 1000 values |
+| the five statistics where ArviZ 1.x differs | **ArviZ**, as a disagreement | more than ten tolerances away from ArviZ and within one of Stan | green (D-76) |
+| a constant column, one infinite value, three draws | the contract | exact | green: `NaN` everywhere, and `NaN` from `rhat_basic` too |
+| the rank transform's three structural properties | the fixture's own list | 1e-12 | green |
+| the split: five draws become two halves of two, the middle one dropped | Stan's `floor((n+1)/2)` | exact | green |
+| independent draws, ten seeds | R-hat below 1.01 and three effective sizes within 15 % of 4000 | 15 % | green |
+| an AR(1) series at `phi = 0.8` | the formula `n (1 - phi) / (1 + phi)` | a factor of 2.5 either way | green |
+| the upper tail on a sample with ties at the 95th percentile | the inclusive convention | exact | green (D-83) |
+| the floor on `tau`, on an antithetic chain | `total * log10(total)` | exact | green |
+
+### The summary and the intervals
+
+| Check | Against | Tolerance | Result |
+|---|---|---|---|
+| the percentile interval of a Gamma(33.5, 4.2), both ends | `worked_examples.json` | 4 Monte Carlo standard errors, `sqrt(p(1-p)/n)` over the density | green |
+| the shortest interval, both ends | `worked_examples.json` | the same | green |
+| and that it is narrower than the percentile one | the shape of a skewed law | — | green |
+| the probability of exceeding 10 and of exceeding 6 | `worked_examples.json` | 4 standard errors, `sqrt(p(1-p)/n)` | green |
+| the shortest interval of a two-humped sample | — | — | green: it covers the gap, and its width says so |
+| an empty sample, a single draw, a mass of 0 or 1.5 | the contract | exact | green |
+| a summary's row names | the model's own `ParamSpec`, plus `lp__` first | exact | green: `lp__, mu, tau, z.1 … z.8` |
+| a summary's moments on a Gamma(2, 0.5) posterior | the closed form | 4 MCSE | green |
+| the table's formatting | the root locale | exact | green: no comma anywhere (D-82) |
+| E-BFMI of independent energies | the closed form, 2 | 0.1 | green |
+| E-BFMI on a centred funnel against a Gaussian | Betancourt's threshold of 0.3 | — | green: 0.11 and 0.09 against 1.05 and 1.12, with 7 divergences against 0 |
+| the counts of divergences and saturated depths | a run made to saturate | exact | green |
+
+### CmdStan's CSV
+
+| Check | Against | Tolerance | Result |
+|---|---|---|---|
+| a real CmdStan file, comments before **and** after the header | `bern1.csv` | 1e-12 on the first draw | green: 8 columns, 1000 draws |
+| the four chains as one fit | the fixture's own independent reader | **bit for bit** | green |
+| a round trip of arbitrary doubles, `NaN` and `±Inf` included | itself | **bit for bit** | green |
+| a fit of four chains as four files and back | itself | exact | green |
+| the four structural rules CmdStan's reader applies | `cmdstanpy`'s own parser, read from its source | exact | green (D-80) |
+| seven malformed files | the contract | exact | green: each a `Left` naming the source |
+| `nan`, `inf`, `-inf`, `NaN`, `Infinity` | CmdStan's spellings | exact | green |
+| a posteriordb reference summary, its rows and its per-chain diagnostics | the file | exact | green: 10 chains of 10 000, every R-hat below 1.01 |
+| `Draws` as a rectangle: ragged chains, a narrow draw, a repeated name | the contract | exact | green, each naming what was wrong |
+| `Draws` read three ways, and each draw repeated | the rectangle it came from | exact | green |
+
+**The ArviZ check, run rather than asserted.** `reference/check_cmdstan_csv.py` renders the four
+real Bernoulli chains back out through this library's renderer and asks Stan's own tooling to read
+them:
+
+```
+cmdstanpy read: 4 chains, 1000 draws, 8 columns
+arviz groups: ['/', '/posterior', '/sample_stats']
+  theta: ess 1407.5, rhat 1.006790
+  theta: identical to the original to the last bit: True
+```
+
+It took three attempts, and the two failures are the useful part:
+
+1. **No trailing comment block** — `cmdstanpy` raised "Unable to count warmup and sampling draws".
+   Its reader locates four blocks in order and the last is the timing footer CmdStan always writes;
+   without it the file is refused outright, however well-formed the rows are.
+2. **`num_warmup = 0` with the adaptation engaged** — "Must specify iter_warmup > 0 when
+   adapt_engaged=True". The reader validates the configuration it parsed, not only the shape.
+
+Neither would have been caught by any amount of reading the format, and neither affects our own
+parser, which reads its own output happily. `StanCsvSuite` now asserts all four rules so that
+`sbt test` catches a regression without Python in the loop.
+
+### Mutations tried
+
+Fourteen, one per component. **Two survived**, for the same reason as in phase 4: the fixture's own
+chains cannot separate two of Stan's conventions.
+
+| Component | Mutation | Test that failed | What it said |
+|---|---|---|---|
+| `autocovariance` | unbiased, divided by `n - t` | 3 of 8, `ess_basic` among them | `obtained 1333.402201889681, expected 1335.41366787` |
+| `splitChains` | the second half from `n/2` | the five-draw split, and the rank statistics | `the second half is List(3.0, 4.0)` |
+| `rankTransform` | the offset `1/2` instead of `3/8` | `ess_bulk` | `obtained 1512.6716751814292, expected 1512.7684` |
+| `essBasic` | the chains split, as ArviZ does | `ess_basic`, and the ArviZ gap | `obtained 1341.6851277442772, expected 1335.41366787` — **exactly ArviZ's number** |
+| `mcseSd` | the unsplit effective size of `\|x - mean\|` | `mcse_sd` against the port | `obtained 0.035597364762789255, expected 0.035530465913680566` |
+| `ess` | the monotone step dropped | 2 tests | `theta.ess_basic: obtained 1219.41, expected 1377.50` |
+| `Intervals.hpd` | the middle window instead of the narrowest | the shortest interval | it stopped being narrower than the percentile one |
+| `Summary.of` | `lp__` dropped | the row names | `the rows are List(rate)` |
+| `SamplerReport.lowEnergyChains` | the comparison reversed | 2 tests | a tiny step size was flagged and the funnel was not |
+| `StanCsv.parse` | comments skipped only before the header | 4 of 8 | `row 1 has 1 values, the header has 8` |
+| `StanCsv.render` | the timing block dropped | the four rules | `the trailing block is not the timing block` |
+| `Draws.of` | raggedness no longer checked | the rectangle | `a chain of a different length was accepted` |
+| `essTailParts` | `>` for the upper tail | the tied sample | `the upper tail is 1133.50, … rather than the inclusive 533.06` — **after the test was added** |
+| `ess` | the floor on `tau` dropped | the antithetic chain | `the effective size is -344523.74 where the floor puts it at exactly 3000.0` — **after the test was added** |
+
+**The two survivors, and what closed them.**
+
+The **upper tail's inclusive comparison** is invisible on Stan's own chains, because the tail
+diagnostic is the smaller of two effective sizes and there the *lower* tail is the smaller one.
+`essTailParts` is now public and the suite asserts the upper half on a sample built to separate the
+conventions: four chains of the integers 0 to 19, whose 95th percentile is exactly 18 — reached by
+96 draws and exceeded by only 48. The inclusive convention gives 533 effective samples there and
+the exclusive one 1133.
+
+The **floor on `tau`** binds only for a sample whose autocorrelations are strongly negative, which
+no posterior sample is. An antithetic chain is: alternating values with a little wobble, where the
+unfloored estimate of the integrated time goes negative and the effective size comes out at
+**-344 524**. The floor puts it at exactly `1000 log10(1000) = 3000`, and that equality is what the
+test asserts.
+
+### Known limits at the end of phase 5
+
+1. **`testkit.Ess` is still there and still not the reference.** It sized the thresholds of phase 4
+   and is now redundant: `Convergence.ess` is the validated one. Phase 6 should point the sampler
+   suites at `diagnostics` and delete it; doing it here would have meant `inference`'s tests
+   depending on `diagnostics`, which is backwards in the module graph. The two agree to a few per
+   cent on the chains both see, which is all `testkit.Ess` was ever used for.
+2. **No LOO, no power scaling** (plan §5.7's "model criticism"): §8.2 assigns them to phase 6b with
+   the multilevel models, and they need `PointwiseLikelihood` on a model, which no model has yet.
+3. **`Summary` has no `ess_tail`-based MCSE and no `mcse_sd` column.** Both are computed and tested
+   in `Convergence`; the row carries the four columns the specification lists, and widening it is a
+   change to a published case class that should wait for a reason.
+4. **`LogDensityUnnormalized` is deferred a third time** (D-84), now with the arithmetic written
+   down: of the order of ten tape nodes saved against the 89 a multilevel model costs.
+5. **`StanCsv.render` writes placeholders** for the step size, the mass matrix and the elapsed
+   time, because a `Draws` holds none of them. A file this library writes is therefore readable but
+   not a faithful record of the run that produced it; carrying the tuning would mean `stan-io`
+   depending on `inference` (D-80).
+6. **No `Draws` from a `Chain` yet.** `Summary.of` takes chains and `StanCsv` takes `Draws`, and the
+   bridge between them — which needs the sampler's seven columns — is written by hand in the
+   manual's chapter 9 and in `check_cmdstan_csv.py`. It belongs in `effect`, with the writer.

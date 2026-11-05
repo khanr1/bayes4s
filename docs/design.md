@@ -996,3 +996,117 @@ allowed to in phase 1b. Neither needed it: a leapfrog step is two `IArray.tabula
 is a case class, and at the sizes a gradient already costs — one tape, one target evaluation per
 step — the allocation is not what the time goes on. The register of encapsulated mutation stays at
 the 27 sites it had, all of them in `Fft`, `Batch` and the tape.
+
+## Phase 5 — diagnostics and CmdStan's CSV
+
+### D-76. The diagnostics follow Stan, and the gap with ArviZ is asserted
+
+ArviZ 1.x computes three of these differently: the basic effective size on split chains where Stan
+does not split, the upper tail with a strict inequality where Stan includes the boundary, and
+`mcse_sd` from a different effective size. On the four chains Stan's own tests use, the tail
+effective size of `lp__` is 1591.97 here and 1544.09 there — 3 %, and 15 % on `mcse_sd`.
+
+Following Stan is the specification's decision; what this phase adds is that the **disagreement is
+a test**. `ConvergenceSuite` asserts that our value is within Stan's tolerance of Stan's and more
+than ten tolerances away from ArviZ's, for each of the five statistics where they part company. A
+later change that quietly adopted ArviZ's convention — which is a one-character change in two
+places — would fail there rather than be discovered by a user comparing two summaries.
+
+### D-77. `reference/stan_analyze_reference.py` is read as the specification
+
+The C++ in `stan/analyze/mcmc` leaves several things undetermined on the cases its own tests cover:
+the chains there have an even number of draws, so the split's `floor((n+1)/2)` is invisible; no draw
+sits exactly on the 95th percentile, so the inclusive comparison is invisible; and the
+autocorrelations are nowhere near the floor on `tau`.
+
+The repository's own line-by-line port settles all of it, and the plan says to read the reference
+scripts that way. Every detail of `Convergence` comes from it, and the fourteen values are asserted
+twice: against Stan's own assertions at Stan's tolerances, and against the port at 1e-10, which is
+the sharper comparison wherever Stan's tolerance is loose.
+
+### D-78. A diagnostic returns `NaN`, never an error
+
+A constant chain, an infinite value, three draws: the answer is `NaN` and not a `Left`. A
+diagnostic is a number a user reads in a table, and a `NaN` in that table **is** the diagnosis —
+"this row cannot be summarised" — whereas an `Either` would make the caller choose between
+discarding the row and discarding the table. The thresholds are Stan's: four draws for an effective
+size, eight for `mcse_sd`, because a fourth moment of a shorter sample says nothing.
+
+This is the same reasoning as the out-of-domain contract of the densities (D-33), applied to a
+different kind of function.
+
+### D-79. `Draws` is a rectangle, built only through its smart constructor
+
+Every chain the same length, every iteration as wide as there are names, no name twice. A ragged
+`Draws` would be summarised without complaint and the summary would be of something that is not a
+posterior, so `Draws.of` returns `Either` and the case class constructor is private. It lives in
+`core` for the reason D-5 gave: `stan-io` parses into it, `diagnostics` reads it and `predictive`
+will consume it, and none of the three should depend on another for a data type.
+
+The draws it holds are **unconstrained** when they come from `Mcmc` (D-70) and constrained when
+they come from a CmdStan file, which is CmdStan's own convention. Nothing in `Draws` knows which;
+`Summary.of` constrains because it is given a model, and `StanCsv` does not because it is not.
+
+### D-80. `StanCsv.render` writes what CmdStan's reader needs, not what the data holds
+
+`cmdstanpy.from_csv` finds the sampled rows by locating four blocks in order — a header line
+beginning with `lp__`, a comment block after it, the rows, and a comment block after those — and
+refuses the file outright if any is missing. It then validates the configuration it read, so a
+declared warmup of zero with the adaptation engaged is rejected as well.
+
+A `Draws` holds none of that: no step size, no mass matrix, no elapsed time. The renderer therefore
+writes **placeholders** where the format needs a value — a step size of 1, a unit diagonal over the
+columns that are not the sampler's own, zero seconds — rather than inventing plausible-looking
+numbers, and the scaladoc says which is which. The alternative, threading a `Tuning` into
+`stan-io`, would make it depend on `inference` for a comment line.
+
+Both rules were found by running the check rather than by reading the format: the first renderer
+left out the timing block and declared no warmup, and `reference/check_cmdstan_csv.py` reported
+each in turn. `StanCsvSuite` now asserts all four rules, so `sbt test` catches a regression without
+Python.
+
+### D-81. The ArviZ check goes through `cmdstanpy`, because `from_cmdstan` is gone
+
+The specification's criterion is "CSV read by `arviz.from_cmdstan`". ArviZ 1.3 has no such
+function — the CmdStan reader moved out to `cmdstanpy`, and `arviz_base.from_cmdstanpy` converts
+its result — so the check is done through both. That is stricter than the original: the file has to
+satisfy Stan's own parser first and ArviZ's conversion second.
+
+`reference/check_cmdstan_csv.py` does it, needs no CmdStan installation and no compiler, and also
+compares the values against the originals they were rendered from. What it reported is in
+docs/validation.md.
+
+### D-82. `Summary.table` formats in the root locale
+
+`f"$x%.4f"` formats in the **default** locale, which writes a comma for the decimal point in much
+of the world: the same fit printed `-54,1903` on the machine this was written on and would print
+`-54.1903` on a CI runner. A table nobody can diff between two machines is not a table.
+`String.format(Locale.ROOT, ...)` everywhere, and the suite asserts that no comma appears in a
+rendered table.
+
+Found by reading the manual's own rendered output, which is the second thing chapter 2 found that
+way (D-60).
+
+### D-83. `essTailParts` is public, so that one character can be tested
+
+The tail diagnostic is the smaller of two effective sizes, and on Stan's own chains the lower tail
+is the smaller one — so the inclusive comparison in the **upper** indicator changes nothing there,
+and a mutation that broke it survived the whole suite.
+
+The two halves are therefore public, and the suite asserts the upper one on a sample built to
+separate the conventions: four chains of the integers 0 to 19, whose 95th percentile is exactly 18,
+reached by 96 draws and exceeded by 48. The inclusive convention gives 533 effective samples and
+the exclusive one 1133.
+
+### D-84. `LogDensityUnnormalized` is deferred a third time, now with a reason that can be measured
+
+Phase 4's known limits said the benefit would become measurable once a sampler existed. It is, and
+it is small: the normalising constants of the densities a model uses are `Real[A].const(...)`
+leaves and arithmetic that does not depend on any parameter, so dropping them saves a handful of
+tape nodes per density per evaluation — of the order of ten nodes against the 89 a multilevel model
+already costs, and none at all against the 4955 of the reporting-triangle model.
+
+The cost of having it is a second copy of nineteen densities to keep correct, and the phase-2
+benchmark is the instrument that would justify it. Deferred until a model is large enough for the
+saving to show, and this decision records the arithmetic so the question does not have to be
+reopened from scratch.

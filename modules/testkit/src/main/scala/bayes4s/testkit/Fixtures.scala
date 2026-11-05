@@ -244,6 +244,22 @@ final case class DualAveragingCase(
     finalStepSize: Double
 )
 
+/** One diagnostic Stan's own tests assert, with what the independent port and ArviZ got.
+  *
+  * `arviz` is kept because three of these differ there by 0.5 % to 15 %, and the suite asserts the
+  * **disagreement**: following Stan rather than ArviZ is a decision, and a decision that no test
+  * mentions is one that can be reversed by accident.
+  */
+final case class DiagnosticCase(
+    column: String,
+    statistic: String,
+    expected: Double,
+    tolerance: Double,
+    source: String,
+    port: Double,
+    arviz: Option[Double]
+)
+
 /** Typed readers for the reference files, so that the suites read as assertions rather than as
   * JSON navigation, and the decoding itself is written once.
   *
@@ -680,6 +696,80 @@ object Fixtures:
     )(using
       d
     )
+
+  private val Diagnostics = "stan/diagnostics/expected.json"
+
+  /** The 14 values of `stan/diagnostics/expected.json`: 7 statistics for each of 2 columns. */
+  def diagnosticCases: Either[String, List[DiagnosticCase]] =
+    at[Map[String, Map[String, Json]]](Diagnostics, List("values")).flatMap { columns =>
+      columns.toList
+        .sortBy((column, _) => column)
+        .flatTraverse { (column, statistics) =>
+          statistics.toList.sortBy((name, _) => name).traverse { (name, json) =>
+            val cursor = json.hcursor
+            for
+              expected <- cursor.get("expected")(using d).left.map(_.getMessage)
+              tolerance <- cursor.get("tolerance")(using d).left.map(_.getMessage)
+              source <- cursor.get[String]("source").left.map(_.getMessage)
+              port <- cursor.get("numpy_port")(using d).left.map(_.getMessage)
+            yield DiagnosticCase(
+              column,
+              name,
+              expected,
+              tolerance,
+              source,
+              port,
+              cursor.get("arviz")(using d).toOption
+            )
+          }
+        }
+    }
+
+  /** The prose list of edge cases the fixture states, so a suite can count them. */
+  def diagnosticEdgeCases: Either[String, List[String]] =
+    at[List[String]](Diagnostics, List("edge_cases"))
+
+  /** The first autocovariances of `ar1.csv` that Stan's own test asserts, and its tolerance. */
+  def autocovarianceCase: Either[String, (IArray[Double], Double, IArray[Double])] =
+    for
+      expected <- at[IArray[Double]](Diagnostics, List("autocovariance_ar1", "expected_first_6"))(
+        using ds
+      )
+      tolerance <- at[Double](Diagnostics, List("autocovariance_ar1", "tolerance"))(using d)
+      port <- at[IArray[Double]](
+        Diagnostics,
+        List("autocovariance_ar1", "numpy_biased_estimator")
+      )(using ds)
+    yield (expected, tolerance, port)
+
+  /** One column of the four Bernoulli chains, as four chains of a thousand draws.
+    *
+    * Read by `Reference.csvColumns`, which skips the `#` comments and takes the names from the
+    * first remaining line — a reader of its own, so that `stan-io`'s parser is checked against
+    * something and not against itself.
+    */
+  def bernoulliChains(column: String): Either[String, IArray[IArray[Double]]] =
+    (1 to 4).toList
+      .traverse { c =>
+        Reference
+          .csvColumns(s"stan/diagnostics/bern$c.csv", List(column))
+          .left
+          .map(_.message)
+          .flatMap(_.get(column).toRight(s"bern$c.csv has no column '$column'"))
+      }
+      .map(chains => IArray.unsafeFromArray(chains.toArray))
+
+  /** The AR(1) series, one value a line and no header. */
+  def ar1Series: Either[String, IArray[Double]] =
+    Reference.csvValues("stan/diagnostics/ar1.csv").left.map(_.message)
+
+  /** The raw lines of one Bernoulli chain's file, for the CSV round trip. */
+  def bernoulliCsv(chain: Int): Either[String, List[String]] =
+    Reference
+      .text(s"stan/diagnostics/bern$chain.csv")
+      .left
+      .map(_.message)
+      .map(_.linesIterator.toList)
 
   /** One section of `worked_examples.json`, left as JSON: every section has its own shape. */
   def workedExample(section: String): Either[String, Json] =
