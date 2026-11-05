@@ -13,7 +13,8 @@ OUT = pathlib.Path(sys.argv[2])
 DISTS = ["normal", "lognormal", "gamma", "beta", "poisson", "neg_binomial_2", "neg_binomial",
          "logistic", "exponential", "student_t", "cauchy", "binomial", "bernoulli",
          "beta_binomial", "inv_gamma", "double_exponential", "std_normal", "chi_square"]
-KINDS = {"": "lpdf", "_cdf": "cdf", "_cdf_log": "lcdf", "_ccdf_log": "lccdf", "_log": "lpdf_log_param"}
+KINDS = {"": "lpdf", "_cdf": "cdf", "_cdf_log": "lcdf", "_ccdf_log": "lccdf", "_log": "lpdf_log_param",
+         "_logit": "lpdf_logit"}
 
 NUM = r"[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?"
 
@@ -27,7 +28,7 @@ def parse_value(expr, param=None):
     if "LOG_ZERO" in e:
         return float("-inf")
     try:
-        return float(eval(e, {"__builtins__": {}}, {"log": math.log, "exp": math.exp, "sqrt": math.sqrt, "param": param or {}}))
+        return float(eval(e, {"__builtins__": {}}, {"log": math.log, "exp": math.exp, "sqrt": math.sqrt, "logit": lambda p: math.log(p / (1 - p)), "param": param or {}}))
     except Exception:
         return None
 
@@ -115,6 +116,8 @@ ORACLE = {
     ("chi_square", "lpdf"): lambda y, nu: stats.chi2.logpdf(y, nu),
     ("binomial", "lpdf"): lambda n, N, p: stats.binom.logpmf(n, N, p),
     ("bernoulli", "lpdf"): lambda n, p: stats.bernoulli.logpmf(n, p),
+    ("bernoulli", "lpdf_logit"): lambda n, a: stats.bernoulli.logpmf(n, 1 / (1 + math.exp(-a))),
+    ("binomial", "lpdf_logit"): lambda n, N, a: stats.binom.logpmf(n, N, 1 / (1 + math.exp(-a))),
     ("beta_binomial", "lpdf"): lambda n, N, a, b: stats.betabinom.logpmf(n, N, a, b),
 }
 

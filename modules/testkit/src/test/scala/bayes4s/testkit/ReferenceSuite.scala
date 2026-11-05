@@ -26,11 +26,11 @@ import weaver.SimpleIOSuite
   */
 object ReferenceSuite extends SimpleIOSuite with Approx:
 
-  pureTest("the 45 reference files of plan section 7 are on the test classpath") {
+  pureTest("the 50 reference files are on the test classpath") {
     val missing = Reference.allFiles.filter(p => Reference.text(p).isLeft)
     check(
-      Reference.allFiles.size == 45,
-      s"the inventory lists ${Reference.allFiles.size} files, expected 45"
+      Reference.allFiles.size == 50,
+      s"the inventory lists ${Reference.allFiles.size} files, expected 50"
     ).and(check(missing.isEmpty, s"missing from the classpath: ${missing.mkString(", ")}"))
       .and(
         check(

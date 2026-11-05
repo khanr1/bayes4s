@@ -50,19 +50,33 @@ object StanMathFixtureSupport:
   def densityFamily(law: String, function: String): Boolean =
     function == "lpdf" || (function == "lpdf_log_param" && law == "poisson")
 
+  /** The fixture parameters this library has no constructor for yet, and why.
+    *
+    * These are alternative parameterisations of laws we do implement — the log mean of
+    * `neg_binomial_2_log`, the log odds of `binomial_logit` — and they arrive with the laws
+    * themselves. Listing them here rather than letting them fall through to a same-named
+    * parameter of ours is what keeps the rejection suite from passing without asserting
+    * anything, and the coverage suite counts their cases as deferred.
+    */
+  val notYetImplemented: Set[(String, String)] = Set(
+    "neg_binomial_2" -> "eta",
+    "binomial" -> "alpha"
+  )
+
   /** Our constructor's name for a fixture parameter, or `None` when we have no such parameter. */
   def parameterName(law: String, fixtureName: String): Option[String] =
-    (law, fixtureName) match
-      case ("neg_binomial_2", "eta") => None
-      case ("logistic", "Location") => Some("mu")
-      case ("logistic", "Scale") => Some("sigma")
-      case ("poisson", "lambda") => Some("rate")
-      case ("poisson", "alpha") => Some("logRate")
-      case ("neg_binomial", "Successes") => Some("alpha")
-      case ("neg_binomial", "logit") => Some("beta")
-      case ("binomial", "Trials" | "N") => Some("trials")
-      case ("binomial", "Probability" | "theta") => Some("probability")
-      case (_, other) => Some(other)
+    if notYetImplemented((law, fixtureName)) then None
+    else
+      (law, fixtureName) match
+        case ("logistic", "Location") => Some("mu")
+        case ("logistic", "Scale") => Some("sigma")
+        case ("poisson", "lambda") => Some("rate")
+        case ("poisson", "alpha") => Some("logRate")
+        case ("neg_binomial", "Successes") => Some("alpha")
+        case ("neg_binomial", "logit") => Some("beta")
+        case ("binomial", "Trials" | "N") => Some("trials")
+        case ("binomial", "Probability" | "theta") => Some("probability")
+        case (_, other) => Some(other)
 
   /** The parameters each smart constructor takes, used to prove no fixture name went untranslated. */
   val parametersOf: Map[String, Set[String]] = Map(

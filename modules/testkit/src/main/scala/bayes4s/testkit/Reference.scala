@@ -104,8 +104,11 @@ object Reference:
         .traverse((line, i) => parseDouble(path, s"line ${i + 1}", line))
         .map(unsafeToIArray)
 
-  /** The 28 JSON reference files. */
+  /** The 32 JSON reference files. */
   val jsonFiles: List[String] = List(
+    "multilevel/multilevel.json",
+    "posteriordb-like/fictional-varying_intercept_slope_correlated/data.json",
+    "posteriordb-like/fictional-varying_intercept_slope_correlated/reference_summary.json",
     "posteriordb/arK-arK/data.json",
     "posteriordb/arK-arK/reference_summary.json",
     "posteriordb/arma-arma11/data.json",
@@ -130,6 +133,7 @@ object Reference:
     "python/scoring.json",
     "python/special_functions.json",
     "python/worked_examples.json",
+    "rethinking/rethinking.json",
     "stan-math/distributions.json",
     "stan-math/transforms.json",
     "stan/diagnostics/expected.json",
@@ -146,8 +150,9 @@ object Reference:
     "stan/diagnostics/cmdstan-2-35-0-stansummary.csv"
   )
 
-  /** The 11 remaining files: the posteriordb Stan models and one note. */
+  /** The 12 remaining files: the posteriordb and fictional Stan models, and one note. */
   val otherFiles: List[String] = List(
+    "posteriordb-like/fictional-varying_intercept_slope_correlated/model.stan",
     "posteriordb/arK-arK/model.stan",
     "posteriordb/arma-arma11/model.stan",
     "posteriordb/dogs-dogs/model.stan",

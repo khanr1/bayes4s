@@ -73,11 +73,11 @@ object StanMathCoverageSuite extends SimpleIOSuite with Approx:
         val outOfScope = fixture.laws.keySet.diff(lawsInScope)
 
         check(validCovered == 30, s"$validCovered valid density cases covered, expected 30")
-          .and(check(validDeferred == 166, s"$validDeferred valid cases deferred, expected 166"))
+          .and(check(validDeferred == 175, s"$validDeferred valid cases deferred, expected 175"))
           .and(
             check(
-              validCovered + validDeferred == 196,
-              s"${validCovered + validDeferred} valid cases in the fixture, expected 196"
+              validCovered + validDeferred == 205,
+              s"${validCovered + validDeferred} valid cases in the fixture, expected 205"
             )
           )
           .and(
@@ -88,13 +88,13 @@ object StanMathCoverageSuite extends SimpleIOSuite with Approx:
           )
           .and(
             check(
-              deferredParameters.length == 48,
-              s"${deferredParameters.length} distinct parameter rejections deferred, expected 48"
+              deferredParameters.length == 49,
+              s"${deferredParameters.length} distinct parameter rejections deferred, expected 49"
             )
           )
           .and(check(coveredVariates == 7, s"$coveredVariates variate cases covered, expected 7"))
           .and(
-            check(deferredVariates == 34, s"$deferredVariates variate cases deferred, expected 34")
+            check(deferredVariates == 37, s"$deferredVariates variate cases deferred, expected 37")
           )
           .and(
             check(
@@ -118,7 +118,10 @@ object StanMathCoverageSuite extends SimpleIOSuite with Approx:
         forEach(names.distinct) { (law, name) =>
           parameterName(law, name) match
             case None =>
-              check(law == "neg_binomial_2" && name == "eta", s"$law.$name maps to nothing")
+              check(
+                notYetImplemented((law, name)),
+                s"$law.$name maps to nothing and is not listed as not yet implemented"
+              )
             case Some(ours) =>
               check(
                 parametersOf.getOrElse(law, Set.empty).contains(ours),

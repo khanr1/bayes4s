@@ -9,3 +9,6 @@ python -I "$HERE/build_diagnostics_fixtures.py" "$EXT/stan" "$OUT/stan/diagnosti
 python -I "$HERE/build_hmc_fixtures.py" "$EXT/stan" "$OUT/stan/hmc/hmc.json"
 python -I "$HERE/build_posteriordb_fixtures.py" "$EXT/posteriordb" "$OUT/posteriordb"
 python -I "$HERE/build_python_fixtures.py" "$OUT/python"
+python -I "$HERE/build_multilevel_fixtures.py" "$OUT/multilevel/multilevel.json"
+python -I "$HERE/build_varying_effects_reference.py" "$OUT/posteriordb-like/fictional-varying_intercept_slope_correlated"
+python -I "$HERE/build_rethinking_fixtures.py" "$OUT/rethinking/rethinking.json"

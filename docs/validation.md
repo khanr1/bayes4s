@@ -36,6 +36,29 @@ and that the private-term guard really fires.
 Tolerances are 0 wherever a value is read back from a file rather than computed: parsing must be
 exact, and a tolerance there would only hide a bug.
 
+### The reference data was refreshed on 5 November 2026
+
+The reference package was replaced wholesale. Of the 50 data files, 44 are byte-identical to what
+phase 1 was validated against, one changed and five are new; of the 12 scripts, six are identical,
+three changed and three are new.
+
+The one changed file is `stan-math/distributions.json`, which grew from 196 valid and 361 invalid
+cases to 205 and 366 by adding two function families: `bernoulli_logit` (7 valid, 2 invalid) and
+`binomial_logit` (2 valid, 3 invalid). **What this library covers did not change** — 30 valid
+density cases, 46 distinct parameter rejections, 7 variates outside the support — because both
+families are logit parameterisations of laws whose logit form is not implemented yet. Only the
+deferred counts grew, and the two suites that assert them were updated: no tolerance was touched.
+
+The new parameter `binomial.alpha` is listed in `StanMathFixtureSupport.notYetImplemented` beside
+`neg_binomial_2.eta`, rather than being allowed to fall through onto our `probability`. Without
+that list the rejection suite would have gone on passing while asserting one case fewer than it
+reported.
+
+The five new data files — `multilevel/multilevel.json`, the three files of a fictional
+correlated varying-effects posterior, and `rethinking/rethinking.json` — are read by no test yet.
+They are loaded and parsed by `ReferenceSuite`, which is what makes the inventory of 50 files and
+their syntax a live claim rather than a promise.
+
 ### Mutations tried
 
 Each mutation was introduced by hand, the intended test was confirmed to fail with a message that
@@ -155,9 +178,9 @@ function changes a count and the suite says which row to update.
 | valid density cases covered | 30 |
 | distinct parameter rejections covered | 46 |
 | variates outside the support covered | 7 |
-| valid cases deferred: the `cdf`, `lcdf` and `lccdf` families, and `neg_binomial_2_log` | 166 |
-| distinct parameter rejections deferred | 48 |
-| variates outside the support deferred, in the cumulative families | 34 |
+| valid cases deferred: the `cdf`, `lcdf` and `lccdf` families, and the `neg_binomial_2`, `bernoulli` and `binomial` logit parameterisations | 175 |
+| distinct parameter rejections deferred | 49 |
+| variates outside the support deferred, in the cumulative and logit families | 37 |
 | laws outside the specification: bernoulli, beta_binomial, cauchy, chi_square, double_exponential, exponential, inv_gamma, student_t | 8 |
 
 Four fields of `worked_examples.json` are also deferred, all of which need the inverse incomplete

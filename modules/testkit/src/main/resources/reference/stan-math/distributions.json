@@ -3028,6 +3028,52 @@
      }
     ],
     "parse_problems": []
+   },
+   "lpdf_logit": {
+    "file": "test/prob/binomial/binomial_logit_test.hpp",
+    "arguments": "Ints, Ints, Doubles",
+    "param_names": [
+     "n",
+     "N",
+     "alpha"
+    ],
+    "valid": [
+     {
+      "params": [
+       10.0,
+       20.0,
+       -0.4054651081081643
+      ],
+      "expected": -2.1443722417990028,
+      "scipy_value": -2.1443722417990028,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       5.0,
+       15.0,
+       1.3862943611198908
+      ],
+      "expected": -9.202729812928725,
+      "scipy_value": -9.20272981292872,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     },
+     {
+      "index": 1,
+      "value": -1.0
+     },
+     {
+      "index": 2,
+      "value": Infinity
+     }
+    ],
+    "parse_problems": []
    }
   },
   "bernoulli": {
@@ -3195,6 +3241,90 @@
      {
       "index": 1,
       "value": 1.0001
+     }
+    ],
+    "parse_problems": []
+   },
+   "lpdf_logit": {
+    "file": "test/prob/bernoulli/bernoulli_logit_test.hpp",
+    "arguments": "Ints, Doubles",
+    "param_names": [
+     "n",
+     "theta"
+    ],
+    "valid": [
+     {
+      "params": [
+       1.0,
+       -1.0986122886681098
+      ],
+      "expected": -1.3862943611198906,
+      "scipy_value": -1.3862943611198906,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       0.0,
+       -1.0986122886681098
+      ],
+      "expected": -0.2876820724517809,
+      "scipy_value": -0.2876820724517809,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       1.0,
+       -4.59511985013459
+      ],
+      "expected": -4.605170185988091,
+      "scipy_value": -4.605170185988091,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       0.0,
+       -4.59511985013459
+      ],
+      "expected": -0.01005033585350145,
+      "scipy_value": -0.010050335853501444,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       0.0,
+       25.0
+      ],
+      "expected": -25.0,
+      "scipy_value": -24.99999582410784,
+      "scipy_check": "DISAGREE"
+     },
+     {
+      "params": [
+       1.0,
+       -25.0
+      ],
+      "expected": -25.0,
+      "scipy_value": -25.000000000013888,
+      "scipy_check": "agree"
+     },
+     {
+      "params": [
+       0.0,
+       -25.0
+      ],
+      "expected": -1.3887943864964021e-11,
+      "scipy_value": -1.3887943864867582e-11,
+      "scipy_check": "agree"
+     }
+    ],
+    "invalid": [
+     {
+      "index": 0,
+      "value": -1.0
+     },
+     {
+      "index": 0,
+      "value": 2.0
      }
     ],
     "parse_problems": []
