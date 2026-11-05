@@ -933,3 +933,143 @@ test asserts.
 6. **No `Draws` from a `Chain` yet.** `Summary.of` takes chains and `StanCsv` takes `Draws`, and the
    bridge between them — which needs the sampler's seven columns — is written by hand in the
    manual's chapter 9 and in `check_cmdstan_csv.py`. It belongs in `effect`, with the writer.
+
+## Phase 6 — the reference posteriors and simulation-based calibration
+
+354 tests, 336 fast and 18 slow, up from 330 — 24 added by this phase, half of them slow. The 324
+fast tests of phases 0 to 5 are untouched; no tolerance, seed or assertion was weakened, and the
+register of encapsulated local mutation stays at 27 sites.
+
+This is the phase where the library is compared against **Stan itself**, on nine models, rather
+than against Stan's unit tests. Everything before it checked a piece; this checks the composition.
+
+### The nine reference posteriors
+
+Each Stan program was translated by hand into the Scala API, fitted with four chains of a thousand
+warmup and a thousand kept samples, and compared parameter by parameter against the reference
+summary posteriordb ships — ten chains of a thousand thinned draws of a long Stan run. The rule is
+the collection's own: `|mean_ours - mean_ref| <= 4 sqrt(mcse_ours² + mcse_ref²)`, and the same for
+the standard deviation.
+
+| Posterior | What it exercises | Parameters compared | Result |
+|---|---|---|---|
+| `eight_schools-eight_schools_noncentered` | a multilevel model, a positive scale, a derived quantity | 10 | green |
+| `arK-arK` | an autoregression of order 5 over 195 rows | 7 | green |
+| `arma-arma11` | an error recursion over 200 steps | 4 | green |
+| `garch-garch11` | a bound that depends on another parameter, a recursive likelihood | 4 | green |
+| `kidiq-kidscore_momiq` | a plain regression, 434 rows | 3 | green |
+| `earnings-logearn_height` | a regression on a log scale, 1192 rows, no prior at all | 3 | green |
+| `dogs-dogs` | a logistic regression over 750 Bernoulli cells | 3 | green |
+| `low_dim_gauss_mix-low_dim_gauss_mix` | ordered means, a two-component mixture over 1000 rows | 5 | green |
+| `gp_pois_regr-gp_pois_regr` | a latent Gaussian process, Poisson counts, a **differentiated Cholesky** | 13 | green |
+
+**52 parameters, every mean and every standard deviation inside the budget, and every one of our
+own fits converged first** (R-hat below 1.01 and a bulk effective size above 100, asserted
+separately so that a comparison against a chain that had not mixed would say so rather than report
+a gap). The suite takes 3 minutes 15 and lives in `src/slow/scala`.
+
+Before any of them is fitted, a fast suite checks the ports themselves: all nine load, every target
+is finite at two points, **every gradient agrees with the dual-number oracle to 1e-12** — the
+Gaussian process's Cholesky included — and central differences agree to 1e-5. And every name the
+reference summaries report is produced by its port, as a parameter or as a derived quantity, so a
+comparison cannot silently skip one.
+
+Three of the references report a quantity the model does not carry as a parameter, and each is a
+`derived`: `theta` of the non-centred eight schools, `beta1` of the GARCH, and `f` of the Gaussian
+process.
+
+### The two parameterisations of the eight schools
+
+| Check | Result |
+|---|---|
+| the centred form produces divergent transitions | green: more than half a per cent of its transitions |
+| the non-centred form produces almost none | green: under two in a thousand |
+| and the first has more than ten times the second | green |
+| `tau`'s bulk effective size more than doubles | green |
+| the energy diagnostic improves | green |
+| the two still agree on `tau`'s posterior mean | green |
+
+The contrast is the point. A sampler that reported divergences everywhere would pass the first
+check and fail the second, and one that reported none would fail the first.
+
+### Simulation-based calibration
+
+Three small generative models, 256 replications each, samples thinned to 63 per fit, ranks binned
+into 16 of 4 possible values, against the 0.1 % point of chi-squared with 15 degrees of freedom —
+37.697. Nine parameters in all, so the announced failure rate is about 1 run in 100.
+
+| Model | Parameters | Result |
+|---|---|---|
+| a Gaussian location and scale, 12 observations | `mu`, `sigma` | green |
+| a Gamma-Poisson rate, 20 counts | `rate` | green |
+| four varying levels, non-centred | `mu`, `tau`, `z.1` … `z.4` | green |
+
+And the machinery itself, in the fast suite: ranks in range and one per replication, a vector
+parameter ranked value by value under CmdStan's names, the statistic exactly 0 on perfectly uniform
+ranks and above 1000 on ranks piled in one bin, and `NaN` when the bins do not divide the ranks
+evenly.
+
+**The test that gives the rest their meaning**: a model whose density says `Gamma(3, 4)` while its
+simulation draws from `Gamma(3, 1)` — a prior written twice and differently, which is the mistake
+calibration exists to find — is rejected at the 0.1 % level in 48 replications, while the honest
+version passes. Without that, a calibration suite that always passed would prove nothing.
+
+### The stress suite
+
+`sbt -Dbayes4s.stress=true slow:test`, which takes fresh seeds from the clock, doubles the warmup
+and the samples of every posteriordb fit and raises the calibration to 512 replications:
+
+```
+18 tests, 0 failed, seed 1793910010875
+  three calibrations                 16s, 10s, 34s
+  nine reference posteriors          51s to 1:54min each
+```
+
+Green on a seed nobody chose, which is what the weekly workflow is for.
+
+### Mutations tried
+
+Eight, one per component of the phase, every one detected.
+
+| Component | Mutation | Test that failed | What it said |
+|---|---|---|---|
+| `garch11` | the Jacobian of the dependent bound dropped | the GARCH comparison | `alpha1: mean 0.614213 against 0.567284, gap 0.046929 over a budget of 0.012738` |
+| `arma11` | the first prediction is `mu` instead of `mu + phi mu` | the ARMA comparison | `mu: mean 0.004038 against 0.006915, gap 0.002877 over a budget of 0.000820` |
+| `gaussianMixture` | the mixture weights not on the log scale | the mixture comparison | caught by the convergence guard: `Rhat 1.7320 and a bulk effective size of 6` |
+| `dogs` | the two counts of past outcomes swapped | the dogs comparison | `beta.2: mean -0.209233 against -0.358265, gap 0.149032 over a budget of 0.004204` |
+| `lowerFactor` | the factor transposed | the Gaussian process comparison | `alpha: sd 0.712680 against 0.792822, gap 0.080142 over a budget of 0.073788` |
+| `Sbc.once` | the fit conditioned on the observed data, not the simulated | all three calibrations | `mu: chi-squared 1824.00 over 16 bins` |
+| `Sbc.once` | the samples no longer thinned | the multilevel calibration | `z.1: chi-squared 40.13`, and the two easy models still passed |
+| `uniformityChiSquared` | the expected count per bin off by one bin | the known-ranks test | `perfectly uniform ranks gave 0.941, expected exactly 0` |
+
+Two are worth a line. The **mixture** mutation never reached the comparison: putting the weights on
+the wrong scale makes the posterior bimodal in a way the sampler cannot explore, and the
+convergence guard caught it with R-hat 1.73. That is the failure one wants to see — "your fit is
+broken" rather than "your fit disagrees with Stan by 0.3".
+
+The **thinning** mutation failed on one of the three models and not the other two, which is where
+it should bite: autocorrelation is highest in the multilevel model, and `z.1` came out at 40.13
+against a critical value of 37.697. A single easy model would have let it through, which is why
+there are three.
+
+### Known limits at the end of phase 6
+
+1. **`testkit.Ess` is still there.** Phase 5 noted it is redundant now that `Convergence.ess` is
+   validated; pointing `inference`'s suites at `diagnostics` would invert the module graph, so it
+   waits for a module that sits above both — `effect`, in phase 11.
+2. **A differentiable Cholesky is written in a model, not in the library** (D-85). Fine at eleven
+   dimensions and the wrong approach at a hundred. If a later phase needs a Gaussian process of any
+   size, a fused primitive with its own adjoint is the answer, and the phase-2 benchmark is the
+   instrument.
+3. **A parameter-dependent bound has no `Constraint`** (D-85). The workaround is exact and is two
+   lines in a model, and appendix A of the manual documents it; a `Constraint` case that closed
+   over another parameter would be a different design.
+4. **No LOO, no power scaling, no correlated-effects posterior**: §8.2 assigns all three to phase
+   6b, with `PointwiseLikelihood` and the multilevel test models.
+5. **256 replications is a modest calibration.** Talts et al. use a thousand or more. At 256 with
+   16 bins the expected count is 16 a bin, which catches a gross miscalibration — as the deliberate
+   one shows — and would miss a subtle one. The stress run doubles it; a sharper check belongs with
+   the models it would be about.
+6. **The posteriordb comparison uses one seed per run.** Nine fits of four chains is 3 minutes, so
+   a sweep over seeds is not something to put in a suite; the weekly stress run is the sweep, one
+   fresh seed at a time.

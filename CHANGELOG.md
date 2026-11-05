@@ -289,3 +289,40 @@ Found
   the smaller of the two, and the floor on `tau`, which binds only for a strongly antithetic
   sample. Without the floor such a sample reports an effective size of **-344 524**; the two tests
   that close the gaps are built to separate the conventions on purpose.
+
+### Phase 6 — the reference posteriors and simulation-based calibration (5 November 2026)
+
+Added
+
+- The nine reference posteriors of posteriordb, each translated by hand from its Stan program and
+  compared parameter by parameter against the summary Stan itself produced — 52 parameters, every
+  mean and standard deviation within `4 sqrt(mcse_ours² + mcse_ref²)`, every one of our own fits
+  converged first. An autoregression, an ARMA error recursion, a GARCH with a bound that depends on
+  another parameter, two regressions, a logistic regression, an ordered two-component mixture, a
+  multilevel model and a latent Gaussian process whose Cholesky factor is differentiated through.
+- `Sbc`: simulation-based calibration on a `GenerativeModel`, with the thinning Talts et al.
+  require and a chi-squared of rank uniformity that returns `NaN` rather than a misleading number
+  when the bins do not divide the ranks evenly. Three small models calibrate at the 0.1 % level.
+- The specification's own test of divergence reporting: the centred eight schools diverge, the
+  non-centred form does not, and the contrast is asserted both ways.
+- Appendix A of the manual, *Coming from Stan*: 49 Stan names mapped to this library's, the
+  structural equivalences, the sampler settings, and `eight_schools_noncentered.stan` translated
+  line by line with the four differences explained. `scripts/check-stan-names.py` checks the table
+  in CI.
+- 24 tests, for 354 in all — 12 fast and 12 slow. Eight mutations, one per component.
+
+Found
+
+- **The whole stack agrees with Stan on nine real models**, first run, including the two that could
+  not be translated line by line: a parameter-dependent bound, which is reproduced exactly by
+  declaring the raw parameter on the unit interval and adding `log(1 - alpha1)` by hand, and a
+  Gaussian process, whose covariance Cholesky is written out of the scalar operations and
+  differentiated by the tape — no new primitive and no hand-written adjoint.
+- **Calibration has teeth**: a model whose density says `Gamma(3, 4)` while its simulation draws
+  `Gamma(3, 1)` is rejected in 48 replications, and the honest version passes. That is what makes
+  the three green calibrations worth reading.
+- **The convergence guard catches the worst mutation before the comparison does.** Putting a
+  mixture's weights on the wrong scale makes the posterior unexplorable, and the suite reports
+  R-hat 1.73 and an effective size of 6 rather than a disagreement of 0.3 with Stan.
+- **The stress suite is green on a seed nobody chose**, with doubled draws and 512 calibration
+  replications.

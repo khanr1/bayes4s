@@ -72,6 +72,11 @@ ThisBuild / githubWorkflowBuildPreamble ++= Seq(
   WorkflowStep.Run(
     commands = List("python3 scripts/check-terminology.py"),
     name = Some("Check the manual's vocabulary")
+  ),
+  // Appendix A's table of Stan names points at things that exist.
+  WorkflowStep.Run(
+    commands = List("python3 scripts/check-stan-names.py"),
+    name = Some("Check the table of Stan names")
   )
 )
 
@@ -162,7 +167,16 @@ lazy val inference = mod("inference")
 // schools: a summary has to be checked on a real fit, and those models already have their own
 // tests behind them.
 lazy val diagnostics = mod("diagnostics")
-  .dependsOn(inference, inference % "test->test", transforms % "test->test", testkit % Test)
+  .dependsOn(
+    inference,
+    inference % "test->test",
+    transforms % "test->test",
+    // A **test** dependency only: the posteriordb comparison of phase 6 has to read the reference
+    // summaries, and `PosteriordbSummary` lives in `stan-io`. The published `diagnostics` stays
+    // independent of it (docs/design.md).
+    stanIo % Test,
+    testkit % Test
+  )
 
 lazy val predictive = mod("predictive").dependsOn(distributions, testkit % Test)
 

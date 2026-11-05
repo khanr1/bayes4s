@@ -1110,3 +1110,80 @@ The cost of having it is a second copy of nineteen densities to keep correct, an
 benchmark is the instrument that would justify it. Deferred until a model is large enough for the
 saving to show, and this decision records the arithmetic so the question does not have to be
 reopened from scratch.
+
+## Phase 6 — the reference posteriors and simulation-based calibration
+
+### D-85. The nine Stan models are ported by hand, and two of them cannot be line by line
+
+The specification says the Stan programs are to be translated by hand, and the translation is what
+is being tested: the reference summaries came from Stan itself on the same data and the same model,
+so a disagreement is either a bug in this library or a mistranslation. Seven of the nine are
+mechanical. Two are not, and both say something about the library's own limits.
+
+**`garch11` has a bound that depends on another parameter**: `real<lower=0, upper=(1 - alpha1)>
+beta1`. `Constraint` has no case for that and should not — a constraint is a value written in a
+model's source, and one that closed over another parameter would have to be read from the
+unconstrained vector before it could be used to read the unconstrained vector. The translation
+declares `beta1Raw` on the unit interval, sets `beta1 = (1 - alpha1) beta1Raw`, and adds
+`log(1 - alpha1)` to the target by hand — which is **exactly** Stan's own transform for that
+declaration, term for term. The posterior is the same one, the comparison confirms it, and the
+mutation that drops the Jacobian moves `alpha1`'s posterior mean by 0.047 against a budget of
+0.013.
+
+**`gp_pois_regr` needs the Cholesky factor of a parameter-dependent matrix.** §5.3 leaves a
+differentiable `cholesky_decompose` out of `Real[A]` on purpose, because models are expected to
+parameterise a factor directly. That is right for a correlation matrix and wrong for a Gaussian
+process, whose covariance is built from its parameters. The recursion is therefore written in the
+model, out of the scalar operations, and the tape differentiates the composition — no new primitive
+and no hand-written adjoint. At eleven dimensions it is a few hundred nodes; at a hundred it would
+be the wrong approach, and that is the honest limit to record.
+
+### D-86. The acceptance rule is the collection's own, and both sides are noisy
+
+`|mean_ours - mean_ref| <= 4 sqrt(mcse_ours² + mcse_ref²)`, and the same for the standard deviation
+with `mcse_sd`. The reference is ten chains of a thousand thinned draws of a long Stan run — a
+Monte Carlo estimate, not a truth — so the threshold is built from **both** errors. A fixed
+tolerance would be either unfalsifiable or impossible depending on the parameter.
+
+The suite asserts its own fit's convergence first, and separately: a comparison against a chain
+that has not mixed says nothing, and the message should say that rather than report a gap. The
+mutation that breaks the mixture's weights is caught by that guard rather than by the comparison —
+R-hat 1.73 and a bulk effective size of 6 — which is the right failure to see.
+
+### D-87. `Sbc` lives in `diagnostics`, and thins before ranking
+
+Simulation-based calibration is not in the specification's module sketch; it appears in §6.5 as a
+test procedure. It is in `diagnostics`' published API because three later phases need it — the
+reduced delay model of phase 9, the component combinations of phase 10, the correlated-effects
+model of phase 6b — and a procedure reimplemented in three test suites is a procedure that will
+differ between them.
+
+It is also the only test in the library that checks a generative model's **two readings against
+each other** end to end: the prior as a density against the prior as a sampler, the likelihood
+against the simulator, every Jacobian, and the sampler. The suite proves it has that power rather
+than claiming it: a model whose density says `Gamma(3, 4)` while its simulation draws `Gamma(3, 1)`
+gives a chi-squared of well past the 0.1 % point, where the honest version passes.
+
+The samples are **thinned** before ranking, as Talts et al. require: consecutive samples of a
+Markov chain are correlated, and ranking against correlated samples gives the histogram a shape of
+its own. The mutation that removes the thinning is caught on the multilevel model, where the
+autocorrelation is highest, and not on the two easy ones — which is exactly where it should bite.
+
+`uniformityChiSquared` returns `NaN` when the bins do not divide the possible ranks evenly, rather
+than a statistic computed against unequal expected counts, which would reject a correct sampler.
+
+### D-88. Appendix A's table is checked by a script, not by a suite
+
+The specification asks for the table to be "read by `StanNamesSuite`". It is read by
+`scripts/check-stan-names.py` instead, which looks each Scala name up in
+`modules/*/src/main/scala` as a definition, an enum case or an object.
+
+Two reasons. The repository already runs its other two table checks that way — the register of
+local mutation and the manual's vocabulary (D-7, D-34) — so this is one mechanism rather than two.
+And a Scala suite would check the names **compile**, which they do by being written down, whereas
+the failure worth catching is a name that was renamed and a row that was not; a grep over the
+sources catches that and a compiled reference cannot, because a renamed function would stop the
+suite from compiling at all and the CI error would point at the test rather than at the table.
+
+The check is one-directional on purpose: a function this library has and the table does not is not
+an error, because the table is for names Stan also has.

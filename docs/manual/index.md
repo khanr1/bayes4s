@@ -19,6 +19,7 @@ concepts, the error contract, and the classic worked examples.
 | [3. Sampling](03-sampling.md) | written for the pure sampler; the `IO` half arrives with the `effect` module |
 | [4. Diagnosing](04-diagnosing.md) | written; the model-criticism half arrives with LOO |
 | [9. Interoperability](09-interoperability.md) | written for the pure parser; reading and writing files arrives with the `effect` module |
+| [Appendix A. Coming from Stan](appendix-a-from-stan.md) | written; the table is checked in CI |
 | [10. Performance and pitfalls](10-performance.md) | the cost of `Real[A]` is measured; the pitfalls arrive with phase 12 |
 | [Appendix B. Errors and contracts](appendix-b-errors.md) | written |
 | [Appendix C. Classic worked examples](appendix-c-worked-examples.md) | written |
@@ -34,6 +35,5 @@ concepts, the error contract, and the classic worked examples.
 | 8. Scoring a forecast | 8 and 10 |
 | 9. Interoperability, with files | 11 |
 | 10. Performance, completed | 12 |
-| Appendix A. Coming from Stan and NumPyro | 6 |
 | Appendix B, completed | 12 |
 | Appendix C, completed | 4 and 5 |
