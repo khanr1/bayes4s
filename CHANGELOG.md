@@ -158,3 +158,44 @@ Found
 - **A continuous predictor is not vectorised yet**: written out per observation it costs three tape
   nodes a row and 5.8 times the time. The fix is a fused linear-predictor primitive, for the phase
   that has a multilevel regression to run (D-47).
+
+### Phase 3 — transforms, named parameters and models (5 November 2026)
+
+Added
+
+- `Constraint` and `Transform`: the eleven constraints the specification lists — unconstrained,
+  positive, lower and upper bounds, interval, unit interval, offset-multiplier, ordered,
+  sum-to-zero, simplex and the Cholesky factor of a correlation matrix. A transform **returns** its
+  log Jacobian instead of adding it to an accumulator, which is what lets a test assert the
+  Jacobian on its own; `constrain` is total and `unconstrain` returns `Either`, because a value
+  outside its constraint has no antecedent.
+- `ParamSpec`, a pure applicative description of a model's parameters: names, sizes, constraints
+  and how to read them out of the unconstrained vector, composed with `mapN` and with no registry
+  anywhere. Every value carries the name CmdStan would give it, column major for a matrix.
+- `Model`, with the prior and the likelihood separate; `Model.target` for the sampler,
+  `Model.priorOnly`, `Model.constrain`, `Model.values` and `Model.unconstrain`; and the optional
+  generative part, `Generative` and `GenerativeModel`, whose `conditionedOn` is what
+  simulation-based calibration will be built on.
+- `BayesError.DuplicateParameter`, and appendix B describes it.
+- Chapter 2 of the manual, *Writing a model*: the eight schools written centred, then non-centred,
+  with the change of variables checked rather than asserted.
+- 59 tests, for 249 in all, of which 19 are the applicative laws of `ParamSpec` under discipline.
+  The gradient of `Model.target` is checked against the dual-number oracle on a model carrying one
+  block of **every** constraint, and ten mutations — one per component — were all detected.
+
+Found
+
+- **The inverse of `sum_to_zero_constrain` is derivable**, and was derived here rather than ported:
+  the recursion inverts cleanly, and the result reproduces the fixture's fifteen cases and its
+  simplex round trips to 1e-15.
+- **A saturating transform comes back only as well as its inverse allows.** `atanh` multiplies the
+  last bit of a correlation by `cosh²(y)`, so a round trip at `y = 10` cannot do better than 1e-8.
+  The property asserts 1e-12 over the range a model lives in and the conditioning bound beyond it,
+  which is tighter than a flat tolerance where it can be and honest where it cannot.
+- **`.mapN(Params.apply)` is not available in Scala 3**: a polymorphic method eta-expands with
+  `A := Any` before it meets a polymorphic function type. A model writes the lambda, and chapter 2
+  explains why the function has to be polymorphic in the first place.
+- **An error from `Model.unconstrain` now names the block.** Writing chapter 2 showed what a user
+  would actually read — `value = -1.0 violates value > 0.0`, with thirty parameters to choose from
+  — so the error is relabelled with the block's name and, where the transform named one, the
+  coordinate.

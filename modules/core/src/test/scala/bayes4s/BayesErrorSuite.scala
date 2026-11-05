@@ -37,6 +37,7 @@ object BayesErrorSuite extends SimpleIOSuite with Discipline with Approx:
       Gen.const(BayesError.InvalidArgument("Gamma.of", "alpha", -1.0, "alpha > 0")),
       Gen.const(BayesError.DimensionMismatch("Fft.forward", 8, 5)),
       Gen.const(BayesError.UnknownParameter("mu")),
+      Gen.const(BayesError.DuplicateParameter("tau")),
       Gen.const(BayesError.NumericalOverflow("Special.lgamma")),
       Gen.const(BayesError.Malformed("stan.csv", "no header"))
     )

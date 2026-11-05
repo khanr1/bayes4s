@@ -145,7 +145,12 @@ lazy val ad = mod("ad").dependsOn(core, testkit % Test)
 lazy val distributions =
   mod("distributions").dependsOn(ad, ad % "test->test", testkit % Test)
 
-lazy val transforms = mod("transforms").dependsOn(ad, testkit % Test)
+// The `Dual` oracle lives in `ad`'s tests and the gradient of a model's target is checked against
+// it. `distributions` is a **test** dependency only: `Model` itself is abstract and needs no
+// density, but a model to test it on does, and the published `transforms` stays independent of
+// `distributions` (docs/design.md).
+lazy val transforms = mod("transforms")
+  .dependsOn(ad, ad % "test->test", distributions % Test, testkit % Test)
 
 lazy val inference = mod("inference").dependsOn(transforms, distributions, testkit % Test)
 

@@ -690,3 +690,142 @@ The vectorised overloads — `LogDensity.normal` in three shapes, `LogMass.poiss
 words: the `...Sum` primitives of `Real[A]` are not meant to be called by a user, and these are how
 a model reaches them. Each one checks the lengths and the scale and then delegates; the primitive
 keeps the whole vector to one node.
+
+## Phase 3 — transforms, named parameters and models
+
+### D-49. `UnitInterval` is `Interval(0, 1)`, not a transform of its own
+
+Its log Jacobian then carries a `log(1 - 0)` that is exactly zero, so there is nothing to save by
+specialising it and one formula fewer to keep right. The fixture's `lub` cases include
+`lower = 0, upper = 1`, so the specialisation would have been tested by the same numbers anyway.
+
+### D-50. A matrix is column major, everywhere
+
+Stan stores a matrix column by column and a CmdStan CSV header is in that order, so this library
+uses it in all three places a matrix appears: `Block.names` lists `L.1.1, L.2.1, … L.1.2`, the
+unconstrained vector holds `u(from + j * rows + i)` for entry `(i, j)`, and the flattened
+constrained value of a Cholesky factor is `flat(j * k + i)`.
+
+Picking a different order in any one of them would transpose a matrix read back from a file, with
+no error anywhere — which is why one convention is stated once here and asserted in three tests.
+
+### D-51. `ParamSpec` cannot have a cats `Semigroupal`, and the laws are tested anyway
+
+`ParamSpec[T[_]]` abstracts over a type **constructor**: its kind is `(* -> *) -> *`, while cats'
+`Semigroupal[F[_]]` wants an `F` of kind `* -> *`. No instance can be written, so `mapN` is spelled
+out for the arities two to eight, over `product` and `map`.
+
+The laws are still checked with discipline, on the one shape cats can talk about:
+`ParamSpec[[A] =>> V]`, a spec whose value does not depend on the scalar. That is not a degenerate
+corner — such a spec still declares blocks, still consumes its slice of the unconstrained vector
+and still accumulates a log Jacobian — so `ApplicativeTests` exercises exactly the structure there
+is: the layout concatenation and the Jacobian accumulation. Nineteen laws, green.
+
+The `Eq` it needs compares layouts and values exactly and log Jacobians to 1e-12, because
+floating-point addition is not associative and the associativity law reassociates exactly those
+additions. A dropped block or a dropped Jacobian fails by far more than 1e-12.
+
+### D-52. `.mapN(Params.apply)` is not available; the model writes the lambda
+
+The plan's example writes `.mapN(NowcastParams.apply)`. Scala 3 cannot: it eta-expands a
+polymorphic method with `A := Any` before checking it against a polymorphic function type, and the
+error says `Found: (Any, Any, …) => Nowcast[Any]`. The model writes the wrapper instead,
+
+```scala
+.mapN[Schools]([A] => (mu: A, tau: A, theta: IArray[A]) => Schools(mu, tau, theta))
+```
+
+which is a line per model and is explained in chapter 2 of the manual, because the reason is worth
+knowing: the assembling function has to work for **every** scalar, since that is what lets one
+model be read by the value interpreter, the tape and the oracle.
+
+### D-53. `ParamSpec` is sealed, and names are checked by `validated`
+
+Every spec comes from the combinators, so `layout` and `read` agree by construction — a
+hand-written instance could declare one thing and read another, and nothing would catch it.
+
+Unique names are checked by `ParamSpec.validated`, which returns `Either`, rather than inside
+`product`: a combinator that could fail would stop `mapN` being a plain applicative and would make
+every model an `Either` of an `Either`. `Model.unconstrain` calls `validated` before reading
+anything, so the one operation where a duplicate name does damage cannot be reached without the
+check.
+
+### D-54. `BayesError.DuplicateParameter`
+
+A new predictable failure, so a new case: bending `Malformed` (whose job is external input) would
+have made the error's own documentation wrong. Appendix B of the manual describes it with the rest.
+
+### D-55. `Model.values`, which the sketch does not have
+
+Nothing generic can look inside a `T[Double]`: there is no way to turn a model's parameter object
+back into named values. Two things need exactly that — a CSV row is a map from name to values, and
+a round trip test needs to go from a point to names and back — so `Model.values(m, q)` reads the
+blocks again and names what it finds. It is the inverse of `Model.unconstrain` and the suite
+asserts the round trip over random points.
+
+### D-56. `GenerativeModel` carries the data and how to read a model on other data
+
+The sketch is `GenerativeModel(model, generative)` with a `conditionedOn(y)`, and that cannot work:
+a `Model`'s likelihood closes over its data, and nothing generic can reach in and replace it. The
+case class therefore holds the observed data, a `Y => Model[T]`, and the simulation; `model` is
+`conditionedOn(observed)` and is still a member, so the sketch's two names survive.
+
+### D-57. `transforms` depends on `distributions` in test scope only
+
+`Model` is abstract and needs no density, so the published `transforms` artefact does not depend on
+`distributions` and the plan's module graph is unchanged. A model to *test* it on does need
+densities, so the dependency exists in `Test` only. The eight schools and the model with one block
+of every constraint live in `transforms`' test sources for the same reason.
+
+### D-58. The simplex is the isometric log-ratio, and the inverse of `sum_to_zero` was re-derived
+
+Stan Math's `simplex_constrain` is `softmax(sum_to_zero_constrain(y))` today, not stick breaking,
+and the fixture says so in as many words. The log Jacobian is `sum(log x) + 0.5 log(N + 1)`.
+
+`sum_to_zero_constrain` is a recursion over an orthogonal basis; its inverse is derived here rather
+than ported, because the recursion inverts cleanly: coordinate `N` fixes the last weight, and each
+earlier coordinate fixes the next one from the running sum already known. Derived, then checked
+against the fixture's fifteen cases and its simplex round trips — which is the order that matters,
+since a plausible inverse that is not the inverse would have passed a weaker test.
+
+### D-59. A saturating transform comes back as well as its inverse allows
+
+`atanh` has derivative `cosh²(y)` at `tanh(y)`, so the last bit of a correlation becomes `cosh²(y)`
+last bits of the recovered unconstrained value: at `y = 6` that factor is 3.3e4 and the round trip
+can be 1e-11 out, at `y = 10` it is 2.4e8 and nothing better than 1e-8 exists. That is arithmetic,
+not implementation.
+
+The property that asserts 1e-12 therefore runs on `|y| <= 4` — a correlation of 0.9993 and a
+probability of 0.982, which is the whole range a model lives in — and a second test asserts the
+conditioning bound `1e-14 cosh²(y)` out to `|y| = 10`. Stating the bound is tighter than a flat
+1e-12 everywhere it can be, and honest where it cannot.
+
+### D-60. An error from `Model.unconstrain` names the block
+
+A transform knows a value is negative; only the model knows the value was `tau`. Without
+relabelling, reading a bad file reports `value = -1.0 violates value > 0.0` and leaves the user to
+find which of thirty parameters it was. `Model.unconstrain` rewrites the error with the block's
+name, keeping the transform's rule and the offending value, and keeps the coordinate too where the
+transform named one (`ordered, value(1)`). Found while writing chapter 2 of the manual, which is
+what a manual is for.
+
+### D-61. `tanh` is not added to `Real[A]`
+
+It is needed in one place, the Cholesky correlation factor, and it is written there from the
+operations that exist: `-expm1(-2y) / (exp(-2y) + 1)` for a non-negative argument and its mirror
+below zero. The short form, `2 invLogit(2y) - 1`, loses everything near zero — at `y = 1e-10` it
+keeps six digits of sixteen — and a branch on the sign keeps every exponential's argument negative
+so nothing overflows. One private helper beats a trait member with one caller.
+
+### D-62. The generative part says the same thing twice, and a test closes the gap
+
+`logPrior` evaluates a prior and `samplePrior` draws from one, and nothing in the types makes them
+the same prior — the plan lists this as a risk, because a disagreement invalidates every
+simulation-based calibration built on it without failing anything.
+
+Two tests close it, and they assert different things. The **identity**: `logPrior` equals the sum
+of the three law densities at any point, which is a statement about definitions with no Monte Carlo
+in it. The **streams**: `samplePrior` and `simulateData` produce bit for bit what the corresponding
+law values produce for the same seed, which pins the duplication to the laws that phase 1b
+validated. The third comparison §5.5 asks for — against MCMC samples from `priorOnly` — needs a
+sampler and arrives with phase 4.

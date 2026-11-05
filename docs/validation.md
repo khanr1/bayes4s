@@ -493,3 +493,131 @@ rather than an estimate.
    gradient without looking at the log density first.
 6. **No cumulative distribution functions** still, as at the end of phase 1b: the 152 deferred
    values of the Stan Math fixture are unchanged by this phase, which adds no new law.
+
+## Phase 3 — transforms, named parameters and models
+
+249 tests, 243 fast and 6 slow, up from 190 — 59 added by this phase, of which 19 are the
+applicative laws. The 184 fast tests of phases 0 to 2 are untouched; no tolerance, seed or
+assertion was weakened anywhere.
+
+### The constraint transforms
+
+Against ports of `stan/math/prim/constraint` and against Stan's own test files. Two things are
+asserted for every family, and they are not the same thing: the **value** is what the model sees,
+and the **log Jacobian** is what makes the density on the unconstrained space the right density —
+get it wrong and the posterior moves while every value stays plausible.
+
+| Check | Against | Tolerance | Result |
+|---|---|---|---|
+| 18 lower-bound and 9 upper-bound cases | `transforms.json` | 1e-12 relative | green |
+| 27 interval cases | `transforms.json` | 1e-12 relative | green |
+| the 9 of those that carry one, against the fixture's own finite difference | `transforms.json` | 2.6e-8, the error the fixture reports for itself | green |
+| 9 offset-multiplier cases | `transforms.json` | 1e-12 relative | green |
+| 15 ordered cases, their Jacobians, their finite differences and their inverse | `transforms.json` | 1e-12 relative | green |
+| 15 sum-to-zero cases, and the inverse **derived here** | `transforms.json` | 1e-12 relative | green, and the values sum to zero to 1e-12 |
+| 15 simplex cases, their Jacobians, their finite differences and the round trip the fixture states | `transforms.json` | 1e-12 relative | green |
+| 12 Cholesky correlation factors, their Jacobians and their inverse | `multilevel.json` | 1e-12 relative | green; rows of norm one to 1e-12 |
+| the same 12 against the fixture's numerical determinant | `multilevel.json` | no further from it than the fixture's own closed form, which at K = 5 is 1.9e-6 away | green |
+| the 5 cases Stan's own transform tests assert, each read by name | `lub_transform_test.cpp`, `ordered_transform_test.cpp`, `simplex_transform_test.cpp` | 1e-12 relative | green |
+| `Interval(0, 1)` at `x = -1000` | Stan's `underflow` case | exact | green: **exactly 0**, and a log Jacobian of -1000 rather than `NaN` |
+| the simplex of the empty vector | Stan's `simplex_0` case | exact | green: one component, equal to 1 |
+| every transform's round trip, on random points | itself | 1e-12 relative | green, on `\|y\| <= 4` (design D-59) |
+| the round trip of a saturated correlation | the conditioning of `atanh` | `1e-14 cosh²(y)` out to `\|y\| = 10` | green |
+| the log Jacobian of the seven square families | a finite difference per coordinate, computed in the test | 1e-6 | green |
+| the unconstrained sizes of all seven shapes | — | exact | green |
+| 14 values outside their constraint | — | exact | green: all `Left`, each naming what it refused |
+| `constrain` on arbitrary doubles, `NaN` and `±Inf` included | — | — | green: a value every time, never an exception |
+
+The finite differences deserve a word. Three of them are the fixture's own, computed when it was
+built, and the fixture states its own worst error — 2.6e-8 on `transforms.json`. For the Cholesky
+factor the fixture's two numbers differ by 1.9e-6 at K = 5, because a 10 by 10 numerical
+determinant is the noisy quantity; the test therefore asserts that our closed form is no further
+from the finite difference than the fixture's own closed form is, and asserts the closed form
+itself to 1e-12 separately. The seven square families get a finite difference computed here, which
+shares nothing with either.
+
+### `ParamSpec`
+
+| Check | Result |
+|---|---|
+| the layout of an eight-block spec: names, sizes, constraints, order, total size | green |
+| every value's CmdStan name, for a scalar, a vector, a matrix and a Cholesky factor | green, column major (D-50) |
+| the reading, against the transforms applied by hand to the slices the layout implies | green to 1e-15 on the values, 1e-14 on the summed Jacobian |
+| a spec with no constrained block adds **exactly** zero | green |
+| two blocks of one name | green: `Left(DuplicateParameter)`, naming the name |
+| the reading is the same function in `Double`, on the tape and in the oracle | green, gradient to 1e-12 |
+| the 19 applicative laws, with discipline | green (D-51) |
+| `mapN` reads the blocks in the order they were written, at two arities | green |
+
+### `Model`
+
+| Check | Against | Tolerance | Result |
+|---|---|---|---|
+| the target is the prior, the likelihood and the Jacobians, and nothing else | the three computed separately | 1e-14 relative | green |
+| the gradient of the target, on eight schools centred, non-centred, and a model with one block of **every** constraint | the dual-number oracle | 1e-12 relative | green |
+| the same | central differences | 1e-6 | green |
+| a point becomes named values and comes back | itself | 1e-12 relative | green |
+| the named values are the constrained values, under the layout's names, column major | `Model.constrain` | exact | green |
+| a missing name, a vector of the wrong length, a value outside its constraint | — | exact | green: `UnknownParameter`, `DimensionMismatch`, `InvalidArgument` naming the block (D-60) |
+| a model whose two blocks share a name | — | exact | green: refused before anything is read |
+| `priorOnly` | the prior computed alone | exact and 1e-14 | green: the likelihood is **exactly** zero and the prior is unchanged |
+| a derived quantity, `theta = mu + tau z` | the formula | 1e-15 relative | green |
+| specs composing beyond the arities `mapN` covers | the ninth block's value and Jacobian | 1e-13 | green |
+
+### The two readings of the eight schools
+
+The data is Rubin (1981), as posteriordb carries it: the only data in this repository that is not
+invented, and public.
+
+| Check | Against | Tolerance | Result |
+|---|---|---|---|
+| `logPrior` term by term, over random points including `tau` down to 0.01 | the three law values of phase 1b | 1e-13 relative | green |
+| `samplePrior`'s three streams | the same law values' `sample`, same seed | **bit for bit** | green |
+| `simulateData` | a Gaussian per school, same seed | **bit for bit** | green |
+| 100 000 prior draws of `mu` | Gaussian(0, 5), Kolmogorov-Smirnov | 1.95/sqrt(n), the 0.1 % point | green |
+| 100 000 prior draws of `tau` | half Cauchy(5), Kolmogorov-Smirnov | 1.95/sqrt(n) | green — a half Cauchy has no moment to test, so only `mu` gets one |
+| the mean of `mu` | 0 | 4 standard errors | green |
+| the centred and non-centred models | each other, through `theta = mu + tau z` and its Jacobian `8 log tau` | 1e-12 relative | green |
+| `conditionedOn(simulated)` | the model on the observed data | exact | green: the likelihood changes, the prior and the parameters do not |
+
+The last one is the test worth keeping. The two parameterisations describe the same posterior in
+different coordinates, and the identity
+
+```
+centred.logDensity(mu, tau, theta) + 8 log(tau) = nonCentred.logDensity(mu, tau, z)
+```
+
+holds to 1e-12 over random points. If it failed, one of the two models would be fitting something
+else — which is the mistake the non-centred form exists to avoid.
+
+### Mutations tried
+
+Ten, one per component of the phase, every one detected on the first run.
+
+| Component | Mutation | Test that failed | What it said |
+|---|---|---|---|
+| `Interval` | the log Jacobian through the probability, `log(p) + log(1 - p)` | Stan's `underflow` case | `obtained -Infinity, expected -1000.0` |
+| `Ordered` | the Jacobian sums every unconstrained value, not the gaps | 3 tests, Stan's `ordered_j` among them | `obtained -6.0, expected -7.0` |
+| `Simplex` | the `0.5 log(N + 1)` offset dropped | the 15 simplex cases | `obtained -4.308800583443201, expected -3.9622269931632284`, and the finite difference too |
+| `SumToZero` | the orthogonal weights replaced by `1/n` | the 15 sum-to-zero cases **and** the 15 simplex cases | `obtained 3.02736577944728, expected 2.1406708717792697` |
+| `CholeskyFactorCorr` | the `0.5 log1m(sum of squares)` half of the Jacobian dropped | the 12 factor cases | `obtained -0.6379479500547498, expected -0.7768126735637668` |
+| `ParamSpec.product` | the second block read from the first one's offset | 2 tests | `tau: obtained 1.4918246976412703, expected 0.6065306597126334` |
+| `Block.names` | a matrix named row by row | the CmdStan names | the names are in the wrong order |
+| `Model.target` | the log Jacobians not added | 2 tests | `obtained -43.703407531220634, expected -44.40340753122064` |
+| `Model.unconstrain` | the names no longer checked first | the clashing model | `a duplicate name gave Right(...)` |
+| `EightSchools.nonCentred` | `theta = mu + z`, the scale dropped | the two parameterisations | `obtained -59.46195669335476, expected -68.53524913323237` |
+
+### Known limits at the end of phase 3
+
+1. **The prior consistency test is two thirds of what §5.5 asks for.** The identity and the streams
+   are asserted; the comparison against MCMC samples from `priorOnly` needs a sampler and arrives
+   with phase 4.
+2. **No `Ordered` prior on the gaps.** `c0 + cumulativeSum(inc)` with a log-normal prior on the
+   increments is the other way to build cut points, and the plan keeps both; the models that need
+   it arrive with the nowcasting components.
+3. **`cholesky_corr_transform`'s 12 cases are used, `psis_loo` and `power_scaling` still are not**:
+   they belong to phase 6b.
+4. **`.mapN(Params.apply)` is not available** (D-52): a model writes a one-line polymorphic lambda
+   instead. This is a language limit, not a design choice, and it is documented in chapter 2.
+5. **No `OffsetMultiplier` on a vector with per-element offsets.** Stan allows a vector of offsets
+   and multipliers; the constraint here takes two scalars, which is what the specification lists.

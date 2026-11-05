@@ -45,6 +45,12 @@ Optimize.brentRoot(x => x * x - 2.0, 0.0, 2.0, tolerance = 1e-16, maxIterations 
 ```
 
 **`UnknownParameter(name)`** — a draw or a model was asked for a parameter it does not have.
+`Model.unconstrain` returns it when the values you handed it are missing one of the model's blocks.
+
+**`DuplicateParameter(name)`** — two blocks of a `ParamSpec` claim the same name. It is checked by
+`ParamSpec.validated`, and `Model.unconstrain` checks it before reading anything: a duplicate name
+would make a parameter ambiguous both there and in a CmdStan file, and nothing downstream could
+tell.
 
 **`Malformed(source, detail)`** — an external input could not be read: a CSV row, a JSON document.
 

@@ -96,6 +96,70 @@ final case class LowerSolveCase(
 )
 final case class GatherCase(values: IArray[Double], index: IArray[Int], value: IArray[Double])
 
+/** One case of a scalar constraint transform with a single bound: `lb` and `ub`. */
+final case class BoundCase(x: Double, bound: Double, value: Double, logJacobian: Double)
+
+/** One `lub` case. `numerical` is absent where the fixture could not form a finite difference. */
+final case class IntervalCase(
+    x: Double,
+    lower: Double,
+    upper: Double,
+    value: Double,
+    logJacobian: Double,
+    numerical: Option[Double]
+)
+
+final case class OffsetMultiplierCase(
+    x: Double,
+    offset: Double,
+    multiplier: Double,
+    value: Double,
+    logJacobian: Double
+)
+
+/** One case of a transform on a whole vector: `ordered`, `sum_to_zero`, `simplex`.
+  *
+  * `sum_to_zero` carries no log Jacobian because it has none to carry — the map is linear and
+  * volume preserving, and the fixture states the sum instead. `simplex` carries a round trip
+  * because its inverse is the one worth asserting separately.
+  */
+final case class VectorTransformCase(
+    y: IArray[Double],
+    value: IArray[Double],
+    logJacobian: Option[Double],
+    numerical: Option[Double],
+    sum: Option[Double],
+    roundTrip: Option[IArray[Double]]
+)
+
+/** One case Stan's own transform tests assert. The fields differ from one test to the next, so
+  * everything but the name is optional and the suite names the case it is reading.
+  */
+final case class StanAssertedTransform(
+    test: String,
+    x: Option[Double],
+    lower: Option[Double],
+    upper: Option[Double],
+    y: Option[IArray[Double]],
+    free: Option[IArray[Double]],
+    xVector: Option[IArray[Double]],
+    scalarValue: Option[Double],
+    vectorValue: Option[IArray[Double]],
+    lpBefore: Option[Double],
+    lpAfter: Option[Double]
+):
+  /** What the transform added to Stan's accumulator, where the case states both ends of it. */
+  def logJacobian: Option[Double] = lpBefore.zip(lpAfter).map((before, after) => after - before)
+
+/** One case of `cholesky_corr_constrain`. */
+final case class CholeskyCorrCase(
+    k: Int,
+    y: IArray[Double],
+    l: IArray[IArray[Double]],
+    logJacobian: Double,
+    numerical: Double
+)
+
 /** Typed readers for the reference files, so that the suites read as assertions rather than as
   * JSON navigation, and the decoding itself is written once.
   *
@@ -278,6 +342,123 @@ object Fixtures:
       cases
         .filter(_.hcursor.get[String]("op").contains(operation))
         .traverse(_.as[A].left.map(f => s"$Multilevel, $operation: ${f.getMessage}"))
+
+  private given boundCase: Decoder[BoundCase] = Decoder.instance: c =>
+    for
+      x <- c.get("x")(using d)
+      bound <- c.get("lower")(using d).orElse(c.get("upper")(using d))
+      v <- c.get("value")(using d)
+      j <- c.get("log_jacobian")(using d)
+    yield BoundCase(x, bound, v, j)
+
+  private given intervalCase: Decoder[IntervalCase] = Decoder.instance: c =>
+    for
+      x <- c.get("x")(using d)
+      lower <- c.get("lower")(using d)
+      upper <- c.get("upper")(using d)
+      v <- c.get("value")(using d)
+      j <- c.get("log_jacobian")(using d)
+    yield IntervalCase(x, lower, upper, v, j, present(c.get("numerical_log_jacobian")(using d)))
+
+  private given offsetMultiplierCase: Decoder[OffsetMultiplierCase] = Decoder.instance: c =>
+    for
+      x <- c.get("x")(using d)
+      offset <- c.get("offset")(using d)
+      multiplier <- c.get("multiplier")(using d)
+      v <- c.get("value")(using d)
+      j <- c.get("log_jacobian")(using d)
+    yield OffsetMultiplierCase(x, offset, multiplier, v, j)
+
+  private given vectorTransformCase: Decoder[VectorTransformCase] = Decoder.instance: c =>
+    for
+      y <- c.get("y")(using ds)
+      v <- c.get("value")(using ds)
+    yield VectorTransformCase(
+      y,
+      v,
+      present(c.get("log_jacobian")(using d)),
+      present(
+        c.get("numerical_log_jacobian")(using d)
+          .orElse(c.get("numerical_log_jacobian_first_n")(using d))
+      ),
+      present(c.get("sum")(using d)),
+      c.get("round_trip")(using ds).toOption
+    )
+
+  private given stanAssertedTransform: Decoder[StanAssertedTransform] = Decoder.instance: c =>
+    c.get[String]("test").map { name =>
+      StanAssertedTransform(
+        name,
+        present(c.get("x")(using d)),
+        present(c.get("lower")(using d)),
+        present(c.get("upper")(using d)),
+        c.get("y")(using ds).toOption,
+        c.get("free")(using ds).toOption,
+        c.get("x")(using ds).toOption,
+        present(c.get("value")(using d)),
+        c.get("value")(using ds).toOption,
+        present(c.get("lp_before")(using d)),
+        present(c.get("lp_after")(using d))
+      )
+    }
+
+  private given choleskyCorrCase: Decoder[CholeskyCorrCase] = Decoder.instance: c =>
+    for
+      k <- c.get[Int]("K")
+      y <- c.get("y")(using ds)
+      l <- c.get("L")(using ms)
+      j <- c.get("log_jacobian")(using d)
+      n <- c.get("numerical_log_jacobian")(using d)
+    yield CholeskyCorrCase(k, y, l, j, n)
+
+  /** A field the fixture states, as opposed to one it writes `null` for.
+    *
+    * [[Reference.looseDouble]] reads Python's `null` as a `NaN`, which is right for a reference
+    * value that really is `NaN` and wrong for a finite difference the fixture could not form. The
+    * transform files use `null` only in the second sense.
+    */
+  private def present(decoded: Decoder.Result[Double]): Option[Double] =
+    decoded.toOption.filterNot(_.isNaN)
+
+  private val Transforms = "stan-math/transforms.json"
+
+  /** The 18 `lb` and 9 `ub` cases of `transforms.json`. */
+  def lowerBoundCases: Either[String, List[BoundCase]] =
+    at[List[BoundCase]](Transforms, List("cases", "lb"))
+
+  def upperBoundCases: Either[String, List[BoundCase]] =
+    at[List[BoundCase]](Transforms, List("cases", "ub"))
+
+  /** The 27 `lub` cases. */
+  def intervalCases: Either[String, List[IntervalCase]] =
+    at[List[IntervalCase]](Transforms, List("cases", "lub"))
+
+  def offsetMultiplierCases: Either[String, List[OffsetMultiplierCase]] =
+    at[List[OffsetMultiplierCase]](Transforms, List("cases", "offset_multiplier"))
+
+  /** The 15 cases of one vector transform: `ordered`, `sum_to_zero` or `simplex`. */
+  def vectorTransformCases(name: String): Either[String, List[VectorTransformCase]] =
+    at[List[VectorTransformCase]](Transforms, List("cases", name))
+
+  /** The 5 cases Stan's own transform tests assert. */
+  def stanAssertedTransforms: Either[String, List[StanAssertedTransform]] =
+    at[List[StanAssertedTransform]](Transforms, List("stan_asserted"))
+
+  /** How far the fixture's own numerical Jacobians were from its closed forms. */
+  def numericalJacobianError: Either[String, Double] =
+    at[Double](Transforms, List("max_abs_numerical_jacobian_error"))(using d)
+
+  /** The 12 `cholesky_corr_constrain` cases of `multilevel.json`. */
+  def choleskyCorrCases: Either[String, List[CholeskyCorrCase]] =
+    at[List[CholeskyCorrCase]](Multilevel, List("cholesky_corr_transform", "cases"))
+
+  /** The data block of a posteriordb model, left as JSON: every model's has its own shape.
+    *
+    * `eight_schools` is Rubin (1981), which is public and is the model the manual uses; the
+    * suites decode the fields they need.
+    */
+  def posteriordbData(posterior: String): Either[String, Json] =
+    at[Json](s"posteriordb/$posterior/data.json", Nil)
 
   /** One section of `worked_examples.json`, left as JSON: every section has its own shape. */
   def workedExample(section: String): Either[String, Json] =

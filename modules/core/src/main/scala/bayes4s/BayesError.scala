@@ -47,6 +47,12 @@ object BayesError:
   final case class UnknownParameter(name: String) extends BayesError:
     def message: String = s"no parameter named '$name'"
 
+  /** Two blocks of a `ParamSpec` claim the same name, which would make a parameter ambiguous both
+    * in `Model.unconstrain` and in a CmdStan file.
+    */
+  final case class DuplicateParameter(name: String) extends BayesError:
+    def message: String = s"the parameter '$name' is declared twice"
+
   final case class NumericalOverflow(where: String) extends BayesError:
     def message: String = s"$where: the computation overflowed"
 
