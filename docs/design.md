@@ -850,3 +850,149 @@ in it. The **streams**: `samplePrior` and `simulateData` produce bit for bit wha
 law values produce for the same seed, which pins the duplication to the laws that phase 1b
 validated. The third comparison §5.5 asks for — against MCMC samples from `priorOnly` — needs a
 sampler and arrives with phase 4.
+
+## Phase 4 — Metropolis, HMC, NUTS and the warmup
+
+### D-63. A `Point` carries the log density, and Stan's integrator carries its negative
+
+Stan's leapfrog works on the potential `V = -log p` and `g = dV/dq`; this library carries the log
+density and its gradient everywhere else, and changing convention at the module boundary would
+have been worse than converting at one point. So `Point` holds the log density, `Point.potential`
+is its negation, and the two places Stan writes `p -= by * g` are written `p += by * gradient`.
+
+That is the whole of the conversion, and it is why the eleven leapfrog cases are asserted **in
+Stan's variables**: the fixture states `V`, `q`, `p` and `g`, the suite negates two of them on the
+way in and one on the way out, and a sign error there is a sampler that walks uphill and looks
+entirely plausible doing it.
+
+### D-64. `build_tree` returns a subtree, and the repository's own port settles what Stan means
+
+`base_nuts.hpp` writes its results into eight references the caller passes in, and two of them
+alias the same vector in the recursive call — so reading the C++ alone leaves it genuinely unclear
+whether a junction check compares velocities or momenta. For a unit metric they are equal and the
+test Stan ships cannot tell.
+
+`reference/build_hmc_fixtures.py`, which built the fixture, is a NumPy port of that code, and the
+plan says to read the reference scripts as executable specification. It settles it: the three
+checks compare `p_sharp` at the boundaries and use the plain momenta inside the `rho` sums. The
+recursion here returns a `Subtree` with those fields named as Stan names them, and the case
+`unit_e_nuts_test.cpp` asserts matches to 1e-6 against Stan's own six digits and to 1e-12 against
+the port's sixteen.
+
+### D-65. The top-level loop's summed momenta, and where this phase is least pinned
+
+Inside the recursion the fixture pins everything. The doubling loop above it is asserted by no
+test Stan ships, and its bookkeeping of `rho` is the one place this phase had to decide rather than
+port.
+
+What is implemented: the forward and backward halves keep their own summed momenta; the initial
+momentum belongs to **both**, because the starting state is the inner boundary of each; the
+whole-trajectory check uses `p0 + rhoBackward + rhoForward` and each junction check uses one side's
+sum plus the first momentum of the other. That is the exact analogue of the recursion's own combine
+step, which is pinned, and it is the only arrangement under which `rho` is the sum of the momenta
+over the states each check is about.
+
+What stands behind it instead of a fixture: the tree depth on an easy target (mean between 1 and 4,
+and a criterion that never fired would saturate at 10), the depth saturating at exactly the maximum
+when the step size is tiny, the funnel reporting divergences where a Gaussian reports none, and
+every statistical test in the suite. The mutation that makes the loop ignore its criterion is
+caught by the variance of a standard Gaussian coming out at 0.63.
+
+### D-66. `Adaptation.update` stays pure, and the driver re-runs the heuristic
+
+Stan re-runs the step-size heuristic at every window end, which needs a momentum draw, so its
+adaptation is not a pure function. Keeping `update(t): Either[..., Adaptation]` as the
+specification sketches it means the effect has to live somewhere else, and the driver is the right
+somewhere: it already has the generator.
+
+Three members beyond the sketch make that possible: `metricChanged` says the last update
+re-estimated the metric, `restarted(stepSize)` injects what the heuristic then found and sets
+`mu = log(10 * stepSize)` as Stan does, and `completed` is the tuning the sampling phase uses —
+`exp(xBar)`, the averaged iterate, which is not the last `exp(x)` and is the entire point of dual
+averaging.
+
+### D-67. `Mcmc.run` takes a starting point, `runNuts` takes an `Init`
+
+The sketch gives `run` an `init: Init`. It cannot: `Init.Given` names parameters and
+`Init.PriorMedian` draws from a prior, and `run` knows only a `DiffFn` — there are no names and no
+prior at that level. `run` takes the unconstrained point, `Mcmc.startingPoint` turns an `Init` into
+one given a model, and `runNuts` does both for you. Conflating them would have made `run` demand a
+model it never uses.
+
+### D-68. The dense metric is chosen through `AdaptationSettings`
+
+The specification asks for `Metric.Dense` as an option and says nothing about how to ask for it.
+It is `AdaptationSettings(metric = MetricShape.Dense)`, because the shape of the mass matrix is a
+property of the warmup that estimates it, not of the kernel that uses it: the same NUTS kernel runs
+with either. `Mcmc.run` builds the identity in the requested shape and the windows fill it in.
+
+### D-69. `Generative.named`, without which `Init.PriorMedian` cannot exist
+
+`Init.PriorMedian` needs prior draws **on the unconstrained space**, and a prior draw is a
+`T[Double]`. Nothing generic can look inside one (D-55), so the generative part has to be able to
+name its own draw: `named(p): Map[String, IArray[Double]]`, which `Model.unconstrain` then accepts.
+
+The author of the parameter object is the only one who can write it, and they have already written
+the `mapN` lambda that assembles it, so it is a mirror of something they have. Simulation-based
+calibration will need exactly the same thing in phase 6, to rank a drawn parameter against its own
+posterior.
+
+### D-70. `Chain.draws` is on the unconstrained space
+
+That is what the sampler produces, and what a diagnostic **of the sampler** should see: a tree
+depth or an energy is about the space the trajectory ran in. `Model.constrain` and `Model.values`
+convert, and the chapter-0 example does so in its first line. Returning constrained draws from
+`Mcmc.run` was the alternative and it cannot be done at all, since `run` has no model.
+
+### D-71. The acceptance after warmup is above the target, not at it
+
+The specification's criterion is "mean acceptance after warmup of 0.8 ± 0.05". A faithful port does
+not do that, and the measurement is in docs/validation.md: the last fifty warmup iterations average
+0.77 to 0.79, which is the statistic dual averaging controls, while sampling with the step size it
+leaves behind realises 0.84 to 0.93.
+
+The reason is that the step size is restarted at the last window end and then averaged over only
+fifty iterations, with `t0 = 10` deliberately slowing the early ones, so `exp(xBar)` is
+conservative. Stan behaves the same way — `accept_stat__` after warmup routinely sits above
+`adapt_delta` — so the criterion is implemented as the thing it is about: the realised acceptance
+is above the target and below one, and **twice** the adapted step size falls below the target. That
+pins the step size from both sides without asserting a number the algorithm does not produce.
+
+### D-72. A random walk is given its own acceptance target
+
+Dual averaging aims at whatever target it is given, and 0.8 is the right one for a Hamiltonian
+method only. Driven to 0.8, a random walk gets a step size so small that it crawls: the first
+version of the three-kernel test had it reporting a variance of 0.52 where the truth is 1, with an
+autocorrelation estimator that cheerfully claimed eight hundred effective samples.
+
+So the random-walk tests pass `AdaptationSettings(targetAccept = 0.234)`, the optimal for a
+high-dimensional random walk, and the suite additionally checks the **span** of the draws: a chain
+that has not explored can look precise to an autocorrelation estimator, and the span is what
+catches it. Both facts are in the manual's chapter 3, because a user reaching for the random walk
+will meet the first one.
+
+### D-73. The back substitution lives with the metric, not in `core.linalg`
+
+Sampling a momentum from a dense metric means solving `L' p = z`, and the specification limits
+`core.linalg` to five operations "and nothing more". The upper-triangular solve is private to
+`Metric`, which is its only caller. If a second caller appears it moves.
+
+### D-74. An effective sample size in `testkit`, until the validated one exists
+
+Every Monte Carlo threshold in this phase is `sd / sqrt(ESS)`, because a thousand correlated draws
+do not carry a thousand draws' worth of information and a threshold built on the thousand fails a
+correct sampler. The diagnostics module, where the validated estimator belongs, arrives in phase 5.
+
+`testkit.Ess` is Stan's estimator — pooled within-chain autocorrelation, truncated by Geyer's
+initial positive sequence — written for this phase and used **only to size thresholds, never as a
+reference value**. Phase 5 validates `diagnostics` against Stan's own fourteen numbers, and these
+suites point at it then. The limitation to know meanwhile: it overstates the effective sample size
+for a chain that has barely moved, which is why the random-walk tests also check the span.
+
+### D-75. The sampler needed no local mutation after all
+
+The specification allows the leapfrog and the tree to mutate local arrays, as `core.linalg` was
+allowed to in phase 1b. Neither needed it: a leapfrog step is two `IArray.tabulate`s and a subtree
+is a case class, and at the sizes a gradient already costs — one tape, one target evaluation per
+step — the allocation is not what the time goes on. The register of encapsulated mutation stays at
+the 27 sites it had, all of them in `Fft`, `Batch` and the tape.

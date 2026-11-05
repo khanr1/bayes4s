@@ -199,3 +199,48 @@ Found
   would actually read — `value = -1.0 violates value > 0.0`, with thirty parameters to choose from
   — so the error is relabelled with the block's name and, where the transform named one, the
   coordinate.
+
+### Phase 4 — Metropolis, static HMC, NUTS and the warmup (5 November 2026)
+
+Added
+
+- `inference`: the leapfrog integrator, `Metric` in its diagonal and dense shapes, static
+  `Hmc`, `RandomWalkMetropolis`, and `Nuts` following Stan — multinomial sampling, the generalised
+  U-turn criterion, a maximum tree depth, a divergence when the energy error passes its threshold.
+  `build_tree` is a function returning a subtree summary rather than eight references the caller
+  passes in, and the case `unit_e_nuts_test.cpp` asserts matches Stan's six digits and the
+  fixture's independent port's sixteen.
+- The warmup as an immutable state machine: dual averaging on the log step size, the windows of
+  `windowed_adaptation.hpp` — for a thousand iterations the metric is re-estimated at 99, 149, 249,
+  449 and 949 — Welford accumulators for both metric shapes with Stan's regulariser, and the
+  initial step-size heuristic.
+- `Mcmc.run` and `Mcmc.runNuts`: a fold over values, so a run is a function of its seed and four
+  chains computed in parallel are the four computed in sequence, bit for bit. `Init` in its three
+  forms, including the prior median from a generative part or from a short run on the prior alone.
+- `Generative.named`, without which `Init.PriorMedian` cannot exist, and
+  `AdaptationSettings(metric = MetricShape.Dense)` to ask for a dense mass matrix.
+- Chapters 0 and 3 of the manual: a quick start that fits a model in a page, and the sampler — what
+  the warmup learns, where a chain starts, and what every transition reports.
+- 48 tests, for 297 in all. Thirteen mutations, one per component.
+
+Found
+
+- **A dense metric is worth a factor of 43** on a Gaussian correlated at 0.95 in ten dimensions:
+  0.0926 effective samples per gradient against 0.0021, and the adapted step size grows from 0.16
+  to 0.66. At 0.7 in four dimensions it is worth much less, which is why the manual says to measure
+  before reaching for it.
+- **The acceptance after warmup is above the target, not at it.** The last fifty warmup iterations
+  average 0.77 to 0.79, which is the statistic dual averaging controls; sampling with the step size
+  it leaves behind realises 0.84 to 0.93, because `exp(xBar)` over fifty iterations is
+  conservative. Stan behaves the same way, so the criterion is tested from both sides instead:
+  above the target at one step size, below it at two.
+- **Four of the thirteen mutations survived the first run**, and all four were missing tests rather
+  than wrong code — every one of them because Stan's own fixtures use a unit metric, where the
+  metric, a velocity and a momentum, and both ends of the U-turn criterion all coincide. The tests
+  added are in docs/validation.md; the most useful is the equivalence a metric *is*, which pins it
+  in the position step and in the energy at once.
+- **A random walk wants an acceptance near 0.23.** Driven to Stan's 0.8 it crawls, and reports a
+  variance of 0.52 where the truth is 1 while an autocorrelation estimator claims eight hundred
+  effective samples. The suites give it its own target and also check the span of its draws.
+- **The sampler needed no local mutation.** The specification allows the leapfrog and the tree to
+  mutate local arrays; neither did, and the register stays at the 27 sites it had.

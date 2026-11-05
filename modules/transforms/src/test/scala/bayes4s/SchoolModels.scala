@@ -126,6 +126,9 @@ object EightSchools:
         .traverse(j => Rng[F].normal.map(z => p.theta(j) + data.sigma(j) * z))
         .map(drawn => Data(IArray.from(drawn), data.sigma))
 
+    def named(p: Centred[Double]): Map[String, IArray[Double]] =
+      Map("mu" -> IArray(p.mu), "tau" -> IArray(p.tau), "theta" -> p.theta)
+
   /** The generative model: the data, how to read a model on other data, and the simulation. */
   def generativeModel(data: Data): GenerativeModel[Centred, Data] =
     GenerativeModel(data, centred, generative(data))

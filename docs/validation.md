@@ -621,3 +621,167 @@ Ten, one per component of the phase, every one detected on the first run.
    instead. This is a language limit, not a design choice, and it is documented in chapter 2.
 5. **No `OffsetMultiplier` on a vector with per-element offsets.** Stan allows a vector of offsets
    and multipliers; the constraint here takes two scalars, which is what the specification lists.
+
+## Phase 4 — Metropolis, static HMC, NUTS and the warmup
+
+297 tests, 291 fast and 6 slow, up from 249 — 48 added by this phase. The 243 fast tests of phases
+0 to 3 are untouched; no tolerance, seed or assertion was weakened anywhere, and the register of
+encapsulated local mutation stays at 27 sites because the sampler needed none (design D-75).
+
+Every Monte Carlo threshold below is `sd / sqrt(ESS)` with the effective sample size estimated from
+the chains themselves, and four standard errors is the budget. A threshold built on the number of
+draws rather than the effective number would fail a correct sampler.
+
+### The integrator
+
+| Check | Against | Tolerance | Result |
+|---|---|---|---|
+| the 11 cases of `expl_leapfrog_test.cpp`, in Stan's own `V`, `q`, `p`, `g` | Stan's own assertions | the fixture's own, 5e-14 for ten of them and 5e-13 for the largest step | green |
+| a step forwards then backwards | the starting point | 1e-14 relative | green: the integrator is reversible, which is what makes the Metropolis correction valid |
+| the energy error of a trajectory of fixed length, as the step size halves four times | the `epsilon²` law | each ratio in (3, 5); the whole span in (40, 100) | green |
+| a metric as a change of variables: a step with `diag(m)` against a unit-metric step on the rescaled target | each other | 1e-12 relative | green |
+| a momentum drawn from a diagonal and from a dense metric | a chi-squared of as many degrees of freedom as dimensions | 4 standard errors | green |
+| the energy of a `NaN` point | — | exact | green: `+Inf`, which is what makes the proposal divergent |
+
+### The tree
+
+| Check | Against | Tolerance | Result |
+|---|---|---|---|
+| `build_tree` at depth 3 on `gauss3D`: `rho`, both `p`, both `p_sharp`, the final state, 8 leapfrog steps, `log_sum_weight`, `sum_metro_prob` | `unit_e_nuts_test.cpp`, Stan's own `EXPECT_FLOAT_EQ` | 1e-6 relative | green |
+| the same eleven numbers | the NumPy port the fixture ships | 1e-12 relative | green |
+| the subtree summary under two different seeds | itself | exact | green: only the proposal uses the generator |
+| the generalised U-turn criterion | the 2 cases Stan asserts | exact | green |
+| the same, on 6 asymmetric cases **the fixture cannot show** | the definition | exact | green (see the mutations) |
+| the summed Metropolis probability on a trajectory that gains energy | at most one per step | exact | green (see the mutations) |
+| a trajectory whose energy error passes 1000 | — | exact | green: divergent, and therefore invalid |
+
+### The warmup
+
+| Check | Against | Tolerance | Result |
+|---|---|---|---|
+| the 9 window schedules, including the rescaling below 150 iterations and the absence of adaptation below 20 | `windowed_adaptation.hpp`, ported | exact | green: for 1000 iterations the metric is re-estimated at 99, 149, 249, 449, 949 |
+| one acceptance statistic equal to the target leaves the step size at 1 | `stepsize_adaptation_test.cpp` | 1e-14 relative | green |
+| the dual-averaging trajectory, all ten steps and the completed `exp(xBar)` | the port's trajectory | 1e-12 relative | green |
+| a statistic above one, and a `NaN` | Stan's cap, and the rejection convention | exact | green |
+| the variance regulariser on ten identical draws in ten dimensions | `var_adaptation_test.cpp`: 3.333e-4 | 1e-14 relative | green |
+| the diagonal and dense accumulators on 2000 known draws | the sample variance and covariance computed directly | 1e-12 and 1e-10 | green, and the dense estimate is symmetric and positive definite |
+| the initial step-size heuristic on a Gaussian and on one 100 times narrower | Stan's `init_stepsize` | the two must differ by more than 20 times | green: about 1 and below 0.05 |
+| the whole state machine over 1000 warmup iterations | the schedule | exact | green: the metric changes at exactly those five iterations |
+
+### The samplers
+
+| Check | Against | Tolerance | Result |
+|---|---|---|---|
+| a standard Gaussian in 5 dimensions, 4 chains: means, variances, the 5th and 95th percentiles | the closed forms | 4 MCSE | green, with an effective sample size above 400 per coordinate |
+| a Gaussian correlated at 0.8 in 10 dimensions, 4 chains: means and variances | the closed forms | 4 MCSE | green |
+| its 15 pairwise correlations | 0.8 | 4 standard errors | green |
+| static HMC on a Gaussian correlated at 0.5 in **100 dimensions**: the slowest direction's mean, and the hundred variances pooled | the closed forms | 4 MCSE | green, accepting 0.87 of the time |
+| a random walk on the Gamma(33.5, 4.2) of `worked_examples.json`: the mean and the standard deviation | 7.976190476190475 and 1.378075821760741 | 4 MCSE | green |
+| the three kernels on one target | each other and the closed form | 4 MCSE, plus a span of 5 | green |
+| Gamma-Poisson, Normal-Normal and Beta-Binomial, each through its own constraint | the conjugate closed forms | 4 MCSE | green |
+| the eight schools, non-centred, 4 chains through `runNuts` | posteriordb's reference summary: `mu` near 4.4 and `tau` near 3.6 | 0.6 and 0.8, the reference being itself Monte Carlo | green |
+| 4 chains computed in parallel | the same 4 in sequence | **bit for bit** | green (section 2.4's obligatory test) |
+| two calls of one transition, and the arrays it was handed | each other, and themselves | exact | green |
+| the same seed twice, and two seeds | each other | exact | green |
+
+### What the sampler says about its own work
+
+| Check | Result |
+|---|---|
+| mean tree depth on a standard Gaussian | green: between 1 and 4, where a criterion that never fired would saturate at 10 |
+| a step size of 1e-4 with a maximum depth of 6 | green: depth exactly 6 and 63 leapfrog steps every time, and no divergence |
+| the centred funnel against a Gaussian | green: divergent transitions on the funnel, none on the Gaussian |
+| the adapted diagonal metric on scales spanning 1e-2 to 1e2 | green: every variance within a factor 0.4 to 2.5 of the truth |
+| a starting point where the density is not a number | green: refused, and the error says so |
+
+### The measurements
+
+**A dense metric against a diagonal one**, on a Gaussian correlated at 0.95 in 10 dimensions,
+1000 warmup and 1000 samples, Apple M2 Pro with OpenJDK 25. The cost is counted in gradients
+because that is the unit of work of a Hamiltonian method, and the direction measured is the slowest
+one — the average of the coordinates.
+
+| Metric | Effective samples | Gradients | Per gradient | Adapted step size |
+|---|---|---|---|---|
+| diagonal | 21 | 9 764 | 0.0021 | 0.16 |
+| dense | 600 | 6 472 | **0.0926** | 0.66 |
+
+A factor of **43**, and it comes from both halves: the dense metric earns four times the step size
+*and* twenty-eight times the effective samples. The suite asserts a factor above 5, which leaves
+room for the seed and still fails if most of the gain is lost. The adapted covariance's
+off-diagonal entries come out between 0.6 and 1.2 against a true 0.95.
+
+**The acceptance after warmup**, on a Gaussian correlated at 0.5 in 8 dimensions:
+
+| | value |
+|---|---|
+| mean acceptance over the last 50 warmup iterations | 0.768 to 0.781 |
+| `exp(x)` at the end of warmup | 0.23 to 0.51 |
+| `exp(xBar)`, the completed step size | 0.46 to 0.54 |
+| mean acceptance while sampling | 0.84 to 0.93 |
+
+The statistic dual averaging controls lands on its target; the step size it leaves behind is
+conservative, so the realised acceptance is above the target. That is Stan's behaviour too, and the
+criterion is tested as what it is about — above the target at one step size, below it at two
+(design D-71).
+
+### Mutations tried
+
+Thirteen, one per component and three more that the first round showed were needed. **Four survived
+the first run**, and each one was a missing test rather than a wrong implementation.
+
+| Component | Mutation | Test that failed | What it said |
+|---|---|---|---|
+| `Leapfrog.evolve` | a full step of momentum instead of a half | 3 of 6 `LeapfrogSuite` tests | `evolve_1: V: obtained 1.6584988776097886, expected 1.67676034808195` |
+| `Leapfrog.updatePosition` | the metric dropped from the position step | the change-of-variables property | `position 0: obtained -1.289108540184802, expected -1.112912742986` — **after the test was added** |
+| `Metric.sampleMomentum` | `sqrt(inverse)` instead of its reciprocal, in the diagonal branch | the momentum's covariance | `diagonal: the mean of p' M^-1 p is 20.2, expected 3` — **after the diagonal case was added** |
+| `Nuts.criterion` | one end checked instead of both | the asymmetric cases | `the start has turned: criterion gave true, expected false` — **after they were added** |
+| `Nuts.buildTree` | the base case stops accumulating `rho` | the fixture | `Stan rho(0): obtained -1.0, expected -11.401228` |
+| `Nuts.buildTree` | the Metropolis contribution no longer capped at one | the gaining trajectory | `11.58 over 8 steps, which is more than one per step` — **after the test was added** |
+| `Nuts.transition` | the top-level criterion never stops the doubling | the variance of a standard Gaussian | `estimate 0.634092159803493, truth 1.0, \|z\| = 8.3` |
+| `DualAveraging.learn` | the statistic no longer capped at one | the port's trajectory | `the step size after 6 statistics: obtained 8.945867791034907, expected 4.849226902267655` |
+| `DualAveraging.completed` | `exp(x)` instead of `exp(xBar)` | the port's final value | `obtained 0.5640943957812794, expected 1.1411619037506946` |
+| `WindowSchedule` | the lookahead that stretches the last window dropped | the 9 schedules | `warmup 1000: re-estimated at List(99, 149, 249, 449, 849), expected (..., 949)` |
+| `DiagonalMoments.regularised` | the ridge dropped | `var_adaptation_test.cpp`'s case | `obtained 0.0, expected 3.333333333333333E-4` |
+| `Mcmc.run` | the sampling phase uses the unit metric, not the adapted one | the badly scaled Gaussian | `estimated the variance of coordinate 0 as 1.0, 10000 times the true 1.0E-4` |
+
+**The four survivors are the phase's most useful result**, and they share a cause: the fixture pins
+the *unit-metric* case, where several distinctions collapse.
+
+- Stan's eleven leapfrog cases are all one-dimensional with a unit metric, so **nothing in them
+  mentions the metric at all**. Dropping it from the position update changed no asserted number.
+  The test added is the equivalence a metric is: a step with `diag(m)` on a target equals a
+  unit-metric step on the target rescaled by `sqrt(m)`, under `q = S x` and `p = S^-1 p~`. It
+  pins the metric in the position step and in the energy at once.
+- The momentum test used a dense metric only, so the diagonal branch — the default — was never
+  exercised. One `forEach` over both shapes, with variances of 2, 0.5 and 4 so that a square root
+  and its reciprocal are nowhere near each other.
+- Both of Stan's criterion cases are symmetric: `(1, 1, 2)` and `(1, -1, 0)`. The second is false
+  either way, because `(-1) · 0` is not positive. Six asymmetric cases were added, read off the
+  definition, where one end separates and the other has turned.
+- The fixture's trajectory starts at an energy far above `H0`, so every one of its eight steps
+  contributes less than one and the cap is never reached. A trajectory started at `q = (6, 6, 6)`
+  moving towards the mode gains at every step, and there the cap is the difference between an
+  acceptance statistic of 1.45 and one of 1.
+
+### Known limits at the end of phase 4
+
+1. **The doubling loop is pinned by no fixture** (D-65). Stan ships no test for it; what stands
+   behind it is the tree-depth behaviour, the funnel, and every statistical test in the suite. If
+   phase 6's posteriordb comparison disagrees with Stan anywhere, this is the first place to look.
+2. **`testkit.Ess` is not the validated estimator** (D-74). It sizes thresholds and nothing else,
+   and it overstates the effective sample size for a chain that has barely moved — which is why the
+   random-walk tests also assert the span of the draws. Phase 5 replaces it.
+3. **No `LogDensityUnnormalized` still** (design D-45). The sampler is here, so the variant without
+   the normalising constants now has a caller to justify it; it was not needed to make this phase
+   work, and adding it means a second copy of nineteen densities to keep right. Deferred again,
+   deliberately, with the benefit now measurable.
+4. **The dense accumulator allocates a `d * d` array per draw.** Immutable, as the rest is, and not
+   measured: the dense metric is not the default and a thousand warmup draws in ten dimensions is a
+   hundred thousand doubles in total. If a model needs a dense metric in fifty dimensions this is
+   the first thing to measure.
+5. **E-BFMI is not computed.** The energy of every transition is reported, which is what phase 5
+   needs to compute it; the diagnostic itself belongs there.
+6. **`Init.PriorMedian` without a generative part runs the sampler on the prior**, which costs a
+   short warmup of its own. That is what the specification asks for, and the generative route is
+   much cheaper when a model has one.

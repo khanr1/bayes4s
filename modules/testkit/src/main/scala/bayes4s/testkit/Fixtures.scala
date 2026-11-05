@@ -160,6 +160,90 @@ final case class CholeskyCorrCase(
     numerical: Double
 )
 
+/** One case of `expl_leapfrog_test.cpp`, in Stan's own variables.
+  *
+  * Stan integrates the **potential** `V = -log p(q)` and its gradient `g = dV/dq`, which are the
+  * negatives of what this library carries in a `Point`. The suite converts, and the conversion is
+  * the thing worth being explicit about: a sign error there is a sampler that walks uphill.
+  */
+final case class LeapfrogCase(
+    test: String,
+    potential: Double,
+    position: Double,
+    momentum: Double,
+    gradient: Double,
+    epsilon: Double,
+    operations: List[String],
+    repeat: Int,
+    expectedPotential: Double,
+    expectedPosition: Double,
+    expectedMomentum: Double,
+    expectedGradient: Double,
+    tolerance: Double
+)
+
+/** What `build_tree` must return, in Stan's names. */
+final case class TreeExpectation(
+    validSubtree: Boolean,
+    rho: IArray[Double],
+    momentumBegin: IArray[Double],
+    sharpBegin: IArray[Double],
+    momentumEnd: IArray[Double],
+    sharpEnd: IArray[Double],
+    finalPosition: IArray[Double],
+    finalMomentum: IArray[Double],
+    leapfrogSteps: Int,
+    logSumWeight: Double,
+    sumMetropolisProbability: Double
+)
+
+/** `unit_e_nuts_test.cpp`'s `build_tree_test`: the setup, what Stan asserts, and what the
+  * independent port computed for the same setup.
+  *
+  * Stan's assertions are `EXPECT_FLOAT_EQ`, so they carry six digits; the port carries sixteen.
+  * Both are asserted, at their own precision.
+  */
+final case class BuildTreeCase(
+    position: IArray[Double],
+    momentum: IArray[Double],
+    stepSize: Double,
+    depth: Int,
+    initialEnergy: Double,
+    sign: Double,
+    stan: TreeExpectation,
+    port: TreeExpectation
+)
+
+/** One case of the generalised U-turn criterion. */
+final case class CriterionCase(
+    sharpStart: IArray[Double],
+    sharpEnd: IArray[Double],
+    rho: IArray[Double],
+    expected: Boolean
+)
+
+/** One warmup length and the window schedule `windowed_adaptation.hpp` gives it. */
+final case class WindowCase(
+    warmup: Int,
+    adapt: Boolean,
+    initBuffer: Int,
+    termBuffer: Int,
+    baseWindow: Int,
+    ends: List[Int]
+)
+
+/** The dual-averaging trajectory of `stepsize_adaptation.hpp`, step by step. */
+final case class DualAveragingCase(
+    mu: Double,
+    delta: Double,
+    gamma: Double,
+    kappa: Double,
+    t0: Double,
+    acceptStats: IArray[Double],
+    stepSizes: IArray[Double],
+    finalStepSize: Double
+)
+
 /** Typed readers for the reference files, so that the suites read as assertions rather than as
   * JSON navigation, and the decoding itself is written once.
   *
@@ -459,6 +543,143 @@ object Fixtures:
     */
   def posteriordbData(posterior: String): Either[String, Json] =
     at[Json](s"posteriordb/$posterior/data.json", Nil)
+
+  private val Hmc = "stan/hmc/hmc.json"
+
+  private given leapfrogCase: Decoder[LeapfrogCase] = Decoder.instance: c =>
+    def at(field: String, key: String): Decoder.Result[Double] =
+      c.downField(field).downField(key).as[Double](using d)
+    for
+      name <- c.get[String]("test")
+      v <- at("initial", "V")
+      q <- at("initial", "q(0)")
+      p <- at("initial", "p(0)")
+      g <- at("initial", "g(0)")
+      epsilon <- c.get("epsilon")(using d)
+      operations <- c.get[List[String]]("operations")
+      repeat <- c.get[Int]("repeat")
+      ev <- at("expected", "V")
+      eq <- at("expected", "q(0)")
+      ep <- at("expected", "p(0)")
+      eg <- at("expected", "g(0)")
+      tolerance <- c.get("tolerance")(using d)
+    yield LeapfrogCase(
+      name,
+      v,
+      q,
+      p,
+      g,
+      epsilon,
+      operations,
+      repeat,
+      ev,
+      eq,
+      ep,
+      eg,
+      tolerance
+    )
+
+  private given treeExpectation: Decoder[TreeExpectation] = Decoder.instance: c =>
+    for
+      valid <- c.get[Boolean]("valid_subtree")
+      rho <- c.get("rho")(using ds)
+      pBegin <- c.get("p_begin")(using ds)
+      sBegin <- c.get("p_sharp_begin")(using ds)
+      pEnd <- c.get("p_end")(using ds)
+      sEnd <- c.get("p_sharp_end")(using ds)
+      q <- c.get("final_q")(using ds)
+      p <- c.get("final_p")(using ds)
+      steps <- c.get[Int]("n_leapfrog")
+      weight <- c.get("log_sum_weight")(using d)
+      metropolis <- c.get("sum_metro_prob")(using d)
+    yield TreeExpectation(valid, rho, pBegin, sBegin, pEnd, sEnd, q, p, steps, weight, metropolis)
+
+  private given criterionCase: Decoder[CriterionCase] = Decoder.instance: c =>
+    for
+      start <- c.get("p_sharp_start")(using ds)
+      end <- c.get("p_sharp_end")(using ds)
+      rho <- c.get("rho")(using ds)
+      expected <- c.get[Boolean]("expected")
+    yield CriterionCase(start, end, rho, expected)
+
+  /** The 11 leapfrog cases of `expl_leapfrog_test.cpp`. */
+  def leapfrogCases: Either[String, List[LeapfrogCase]] =
+    at[List[LeapfrogCase]](Hmc, List("leapfrog"))
+
+  /** `build_tree_test`, with Stan's assertions and the port's own values. */
+  def buildTreeCase: Either[String, BuildTreeCase] =
+    for
+      setup <- at[Json](Hmc, List("nuts_build_tree_unit_e", "setup"))
+      stan <- at[TreeExpectation](Hmc, List("nuts_build_tree_unit_e", "expected"))
+      port <- at[TreeExpectation](Hmc, List("nuts_build_tree_unit_e", "numpy_port"))
+      cursor = setup.hcursor
+      q <- cursor.get("q")(using ds).left.map(_.getMessage)
+      p <- cursor.get("p")(using ds).left.map(_.getMessage)
+      stepSize <- cursor.get("stepsize")(using d).left.map(_.getMessage)
+      depth <- cursor.get[Int]("depth").left.map(_.getMessage)
+      energy <- cursor.get("H0")(using d).left.map(_.getMessage)
+      sign <- cursor.get("sign")(using d).left.map(_.getMessage)
+    yield BuildTreeCase(q, p, stepSize, depth, energy, sign, stan, port)
+
+  /** The 2 cases of the generalised U-turn criterion. */
+  def criterionCases: Either[String, List[CriterionCase]] =
+    at[List[CriterionCase]](Hmc, List("nuts_criterion"))
+
+  /** The 9 window schedules of `windowed_adaptation.hpp`. */
+  def windowCases: Either[String, List[WindowCase]] =
+    at[Map[String, Json]](Hmc, List("adaptation", "windows", "cases")).flatMap { cases =>
+      cases.toList
+        .sortBy((warmup, _) => warmup.toInt)
+        .traverse { (warmup, json) =>
+          val cursor = json.hcursor
+          for
+            adapt <- cursor.get[Boolean]("adapt").left.map(_.getMessage)
+            ends <- cursor.getOrElse[List[Int]]("ends")(Nil).left.map(_.getMessage)
+            initBuffer <- cursor.getOrElse[Int]("init_buffer")(0).left.map(_.getMessage)
+            termBuffer <- cursor.getOrElse[Int]("term_buffer")(0).left.map(_.getMessage)
+            baseWindow <- cursor.getOrElse[Int]("base_window")(0).left.map(_.getMessage)
+          yield WindowCase(warmup.toInt, adapt, initBuffer, termBuffer, baseWindow, ends)
+        }
+    }
+
+  /** The dual-averaging trajectory the port computed, and Stan's own single assertion. */
+  def dualAveragingCase: Either[String, DualAveragingCase] =
+    at[Json](Hmc, List("adaptation", "dual_averaging_port_trajectory")).flatMap { json =>
+      val cursor = json.hcursor
+      for
+        mu <- cursor.get("mu")(using d).left.map(_.getMessage)
+        delta <- cursor.get("delta")(using d).left.map(_.getMessage)
+        gamma <- cursor.get("gamma")(using d).left.map(_.getMessage)
+        kappa <- cursor.get("kappa")(using d).left.map(_.getMessage)
+        t0 <- cursor.get("t0")(using d).left.map(_.getMessage)
+        stats <- cursor.get("accept_stats")(using ds).left.map(_.getMessage)
+        steps <- cursor.get("stepsizes")(using ds).left.map(_.getMessage)
+        last <- cursor.get("final_stepsize_exp_xbar")(using d).left.map(_.getMessage)
+      yield DualAveragingCase(mu, delta, gamma, kappa, t0, stats, steps, last)
+    }
+
+  /** The one step size `stepsize_adaptation_test.cpp` asserts: `mu = 0`, `delta = 0.65`, one
+    * acceptance statistic equal to `delta`, and the step size must stay at 1.
+    */
+  def dualAveragingStanCase: Either[String, (Double, Double, Double, Double)] =
+    at[Json](Hmc, List("adaptation", "dual_averaging_stan_test")).flatMap { json =>
+      val cursor = json.hcursor
+      for
+        mu <- cursor.get("mu")(using d).left.map(_.getMessage)
+        delta <- cursor.get("delta")(using d).left.map(_.getMessage)
+        stats <- cursor.get("accept_stats")(using ds).left.map(_.getMessage)
+        expected <- cursor.get("expected_stepsize")(using d).left.map(_.getMessage)
+      yield (mu, delta, stats(0), expected)
+    }
+
+  /** What the variance regulariser must give for ten identical draws in ten dimensions. */
+  def varianceRegularization: Either[String, Double] =
+    at[Double](
+      Hmc,
+      List("adaptation", "variance_regularization_stan_test", "expected_each_component")
+    )(using
+      d
+    )
 
   /** One section of `worked_examples.json`, left as JSON: every section has its own shape. */
   def workedExample(section: String): Either[String, Json] =

@@ -152,7 +152,11 @@ lazy val distributions =
 lazy val transforms = mod("transforms")
   .dependsOn(ad, ad % "test->test", distributions % Test, testkit % Test)
 
-lazy val inference = mod("inference").dependsOn(transforms, distributions, testkit % Test)
+// `transforms % "test->test"` shares the eight schools and the model carrying one block of every
+// constraint: `Init.PriorMedian` needs a model with a generative part to be tested on, and that
+// model already exists with its own tests behind it.
+lazy val inference = mod("inference")
+  .dependsOn(transforms, transforms % "test->test", distributions, testkit % Test)
 
 lazy val diagnostics = mod("diagnostics").dependsOn(inference, testkit % Test)
 

@@ -58,6 +58,17 @@ trait Generative[T[_], Y]:
   def samplePrior[F[_]: Monad: Rng]: F[T[Double]]
   def simulateData[F[_]: Monad: Rng](p: T[Double]): F[Y]
 
+  /** The same parameters, by name, so that a draw from the prior can be put back on the
+    * unconstrained space through `Model.unconstrain`.
+    *
+    * Not in the specification's sketch and unavoidable: nothing generic can look inside a
+    * `T[Double]` (design D-55), and the author of the parameter object is the only one who can
+    * name its fields. `Init.PriorMedian` needs it to start a chain at the prior's middle, and
+    * simulation-based calibration will need it to rank a drawn parameter against its own
+    * posterior.
+    */
+  def named(p: T[Double]): Map[String, IArray[Double]]
+
 /** A model, its data, and the program that could have generated that data.
   *
   * `conditionedOn` is a function rather than a derived operation because nothing generic can swap
