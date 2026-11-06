@@ -3,7 +3,7 @@ package bayes4s
 import bayes4s.testkit.Approx
 import weaver.SimpleIOSuite
 
-/** Simulation-based calibration on three small models, with enough replications for its answer to
+/** Simulation-based calibration on five small models, with enough replications for its answer to
   * mean something.
   *
   * This is the only test in the library that checks a model's **two readings against each other**
@@ -13,8 +13,15 @@ import weaver.SimpleIOSuite
   * notice.
   *
   * The threshold: 256 replications in 16 bins of 4 possible ranks each, against the 0.1 % point of
-  * chi-squared with 15 degrees of freedom, 37.697. One check per parameter, so the three models
-  * together make 9 checks and the announced failure rate is about 1 in 100 runs.
+  * chi-squared with 15 degrees of freedom, 37.697. One check per parameter, so the five models
+  * together make 18 checks and the announced failure rate is about 1 in 55 runs.
+  *
+  * The last two are phase 6b's: varying intercepts and slopes with a correlation between them,
+  * reduced to six groups, and a multilevel logistic regression. The first of the two is the only
+  * model here whose generative part names a quantity the model **derives** rather than declares —
+  * `rho`, read off the Cholesky factor — and ranking it is a stronger test than ranking a
+  * parameter, because the correlation is where an LKJ prior, the factor's transform and its
+  * Jacobian all have to agree at once.
   */
 object SbcSlowSuite extends SimpleIOSuite with Approx:
 
@@ -65,4 +72,16 @@ object SbcSlowSuite extends SimpleIOSuite with Approx:
     "four varying levels, non-centred",
     CalibrationModels.varyingLevels(4),
     Set("mu", "tau", "z.1", "z.2", "z.3", "z.4")
+  )
+
+  calibrated(
+    "correlated varying intercepts and slopes, six groups",
+    MultilevelModels.correlatedGenerative(6, 5),
+    Set("mu.1", "mu.2", "tau.1", "tau.2", "sigma", "rho")
+  )
+
+  calibrated(
+    "a multilevel logistic regression",
+    MultilevelModels.logisticGenerative(6, 10),
+    Set("mu", "tau", "beta")
   )

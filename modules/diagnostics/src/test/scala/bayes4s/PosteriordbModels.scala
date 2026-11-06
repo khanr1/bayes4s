@@ -363,7 +363,7 @@ object PosteriordbModels:
       }
       built :+ (row ++ Vector.fill(n - i - 1)(r.const(0.0)))
     }
-    IArray.from(Vector.tabulate(n)(i => r.vectorOf(n)(j => rows(i)(j))))
+    r.matrixOf(n, n)((i, j) => rows(i)(j))
 
   /** A ported posterior, in the form the comparison needs: a target to sample, how many
     * unconstrained reals it takes, and how to name a point's values.

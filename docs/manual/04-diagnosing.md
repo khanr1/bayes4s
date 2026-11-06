@@ -119,6 +119,104 @@ and the shortest one is the honest choice when a posterior is pushed against a b
 One rule about both: compute them at the end, from the samples, and never add them up. The 90th
 percentile of a sum is not the sum of the 90th percentiles.
 
+## Criticising the model
+
+The four numbers above ask whether the sampler did its job. They say nothing about whether the
+model is any good. Two tools answer that, and both need something the model has not had to provide
+so far: its log likelihood **one observation at a time**.
+
+```scala mdoc:silent
+/** The same model, with its likelihood also available per observation. */
+val criticised: Model[Schools] & PointwiseLikelihood[Schools] =
+  new Model[Schools] with PointwiseLikelihood[Schools]:
+    def params: ParamSpec[Schools] = centred.params
+    def logPrior[A: Real](p: Schools[A]): A = centred.logPrior(p)
+    def logLikelihood[A: Real](p: Schools[A]): A = centred.logLikelihood(p)
+    def pointwise(p: Schools[Double]): IArray[Double] =
+      IArray.tabulate(8)(j => LogDensity.normal(y(j), p.theta(j), sigma(j)))
+```
+
+The one rule about `pointwise` is that it must sum to `logLikelihood` — the same arithmetic, split
+up — and it is worth a test of your own, because nothing can check it for you.
+
+### Leave-one-out cross-validation
+
+`Loo.psis` estimates how well the model would predict each observation had it not been fitted to
+it, from the fit you already have: it reweights the samples from the posterior by the inverse
+likelihood of the observation being left out. The weights of that reweighting have a heavy tail,
+and Pareto-smoothed importance sampling replaces the largest of them by the fitted quantiles of a
+generalised Pareto distribution.
+
+```scala mdoc
+val loo = fit.map { chains =>
+  val samples = chains.flatMap(_.draws).map(q => criticised.pointwise(Model.constrain(criticised, q)))
+  // One row per observation, one column per sample from the posterior.
+  val logLik = IArray.tabulate(8)(j => IArray.from(samples.map(_(j))))
+  Loo.psis(logLik, 1.0)
+}
+loo.map(result => (result.elpd, result.se, result.pLoo))
+```
+
+`elpd` is the expected log predictive density, higher being better, and `se` is its standard error
+over the observations. `pLoo` is the effective number of parameters: the difference between the
+log likelihood at the fit and the cross-validated one, which is how much the model used its
+flexibility.
+
+The shape parameter the smoothing fitted is the diagnostic that matters:
+
+```scala mdoc
+loo.map(result => (result.paretoK, result.problematic(Loo.kThreshold(4000))))
+```
+
+Above the threshold — `min(1 - 1/log10(S), 0.7)`, so 0.7 at any realistic number of samples — the
+estimate for that observation is not to be trusted, and the honest fix is to refit without the
+observation rather than to quote the number anyway. `problematic` names the observations to look
+at, and here it names three of the eight.
+
+That is not a bug in the smoothing, and it is worth understanding before you reach for a different
+tool. Each school contributes exactly one observation, and its own `theta[j]` is informed by that
+observation and by the two hyperparameters and nothing else. Leaving the observation out therefore
+removes most of what identified the parameter, the importance weights have to move the posterior a
+long way, and their tail stops looking like one a generalised Pareto distribution with a finite
+mean can describe. A model with one observation per cluster is the worst case for leave-one-out,
+and the number to quote is a refit without each flagged observation — or a cross-validation that
+leaves out a whole cluster at a time, which is a different question and a better-posed one.
+
+To compare models, `Loo.compare` ranks them best first and reports each difference with its own
+standard error — computed from the **pointwise differences**, not from the two models' standard
+errors, because the two models are fitted to the same observations and their errors are
+correlated. A difference smaller than its standard error means cross-validation cannot tell the two
+apart; chapter 11 uses this to settle a real question.
+
+### Sensitivity to the prior
+
+Power scaling asks a different question: if the prior were slightly stronger or slightly weaker,
+would the posterior move? It raises the prior to a power a little above and a little below one,
+reweights the samples you already have — the same Pareto smoothing again, so no refitting — and
+measures how far the posterior moved per unit of change, as a cumulative Jensen-Shannon distance.
+The same is done for the likelihood.
+
+```scala mdoc
+fit.map(chains => PowerScaling.analyse(centred, chains).filter(s => s.name == "mu" || s.name == "tau"))
+```
+
+Reading the two numbers together gives four cases, and `diagnosis` says which one you are in:
+neither sensitive, the data doing the work, the prior doing the work, or — both above the
+threshold — prior-data conflict, where the prior and the data pull in different directions and the
+posterior is a compromise neither would have chosen.
+
+`tau` here reads 2.11 against the prior and 0.024 against the likelihood: the half-Cauchy prior on
+the between-cluster spread is what decides its posterior, and the eight observations have almost
+nothing to say about it. That is the eight schools' oldest lesson arriving as a number rather than
+as folklore — with eight clusters of one observation each, the spread between clusters is a
+question the data cannot answer, and whatever prior you put on it is the answer you will get.
+
+Two cautions. The reading is a sensitivity, not a verdict: a narrow prior is sensitive whether or
+not it conflicts with the data, so a prior placed exactly where the data already is still reads as
+a conflict, and only the size of the number separates the two. And a parameter the data says
+little about will show a prior sensitivity because that is the correct answer — the prior is the
+only thing informing it.
+
 ## Which diagnostics follow Stan, and where ArviZ differs
 
 All of them follow Stan, and that is a decision rather than a default. ArviZ 1.x computes three of

@@ -260,6 +260,27 @@ final case class DiagnosticCase(
     arviz: Option[Double]
 )
 
+/** What `az.loo` reported for the twenty-observation sample of `multilevel.json`. */
+final case class PsisLooCase(
+    elpd: Double,
+    se: Double,
+    pLoo: Double,
+    pointwiseElpd: IArray[Double],
+    paretoK: IArray[Double],
+    lpdPointwise: IArray[Double]
+)
+
+/** One power-scaling case: the draws, the two components per draw, and the two sensitivities. */
+final case class PowerScalingCase(
+    label: String,
+    priorSd: Double,
+    draws: IArray[Double],
+    logPrior: IArray[Double],
+    logLikelihood: IArray[Double],
+    priorSensitivity: Double,
+    likelihoodSensitivity: Double
+)
+
 /** Typed readers for the reference files, so that the suites read as assertions rather than as
   * JSON navigation, and the decoding itself is written once.
   *
@@ -770,6 +791,67 @@ object Fixtures:
       .left
       .map(_.message)
       .map(_.linesIterator.toList)
+
+  /** The four thousand draws by twenty observations of log likelihood, **by draw**. */
+  def psisLogLikelihood: Either[String, IArray[IArray[Double]]] =
+    at[IArray[IArray[Double]]](Multilevel, List("psis_loo", "log_likelihood", "values"))(using ms)
+
+  /** What ArviZ reported for it. */
+  def psisLoo: Either[String, PsisLooCase] =
+    at[Json](Multilevel, List("psis_loo")).flatMap { json =>
+      val cursor = json.hcursor
+      for
+        elpd <- cursor.get("elpd_loo")(using d).left.map(_.getMessage)
+        se <- cursor.get("se")(using d).left.map(_.getMessage)
+        pLoo <- cursor.get("p_loo")(using d).left.map(_.getMessage)
+        pointwise <- cursor.get("elpd_loo_pointwise")(using ds).left.map(_.getMessage)
+        k <- cursor.get("pareto_k")(using ds).left.map(_.getMessage)
+        lpd <- cursor.get("lpd_pointwise")(using ds).left.map(_.getMessage)
+      yield PsisLooCase(elpd, se, pLoo, pointwise, k, lpd)
+    }
+
+  /** The two power-scaling cases, and the two alphas and the threshold they were computed at. */
+  def powerScalingCases: Either[String, (List[PowerScalingCase], Double, Double, Double)] =
+    for
+      alphas <- at[IArray[Double]](Multilevel, List("power_scaling", "alphas"))(using ds)
+      threshold <- at[Double](Multilevel, List("power_scaling", "threshold"))(using d)
+      cases <- at[List[Json]](Multilevel, List("power_scaling", "cases")).flatMap { entries =>
+        entries.traverse { json =>
+          val cursor = json.hcursor
+          for
+            label <- cursor.get[String]("label").left.map(_.getMessage)
+            priorSd <- cursor.get("prior_sd")(using d).left.map(_.getMessage)
+            draws <- cursor.get("mu_draws")(using ds).left.map(_.getMessage)
+            prior <- cursor.get("log_prior")(using ds).left.map(_.getMessage)
+            likelihood <- cursor.get("log_likelihood_sum")(using ds).left.map(_.getMessage)
+            priorSensitivity <- cursor.get("prior_sensitivity")(using d).left.map(_.getMessage)
+            likelihoodSensitivity <- cursor
+              .get("likelihood_sensitivity")(using d)
+              .left
+              .map(_.getMessage)
+          yield PowerScalingCase(
+            label,
+            priorSd,
+            draws,
+            prior,
+            likelihood,
+            priorSensitivity,
+            likelihoodSensitivity
+          )
+        }
+      }
+    yield (cases, alphas(0), alphas(1), threshold)
+
+  /** The reference posterior of the fictional correlated-effects model, and its data. */
+  def correlatedEffects: Either[String, (Json, ReferenceLike)] =
+    val name = "posteriordb-like/fictional-varying_intercept_slope_correlated"
+    for
+      data <- at[Json](s"$name/data.json", Nil)
+      summary <- at[Json](s"$name/reference_summary.json", Nil)
+    yield (data, ReferenceLike(summary))
+
+  /** A reference summary left as JSON, for the one posterior that is not posteriordb's. */
+  final case class ReferenceLike(json: Json)
 
   /** One section of `worked_examples.json`, left as JSON: every section has its own shape. */
   def workedExample(section: String): Either[String, Json] =

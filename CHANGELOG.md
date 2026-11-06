@@ -8,6 +8,70 @@ Versions follow git tags. Nothing is released yet.
 
 ## Unreleased
 
+### Phase 6b — multilevel models and model criticism (5 November 2026)
+
+Added
+
+- `PointwiseLikelihood`, a trait a model mixes in to offer its log likelihood one observation at a
+  time, and `Loo`: Pareto-smoothed importance sampling for leave-one-out cross-validation, the
+  shape parameter as its own diagnostic with the sample-size-dependent threshold, and `compare`,
+  whose error of a difference comes from the pointwise differences rather than from the two models'
+  errors. Matched against `az.loo` at 1e-6.
+- `PowerScaling`: how far the posterior moves when the prior or the likelihood is raised to a power
+  slightly either side of one, measured as a cumulative Jensen-Shannon distance over the samples
+  you already have, with the four readings — neither sensitive, the data deciding, the prior
+  deciding, prior-data conflict. Matched against `az.psense` at 1e-6.
+- `Pareto`, shared by the two: the tail length, the empirical-Bayes fit of a generalised Pareto
+  distribution, its quantile function, and the smoothing of a right tail.
+- `Hierarchy.newGroup` and `newGroupCorrelated`, in `predictive`: the effect of a cluster that is
+  not in the data, one per sample from the posterior, with each sample's location paired with its
+  own scale. Checked against the closed-form `Gaussian(m, sqrt(s² + t²))` and against
+  `diag(tau) L Lᵀ diag(tau)`.
+- `Real[A].rowTag`, `matrixOf` and `rowsOf`: how a matrix of the interpreter's own scalar is built.
+- A reference posterior with correlated varying effects — twelve clusters, an LKJ(2) prior, a
+  reference of eight NumPyro chains — because posteriordb has none. All six parameters inside
+  posteriordb's own acceptance rule, `rho` and a scale pressed against zero included.
+- Simulation-based calibration on two more models: the correlated effects reduced to six clusters,
+  and a multilevel logistic regression. Eighteen parameters calibrate at the 0.1 % level.
+- Chapter 11 of the manual, *Multilevel models*, and the model-criticism half of chapter 4.
+- 23 tests, for 377 in all — 20 fast and 3 slow. Thirteen mutations, one per component and one for
+  each defect below.
+
+Fixed
+
+- **A matrix parameter was an array of objects at run time.** `ParamSpec.matrix` and
+  `ParamSpec.choleskyCorr` built their rows where the compiler cannot know that a row of `A` is an
+  array of doubles, so any model with a matrix parameter crashed with a `ClassCastException` the
+  first time it was read at `Double` — in `pointwise`, in `derived`, in predictive simulation —
+  while being perfectly correct for gradients. The nine ported posteriors never noticed because
+  they are only ever read generically.
+- **Simulation-based calibration could not rank a derived quantity.** A quantity named by the
+  generative part but computed rather than declared had no column among the posterior samples, so
+  its rank was zero in every replication: a correct model reported as the worst failure the test
+  can express. A name with no column is now an error that says so.
+
+Found
+
+- **Leave-one-out cannot be made to prefer partial pooling decisively on both sides**, and that is
+  a fact about cross-validation rather than about this library. The multilevel fit interpolates
+  between the extremes, so it is always close to whichever one the data supports and the difference
+  on that side is inside the noise. Twenty datasets measured; the claim the suite and the manual
+  make is that partial pooling is the only model rejected on neither side.
+- **The eight schools are the worst case for leave-one-out**, and the library says so rather than
+  hiding it: three of the eight exceed the shape threshold, because one observation per cluster
+  means leaving it out removes most of what identified its parameter.
+- **Power scaling puts a number on the eight schools' oldest lesson.** `tau` reads 2.11 against its
+  prior and 0.024 against the likelihood: the half-Cauchy is what decides the between-cluster
+  spread, and eight clusters of one observation have nothing to say about it.
+- Stan's tail effective size reproduces ArviZ's `r_eff` exactly on these arrays, so the library
+  still has one effective-size implementation rather than two.
+- **The stress suite found a limit of the initialisation, in phase 6's suite and left there.** On a
+  fresh seed, one ARMA chain in four started outside the stationary region, where the recursion
+  explodes, and warmup took its step size to 3e-5 rather than escaping; R-hat 1.59 and the
+  convergence guard reported it correctly. Two seeds in ten do this. Nothing was widened or
+  reseeded for it: `Init.Uniform(2.0)` is Stan's own default and the fix belongs to whichever phase
+  revisits `Init`.
+
 ### Phase 1b — the multilevel laws, the linear algebra, the names (5 November 2026)
 
 Added

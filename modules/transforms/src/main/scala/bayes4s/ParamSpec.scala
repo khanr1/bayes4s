@@ -149,8 +149,7 @@ object ParamSpec:
           from: Int
       ): (IArray[IArray[A]], A, Int) =
         val r = Real[A]
-        given scala.reflect.ClassTag[A] = r.tag
-        val values = IArray.tabulate(rows)(i => IArray.tabulate(cols)(j => u(from + j * rows + i)))
+        val values = r.matrixOf(rows, cols)((i, j) => u(from + j * rows + i))
         (values, r.const(0.0), from + block.unconstrainedSize)
 
   /** The Cholesky factor of a `k` by `k` correlation matrix.
@@ -171,7 +170,7 @@ object ParamSpec:
         val size = block.unconstrainedSize
         val (flat, jacobian) =
           Transform.of(block.constraint).constrain(IArray.tabulate(size)(i => u(from + i)))
-        val rows = IArray.tabulate(k)(i => IArray.tabulate(k)(j => flat(j * k + i)))
+        val rows = r.matrixOf(k, k)((i, j) => flat(j * k + i))
         (rows, jacobian, from + size)
 
   extension [T[_]](self: ParamSpec[T])

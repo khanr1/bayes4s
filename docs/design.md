@@ -1187,3 +1187,152 @@ suite from compiling at all and the CI error would point at the test rather than
 
 The check is one-directional on purpose: a function this library has and the table does not is not
 an error, because the table is for names Stan also has.
+
+### D-89. ArviZ is the reference for leave-one-out and power scaling, with its source read as the specification
+
+Stan does neither of these: `loo` lives in the R package of that name and `priorsense` in another,
+and neither ships a fixture this repository can read. ArviZ does both in Python, from the same
+papers (Vehtari, Simpson, Gelman, Yao, Gabry 2024 for the smoothing; Kallioinen, Paananen,
+Bürkner, Vehtari 2024 for the scaling), so `reference/multilevel.json` carries `az.loo` and
+`az.psense` on fixed draws and the suites match them at 1e-6.
+
+There is no port of either algorithm to read as a specification — the earlier phases had
+`reference/build_hmc_fixtures.py` and `reference/stan_analyze_reference.py` — so the installed
+ArviZ source was read instead, and three behaviours in it are decisions rather than consequences
+of the papers:
+
+- the tail length is `floor(3 sqrt(n / r_eff))` when `n r_eff > 225` and `floor(n / 5)` otherwise;
+- the empirical-Bayes fit of the generalised Pareto distribution uses a grid of
+  `30 + floor(sqrt(n))` inverse scales and the priors `prior_bs = 3`, `prior_k = 10`, which shrink
+  the shape towards 0.5;
+- a smoothed weight is capped at the largest observed one, so the smoothing never invents mass.
+
+Each of the three is a mutation in `docs/validation.md`, because each is invisible to the papers
+and visible to the fixture.
+
+### D-90. Stan's tail effective size reproduces ArviZ's `r_eff` exactly, so there is no second one
+
+PSIS needs a relative effective number of samples per observation to choose its tail length, and
+ArviZ computes it with its own effective-size function, which differs from Stan's in the upper
+tail (D-80, D-83). On the four arrays of `multilevel.json` the two agree to every digit that
+matters — 0.870602 and 1.013745, giving tail lengths of 203, 203, 203 and 188 — because the
+divergence between them only shows up with ties and these draws are continuous. So
+`Convergence.essTail` is what `PowerScaling.sensitivity` calls when the caller does not supply a
+value, and no second effective size exists in the library. If a future fixture has ties, the
+tail length will differ by one draw and the suite will say so.
+
+### D-91. `tail = "both"` changes the tail length and still smooths only the right tail
+
+ArviZ's `_ps_tail` takes a `tail` argument, and with `"both"` it halves the available draws and
+floors the length at five — and then smooths the right tail only. Power scaling calls it that way.
+Reading the argument as "smooth both tails" and implementing that would have been the obvious
+thing and would have put every sensitivity out by a few parts in a thousand, which the 1e-6
+comparison would have caught as a mystery. `Pareto.tailLength(draws, relativeEss, bothTails)`
+therefore takes a flag that changes the **length** and `Pareto.smoothRightTail` is named for what
+it does.
+
+### D-92. `PointwiseLikelihood` is a trait of its own, mixed into a model, and lives next to `Loo`
+
+A log likelihood per observation is not part of being a model — the sampler never needs it, and a
+model whose likelihood does not factorise over observations (a Gaussian process, a time series with
+a shared history) cannot provide one honestly. So it is a separate trait, a model declares it by
+mixing it in, and cross-validation asks for `Model[T] & PointwiseLikelihood[T]`.
+
+It lives in `Loo.scala` rather than in `transforms` with `Model`: it exists for cross-validation,
+`diagnostics` is where cross-validation lives, and putting it next to `Model` would suggest every
+model ought to have one.
+
+The one law — the sum of `pointwise` is `logLikelihood` — cannot be checked by the type, so it is
+asserted for every model in the test suites and stated in chapter 4. Nothing in the library can
+verify it for a user's model, which is why the manual says to test it.
+
+### D-93. `Loo.compare` takes the standard error of a difference from the pointwise differences
+
+The elpd of two models fitted to the same observations are not independent — the same observation
+is easy or hard for both — so `sqrt(se₁² + se₂²)` overstates the error of their difference, often
+by a factor of several. The error is computed instead from the per-observation differences, which
+is what `loo_compare` does and what makes a difference of 0.3 against an error of 1.2 readable as
+"cross-validation cannot tell these apart".
+
+The mutation is the obvious wrong version, and the test that catches it compares a model with
+itself shifted by a constant: the difference is exact, so its error must be exactly zero, and the
+quadrature version reports something large.
+
+### D-94. `Hierarchy` lives in `predictive`, and pairs each sample's location with its own scale
+
+Predicting a group that is not in the data is prediction, not inference, so `Hierarchy` is in
+`predictive` alongside the simulators rather than in `nowcast`, which is one application of it, or
+in `diagnostics`, which is about the fit it already has.
+
+`newGroup(levels, scales)` takes two arrays of the same length and uses index `s` of both. The
+alternative — a location and a scale drawn independently from their marginals — is a mistake that
+produces plausible-looking numbers from a posterior nobody has, because the two are correlated in
+every multilevel fit. Both functions return an empty array rather than an error when the lengths
+disagree, which is the library's rule for a vectorised operation with nothing to compute.
+
+### D-95. A matrix of `A` is built by `Real[A].matrixOf` or `rowsOf`, never by `IArray.tabulate`
+
+Phase 6b found this by crashing. For an abstract `A`, the compiler cannot synthesise a `ClassTag`
+that knows a row is a `double[]` rather than an `Object[]`, so
+`IArray.tabulate(n)(i => IArray.tabulate(m)(...))` inside a generic method builds an array of
+objects — and the first caller that has fixed `A` to `Double`, which is every model read for its
+values rather than its gradient, fails the cast the compiler inserted on the way out. The failure
+is a `ClassCastException` with nothing in the source to point at.
+
+`ClassTag[A].wrap` is the one thing that knows, so `Real[A].rowTag` is `ClassTag(tag.wrap.runtimeClass)`
+and `matrixOf` and `rowsOf` are built on it. `ParamSpec.matrix` and `ParamSpec.choleskyCorr` now go
+through them, which is the library-side fix: before it, **any** model with a matrix parameter
+crashed in `pointwise`, in `derived` and in predictive simulation, and the nine ported posteriors
+never noticed because they are only ever read generically.
+
+The test is a runtime-class assertion plus the operation that provoked it — `matVec`, whose
+signature is `IArray[IArray[Double]]`, so calling it *is* the cast. Three `final` methods were
+added to a public trait to fix it; that is the smallest change that stops user models hitting it,
+since a `private[bayes4s]` helper would leave the trap in place for anyone writing a model outside
+the library.
+
+### D-96. Simulation-based calibration ranks derived quantities, and names a quantity it cannot find
+
+`Sbc` compared the drawn parameter against `Model.values`, which reads the declared blocks only. A
+generative part that names a derived quantity — `rho`, read off a Cholesky factor — therefore had
+no column to be ranked against, `exists` was false for every sample, and the rank was zero in every
+replication: a correct model reported as the worst failure the test can express, with nothing
+saying why. The correlated model of phase 6b is the first model to name one, which is why this
+surfaced now; it gave a chi-squared of 48 on four bins where uniformity gives about 3.
+
+The posterior values now include `derived`, and a name in `named(truth)` with no column is a
+`BayesError.UnknownParameter` rather than a rank — the same choice as everywhere else in the
+library, that a missing thing is an error and not a default. A length that disagrees is a
+`DimensionMismatch`. With the fix the correlated model's `rho` is calibrated at 256 replications.
+
+### D-97. The multilevel test models live in `diagnostics`' test sources, and the manual repeats them
+
+`MultilevelModels` is in `modules/diagnostics/src/test/scala`, where the slow suites can see it
+(the `slow` configuration extends `Test`) and `CalibrationModels` already lives. It is not in
+`testkit`, which carries the reference data and the comparison helpers and would then need a
+dependency on `transforms` and `distributions` for the sake of six test models.
+
+The consequence is that chapter 11 cannot import them and writes its own, which is the right
+outcome for a manual anyway: a chapter that says "use `MultilevelModels.varyingInterceptsNonCentred`"
+teaches nothing, and a chapter whose models are compiled by mdoc proves that what it shows is what
+a reader can write.
+
+### D-98. The example where leave-one-out prefers partial pooling needs two datasets
+
+The phase's criterion asks for "an example where LOO prefers partial pooling to both extremes".
+Ranking first is easy and says little; a difference larger than its own standard error on **both**
+sides turned out to be impossible, and not for want of data.
+
+The reason is structural. The multilevel fit interpolates between the extremes — `tau` large is no
+pooling, `tau` near zero is complete pooling — so it is always close to whichever extreme the data
+supports, and the difference on that side is inside the noise by construction. Twenty datasets were
+measured: the rejected extreme comes out at 1.8 to 9.9 standard errors, and partial pooling is
+never more than 0.8 behind the leader. One configuration — a between-cluster spread of half the
+within-cluster one over thirty clusters of three — genuinely rejects partial pooling, by 2.3
+standard errors, because the data says `tau` is zero and the hierarchical model still pays for
+estimating it.
+
+So the suite uses two datasets, each rejecting one extreme, and asserts what is true of both:
+partial pooling ranks first, and the extreme that is wrong for the data is rejected. The honest
+claim is that partial pooling is the only model rejected on neither, and chapter 11 says so in
+those words rather than overselling the comparison.

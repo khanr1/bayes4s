@@ -133,17 +133,35 @@ object Sbc:
     fitted.map { chain =>
       val wanted = model.generative.named(truth)
       val thinned = thin(chain.draws.toList, thinnedDraws)
-      val samples = thinned.map(q => Model.values(conditioned, q))
-      wanted.toList.flatMap { (block, values) =>
-        (0 until values.length).map { index =>
-          val name = if values.length == 1 then block else s"$block.${index + 1}"
-          val below = samples.count { sampled =>
-            sampled.get(block).exists(column => column(index) < values(index))
-          }
-          name -> below
+      // The derived quantities as well as the parameter blocks. A generative part is free to name
+      // a quantity the model computes rather than declares — a correlation read off a Cholesky
+      // factor is the case this library has — and Talts et al. rank those too. Without them the
+      // name would simply be absent from every sample, which counts as no sample below the truth,
+      // which is a rank of zero in every replication: a model that is in fact calibrated would be
+      // reported as the worst possible failure, and nothing would say why.
+      val samples = thinned.map(q =>
+        Model.values(conditioned, q) ++ conditioned.derived(Model.constrain(conditioned, q))
+      )
+      wanted.toList
+        .traverse { (block, values) =>
+          val columns = samples.map(_.get(block))
+          if columns.exists(_.isEmpty) then Left(BayesError.UnknownParameter(block))
+          else if columns.exists(_.exists(_.length != values.length)) then
+            Left(
+              BayesError.DimensionMismatch(
+                s"simulation-based calibration, $block",
+                values.length,
+                columns.headOption.flatten.map(_.length).getOrElse(0)
+              )
+            )
+          else
+            Right((0 until values.length).map { index =>
+              val name = if values.length == 1 then block else s"$block.${index + 1}"
+              name -> columns.count(_.exists(column => column(index) < values(index)))
+            })
         }
-      }.toMap
-    }
+        .map(_.flatten.toMap)
+    }.flatten
 
   /** `count` samples spread evenly over what the chain produced. */
   private def thin(draws: List[IArray[Double]], count: Int): List[IArray[Double]] =

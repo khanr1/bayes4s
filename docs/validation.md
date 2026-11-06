@@ -1073,3 +1073,239 @@ there are three.
 6. **The posteriordb comparison uses one seed per run.** Nine fits of four chains is 3 minutes, so
    a sweep over seeds is not something to put in a suite; the weekly stress run is the sweep, one
    fresh seed at a time.
+
+## Phase 6b — multilevel models and model criticism
+
+377 tests, 356 fast and 21 slow, up from 354 — 23 added by this phase. The 336 fast tests of
+phases 0 to 6 are untouched; no tolerance, seed or assertion was weakened, and the register of
+encapsulated local mutation stays at 27 sites.
+
+Two defects in earlier phases' code were found by this phase and fixed, both of them silent: a
+matrix parameter was an array of objects at run time (D-95) and simulation-based calibration could
+not rank a derived quantity (D-96). Both are described below with the test that now pins them.
+
+### Pareto-smoothed importance sampling, against ArviZ at 1e-6
+
+`reference/multilevel.json` carries `az.loo` on 20 observations by 4000 samples from the posterior
+— an invented regression with one deliberate outlier — and `az.psense` on two power-scaling cases.
+There is no port to read as a specification for either, so the installed ArviZ source was read
+instead (D-89).
+
+| Check | Reference | Result |
+|---|---|---|
+| `elpd`, its standard error and `p_loo` | `az.loo` | green at 1e-6 relative |
+| the 20 pointwise `elpd` values | `az.loo` | green at 1e-6 |
+| the 20 Pareto shape parameters | `az.loo` | green at 1e-6 |
+| `lpd` per observation, the log mean likelihood | computed by hand from the same array | green at 1e-12 |
+| the outlier is the **only** flagged observation | `k > 0.7` | green; and at 100 samples the threshold moves to 0.5 |
+| `compare` orders by `elpd` and gives the error of a difference | a model against itself shifted by a constant | green: the error is exactly 0 |
+| the two sensitivities of both power-scaling cases | `az.psense` | green at 1e-6 |
+| the cumulative Jensen-Shannon distance | computed by hand on known inputs | green at 1e-12 |
+| the four readings of the two numbers | the rule of Kallioinen et al. | green |
+
+The relative effective number of samples PSIS needs for its tail length is Stan's tail estimate,
+which reproduces ArviZ's `r_eff` to every digit that matters on these arrays — 0.870602 and
+1.013745, giving tail lengths of 203, 203, 203 and 188 (D-90). No second effective-size
+implementation exists in the library.
+
+### The correlated varying effects, against an independent posterior
+
+posteriordb has no model with correlated varying effects, so the reference was simulated and
+fitted elsewhere: twelve clusters, 138 observations, an LKJ(2) prior on the Cholesky factor, and a
+reference of eight NumPyro chains of 4000 samples with no divergent transitions. This library fits
+the same `model.stan` and is held to posteriordb's own rule —
+`|mean_ours - mean_ref| <= 4 sqrt(mcse_ours² + mcse_ref²)`, and the same for the standard
+deviation.
+
+| Parameter | Reference mean, sd | Result |
+|---|---|---|
+| `mu[1]` | 1.3174, 0.1877 | green |
+| `mu[2]` | -0.4953, 0.0899 | green |
+| `tau[1]` | 0.5871, 0.1638 | green |
+| `tau[2]` | 0.1475, 0.1052 | green |
+| `rho` | -0.1367, 0.4077 | green |
+| `sigma` | 0.6715, 0.0435 | green |
+
+The two hard ones are the point of the exercise. `tau[2]` is pressed against zero — a posterior
+mean of 0.1475 against a standard deviation of 0.1052 — and a scale near zero leaves the
+correlation it multiplies barely identified, which is why `rho` has a standard deviation of 0.41 on
+a parameter confined to (-1, 1). Both means and both standard deviations are inside the budget, and
+our own fit's R-hat and bulk effective number of samples are asserted first so that a comparison
+against a chain that had not mixed would say so.
+
+### Simulation-based calibration on the two multilevel models
+
+Added to phase 6's three, at the same thresholds: 256 replications, samples thinned to 63, ranks
+binned into 16 of 4 possible values, against the 0.1 % point of chi-squared with 15 degrees of
+freedom — 37.697. Eighteen parameters in all now, so the announced failure rate is about 1 run in
+55.
+
+| Model | Parameters | Result |
+|---|---|---|
+| correlated varying intercepts and slopes, six clusters | `mu.1`, `mu.2`, `tau.1`, `tau.2`, `sigma`, `rho` | green |
+| a multilevel logistic regression, six clusters of ten | `mu`, `tau`, `beta` | green |
+
+The first is the only model in the library whose generative part names a quantity the model
+**derives** rather than declares, and ranking `rho` is a stronger test than ranking a parameter:
+the LKJ prior, the factor's transform and that transform's Jacobian all have to agree at once. It
+is also what exposed the defect in `Sbc` below.
+
+### The sum of the pointwise log likelihood
+
+The obligatory identity, asserted for six models — varying intercepts centred and non-centred,
+complete pooling, no pooling, correlated effects, multilevel logistic — at an arbitrary point in
+the unconstrained space rather than at the posterior, because it is arithmetic and holds
+everywhere. Green at 1e-12 relative.
+
+### Where leave-one-out prefers partial pooling
+
+Two datasets of invented data, each simulated from a level above its clusters, and three models
+fitted to each: complete pooling, no pooling, partial pooling.
+
+| Dataset | Rejected extreme | Difference | Partial pooling |
+|---|---|---|---|
+| 20 clusters of 3, between-cluster spread 2.0, within 1.0 | complete pooling | -28.3 against an error of 4.5 (6.3 errors) | first; no pooling -1.8 ± 2.1 |
+| 40 clusters of 2, spread 0.6, within 1.0 | no pooling | -11.7 against an error of 4.4 (2.7 errors) | first; complete pooling -3.6 ± 2.7 |
+
+Twenty datasets were measured before these two were chosen, and the result is a fact about
+cross-validation rather than about this library: a difference larger than its own error on **both**
+sides does not happen, because the multilevel fit interpolates between the extremes and is
+therefore always close to whichever one the data supports (D-98). One configuration — a spread of
+half the within-cluster one over thirty clusters of three — rejects partial pooling by 2.3 errors,
+because the data says the spread is zero and the hierarchical model still pays for estimating it.
+The suite therefore asserts what is true of both datasets: partial pooling ranks first, and the
+extreme that is wrong for the data is rejected. Chapter 11 says exactly that and no more.
+
+Power scaling on a fitted model, on the same invented data under three priors on `mu`, with the
+data averaging 2.155:
+
+| Prior on `mu` | Prior sensitivity | Likelihood sensitivity | Reading |
+|---|---|---|---|
+| `Gaussian(0, 5)` | 0.0022 | 0.1066 | the data is doing the work |
+| `Gaussian(10, 0.2)` | 0.4495 | 0.3490 | prior-data conflict |
+| `Gaussian(2, 0.2)` | 0.0605 | 0.0978 | prior-data conflict |
+
+The third row is the diagnostic's own limit, asserted deliberately so that nobody reads more into
+the label than it says: a narrow prior is sensitive whether or not it conflicts, so one placed
+where the data already is reads as a conflict too, and what separates the two is the size of the
+number — 0.4495 against 0.0605 — rather than the label.
+
+### Predicting a cluster that is not in the data
+
+| Check | Reference | Result |
+|---|---|---|
+| the spread of a new cluster's effect | the closed form `Gaussian(m, sqrt(s² + t²))` | green, 40 000 samples, within 4 standard errors |
+| the location and the scale stay paired, sample by sample | a posterior of a tight half and a wide half, whose crossed version has a different spread | green |
+| a correlated new cluster's covariance | `diag(tau) L Lᵀ diag(tau)` | green within 4 standard errors |
+| mismatched lengths | nothing rather than a wrong answer | green: an empty array |
+
+The pairing test is the one worth having. A location drawn from one sample with a scale from
+another produces plausible-looking numbers from a posterior nobody has, and only a posterior built
+of two visibly different halves can tell the two apart.
+
+### Two defects found in earlier phases
+
+**A matrix parameter was an array of objects** (D-95). `ParamSpec.matrix` and
+`ParamSpec.choleskyCorr` built their rows with `IArray.tabulate` inside a generic method, where the
+compiler cannot know that a row of `A` is a `double[]`. Any model with a matrix parameter therefore
+crashed with a `ClassCastException` the first time it was read at `Double` — in `pointwise`, in
+`derived`, in predictive simulation — while being perfectly fine for gradients, which is why the
+nine ported posteriors never noticed. Fixed by `Real[A].rowTag`, `matrixOf` and `rowsOf`; pinned by
+a test that asserts the runtime class and then calls `matVec`, whose signature is the cast.
+
+**Calibration could not rank a derived quantity** (D-96). `Sbc` read `Model.values`, which carries
+the declared blocks only, so `rho` had no column, no sample counted as below the truth, and the
+rank was zero in every replication: chi-squared 48 on four bins where uniformity gives about 3 — a
+correct model reported as the worst failure the test can express, with nothing saying why. Fixed by
+including `derived`, and a named quantity with no column is now a `BayesError.UnknownParameter`
+rather than a rank.
+
+### Mutations tried
+
+Thirteen, every one detected. One per component, plus one for each defect above.
+
+| Component | Mutation | Test that failed |
+|---|---|---|
+| `Pareto.fit` | the prior on the shape dropped, so `k` is the profile maximum | the 20 Pareto shapes, and the `elpd` with them |
+| `Pareto.tailLength` | always `n/5`, dropping the `n r_eff > 225` branch | the `elpd` at 1e-6 **and** both power-scaling cases |
+| `Pareto.smoothRightTail` | the cap at the largest observed weight removed | the 20 pointwise `elpd` values |
+| `Loo.psis` | the plain `lpd` used as the `elpd`, i.e. no reweighting at all | the `elpd`, its error and `p_loo` |
+| `Loo.compare` | the two errors added in quadrature instead of the pointwise differences | the constant-difference case, whose error must be exactly 0 |
+| `Loo.kThreshold` | a fixed 0.7 instead of `min(1 - 1/log10(S), 0.7)` | the flagged-observation test at 100 samples |
+| `PowerScaling.sensitivity` | one direction only, dropping the reflected sample | both cases at 1e-6 |
+| `PowerScaling.diagnose` | the two one-sided readings swapped | the four readings, and the fitted-model suite with them |
+| `Hierarchy.newGroup` | the first sample's scale used for every sample | the pairing test |
+| `Hierarchy.newGroupCorrelated` | the scales dropped from `levels + scales ⊙ (L z)` | the covariance test |
+| `MultilevelModels.pointwise` | the slope dropped from the correlated model's pointwise form | the sum against `logLikelihood` |
+| `ParamSpec.matrix` | the rows built by `IArray.tabulate`, as before the fix | the runtime-class test |
+| `Sbc` | the derived quantities left out of the posterior values | the correlated calibration, in one second, naming `rho` |
+
+The last one is worth a line: with the guard added alongside the fix, the mutation no longer
+produces a chi-squared of 48 after two and a half minutes of sampling — it produces
+`UnknownParameter(rho)` in one second. A silent wrong answer became a named error, which is the
+library's rule everywhere else.
+
+### The stress suite
+
+`sbt -Dbayes4s.stress=true slow:test`, fresh seed from the clock, doubled warmup and samples for
+every reference posterior and 512 calibration replications: **21 tests, 2 failed, seed
+1793914607957, 23 minutes 53**.
+
+Phase 6b's own three are green on a seed nobody chose:
+
+```
++ correlated varying effects, against its reference summary        1:55min
++ correlated varying intercepts and slopes, six clusters           23:33min  (512 replications)
++ a multilevel logistic regression                                 1:31min
+```
+
+The two failures are **phase 6's** posteriordb suite, and both are the convergence guard refusing
+to compare rather than a disagreement with Stan. Neither is a regression: phase 6b changes nothing
+on the path either model takes, the same code is green at the fixed seed, and the behaviour is
+reproducible from the failing seed alone.
+
+**`arma-arma11`, R-hat 1.59 with a bulk effective number of samples of 7.** Diagnosed: three of the
+four chains agree with each other and with the reference — `phi` 0.957, `sigma` 0.166 — and the
+fourth sits at `phi` -1.28, `theta` +1.08, outside the stationary region, with a step size of
+0.00003 and the maximum tree depth hit on 1858 of its 2000 transitions. A uniform(-2, 2) starting
+point — Stan's own default, and this library's `Init.Uniform(2.0)` — landed it where the ARMA
+recursion explodes and the likelihood is nearly flat; warmup then adapted the step size down by
+four orders of magnitude instead of escaping, and the chain never left.
+
+Measured over ten seeds at the ordinary settings: **two of ten runs have exactly one stuck chain of
+four**, so roughly one chain in twenty. The other eight runs put all four chains at `phi` 0.957
+with R-hat below 1.002. The suite reports this correctly and loudly, which is the behaviour one
+wants from the guard; what it reveals is a limit of the initialisation, not of the sampler, and the
+fix belongs to whichever phase revisits `Init` rather than to a tolerance here.
+
+**`gp_pois_regr`, R-hat 1.025 on `alpha` and 1.015 on `rho`**, with 155 and 412 effective samples.
+A different and milder thing: the latent Gaussian process mixes slowly along the ridge where a
+larger `alpha` trades against a longer `rho`, and at this seed four chains of 4000 did not quite
+reach 1.01. No chain is stuck and the means are in the right place; the honest reading is that this
+posterior needs more samples than the stress settings give it.
+
+### Known limits at the end of phase 6b
+
+1. **Leave-one-out with one observation per cluster is the worst case for the smoothing**, and the
+   eight schools of chapter 4 show it: three of the eight come out above the 0.7 threshold, because
+   leaving an observation out removes most of what identified its own parameter. The library reports
+   this correctly and the chapter says what to do — refit, or cross-validate a whole cluster at a
+   time. Leaving out a cluster at a time is not implemented.
+2. **No moment matching and no mixture estimators.** When `k` is above the threshold the answer is
+   to refit, not to patch the weights. `loo` in R offers both; this library offers the diagnostic
+   and the honest advice.
+3. **`PowerScaling.analyse` scales the whole prior**, not one component of it. Scaling a single
+   prior would need the model to decompose `logPrior` by parameter, which `Model` does not do;
+   the reading for a parameter is therefore the sensitivity of its marginal to the whole prior.
+4. **`Loo.psis` asks the caller for the relative effective number of samples.** It cannot compute
+   it itself without being handed the samples by chain, and the shape it takes — observations by
+   samples — has lost that structure. The two suites and chapter 11 show the four lines that
+   compute it; a helper that takes chains would be a better interface and is deferred.
+5. **`Init.Uniform(2.0)` leaves about one ARMA chain in twenty outside the stationary region**, and
+   it does not come back. Found by this phase's stress run and quantified above; it is phase 6's
+   suite and Stan's own default, so nothing here was changed for it, and it is reported to the
+   maintainer as the one thing phase 6b found that it did not fix.
+6. **The correlated calibration is the slowest test in the repository**: 2 minutes 24 at 256
+   replications and 23 minutes 33 at 512. Six clusters is already the reduced model; the cost is
+   256 separate fits of an 18-parameter posterior, and the only real lever is the number of
+   replications, which is what sets the test's power.

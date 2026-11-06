@@ -129,6 +129,41 @@ object ParamSpecSuite extends SimpleIOSuite with Discipline with Checkers with A
       )
   }
 
+  /** A matrix read at `Double` has to **be** a matrix of doubles, not an array of objects.
+    *
+    * The distinction is invisible to everything that stays generic — a gradient is taken at the
+    * tape's own scalar and never looks — and fatal to everything that does not: `pointwise`,
+    * `derived`, predictive simulation, any model that hands a matrix parameter to an operation
+    * typed `IArray[IArray[Double]]`. The compiler inserts the cast at that boundary, and an
+    * `Object[]` of rows fails it at run time with nothing in the source to point at.
+    *
+    * So the assertion is about the runtime class, and then about the operation that provoked it:
+    * `matVec` takes `IArray[IArray[Double]]` by signature, so calling it is the cast.
+    */
+  pureTest("a matrix parameter read at Double is an array of rows of doubles") {
+    val factor = ParamSpec.choleskyCorr("L", 3)
+    val rectangle = ParamSpec.matrix("B", 2, 3)
+    val (l, _) = factor.read[Double](IArray(0.3, -0.4, 0.8))
+    val (b, _) = rectangle.read[Double](IArray(1.0, 2.0, 3.0, 4.0, 5.0, 6.0))
+    val lByHand = Real[Double].matVec(l, IArray(1.0, 0.0, 0.0))
+    val bByHand = Real[Double].matVec(b, IArray(1.0, 1.0, 1.0))
+    check(
+      l.getClass.getName == "[[D",
+      s"a factor's rows are held in a ${l.getClass.getName}, not a [[D"
+    )
+      .and(
+        check(
+          b.getClass.getName == "[[D",
+          s"a matrix's rows are held in a ${b.getClass.getName}, not a [[D"
+        )
+      )
+      // The first column of a Cholesky factor of correlation is its first basis image, and its
+      // first row is (1, 0, 0) by construction, so the product's first entry is exactly one.
+      .and(closeRel(lByHand(0), 1.0, 1e-15, "L times the first basis vector"))
+      .and(closeRel(bByHand(0), 1.0 + 3.0 + 5.0, 1e-15, "B times a vector of ones, first row"))
+      .and(closeRel(bByHand(1), 2.0 + 4.0 + 6.0, 1e-15, "B times a vector of ones, second row"))
+  }
+
   /** The reading, against the transforms applied by hand to the same slices.
     *
     * This is the test that makes `layout` and `read` agree: the slices come from the layout's

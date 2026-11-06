@@ -211,6 +211,26 @@ trait Real[A]:
     given ClassTag[A] = tag
     IArray.fill(n)(x)
 
+  /** The runtime class of a **row**, which is what a matrix of `A` is an array of.
+    *
+    * The compiler cannot synthesise this one. For an abstract `A` it has no way to know that a row
+    * is a `double[]` rather than an `Object[]`, so `IArray.tabulate(n)(i => ...)` inside a generic
+    * method builds an array of `Object` and a caller that has fixed `A` to `Double` — which is
+    * every model read for its values rather than its gradient — fails the cast on the way out.
+    * `tag.wrap` is the one place that knows: it turns the element's class into its array's.
+    */
+  final def rowTag: ClassTag[IArray[A]] = ClassTag(tag.wrap.runtimeClass)
+
+  /** A matrix of the interpreter's scalar, by row and column. */
+  final def matrixOf(rows: Int, cols: Int)(f: (Int, Int) => A): IArray[IArray[A]] =
+    given ClassTag[IArray[A]] = rowTag
+    IArray.tabulate(rows)(i => vectorOf(cols)(j => f(i, j)))
+
+  /** A matrix built a row at a time, for rows that are computed rather than tabulated. */
+  final def rowsOf(rows: Int)(f: Int => IArray[A]): IArray[IArray[A]] =
+    given ClassTag[IArray[A]] = rowTag
+    IArray.tabulate(rows)(f)
+
   /** `map` over an `IArray[A]`, which needs the tag and so cannot be the standard one. */
   final protected def mapped(xs: IArray[A])(f: A => A): IArray[A] =
     given ClassTag[A] = tag
