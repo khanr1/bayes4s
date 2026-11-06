@@ -301,11 +301,26 @@ object ConvergenceSuite extends SimpleIOSuite with Checkers with Approx:
       val bulk = Convergence.essBulk(chains)
       val tail = Convergence.essTail(chains)
       val total = 4.0 * draws
-      // The standard error of an effective size estimate is about sqrt(2/total) relative, so a
-      // band of 15 % is roughly nine of those and still far from a factor of two.
+      // The band is measured rather than derived, because the formula that looks right is not.
+      //
+      // `sqrt(2/total)` — 2.2 % here — is the asymptotic standard error of an effective size when
+      // the autocorrelation structure is known. This estimator truncates by Geyer's rule on four
+      // chains of a thousand, and the tail version works on quantile-indicator series with about
+      // two hundred draws in each tail, so both are noisier than that. Enumerating the whole seed
+      // population this property samples from — all 400 of them — gives:
+      //
+      //   basic  min 0.837  1st percentile 0.874  median 0.983  max 1.090
+      //   bulk   min 0.845  1st percentile 0.885  median 0.987  max 1.092
+      //   tail   min 0.838  1st percentile 0.866  median 0.971  max 1.048
+      //
+      // A band of 15 % excludes six of those seeds, so a run of ten failed about one time in
+      // seven; CI found seed 134, whose tail effective size is 3397 of 4000. A band of **20 %**
+      // contains all 400 for all three statistics with room to spare, and is still nowhere near
+      // the factor of two that would make the check vacuous. The measurement is in
+      // docs/validation.md.
       def near(name: String, value: Double) =
         check(
-          value > 0.85 * total && value < 1.15 * total,
+          value > 0.80 * total && value < 1.20 * total,
           s"$name is $value for $total independent draws"
         )
       check(rhat < 1.01, s"R-hat is $rhat for independent draws")
@@ -317,6 +332,52 @@ object ConvergenceSuite extends SimpleIOSuite with Checkers with Approx:
           val mcse = Convergence.mcseMean(chains)
           closeRel(mcse, 1.0 / math.sqrt(total), 0.1, "the Monte Carlo error of the mean")
         }
+    }
+  }
+
+  /** The six seeds the measurement found at the edges, pinned so they are checked every run.
+    *
+    * The property above samples ten seeds out of four hundred, so the extreme ones it is meant to
+    * cover are visited about one run in forty. These are the six that a full enumeration found
+    * outside the old band — CI found 134 the hard way — and asserting them directly turns a test
+    * that failed one run in seven into one that checks the worst cases every time.
+    */
+  test("the extreme seeds of the independent-draws property stay inside the band") {
+    val draws = 1000
+    val total = 4.0 * draws
+    val extremes = List(31L, 134L, 203L, 249L, 371L, 386L)
+    cats.effect.IO {
+      val checks = extremes.map { seed =>
+        val chains = IArray.tabulate(4) { c =>
+          val program = cats.Monad[Rand].replicateA(draws, Rng[Rand].normal)
+          IArray.from(program.runA(Seed(seed).fold(c.toLong)).value)
+        }
+        val basic = Convergence.essBasic(chains)
+        val bulk = Convergence.essBulk(chains)
+        val tail = Convergence.essTail(chains)
+        def inside(name: String, value: Double) =
+          check(
+            value > 0.80 * total && value < 1.20 * total,
+            f"seed $seed: $name is ${value / total}%.3f of $total independent draws"
+          )
+        inside("the basic effective size", basic)
+          .and(inside("the bulk effective size", bulk))
+          .and(inside("the tail effective size", tail))
+          .and(check(Convergence.rhatRank(chains) < 1.01, s"seed $seed: R-hat is too high"))
+      }
+      // And the one CI reported, named so that the failure it produced stays readable.
+      val cisSeed = IArray.tabulate(4) { c =>
+        val program = cats.Monad[Rand].replicateA(draws, Rng[Rand].normal)
+        IArray.from(program.runA(Seed(134L).fold(c.toLong)).value)
+      }
+      checks
+        .reduce(_.and(_))
+        .and(
+          check(
+            Convergence.essTail(cisSeed) > 0.80 * total,
+            f"seed 134's tail effective size is ${Convergence.essTail(cisSeed)}%.1f"
+          )
+        )
     }
   }
 

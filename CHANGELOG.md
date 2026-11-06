@@ -41,6 +41,15 @@ Found
   essentially zero, and a transform statistic past the 0.1 % point — three readings saying the
   forecasts are centred correctly and far too wide, which the mean score alone would not have said.
 
+Fixed
+
+- **A flaky property test from phase 5**, which this phase's CI run exposed: the independent-draws
+  check put all three effective sizes in a ±15 % band, derived from a formula that does not apply
+  to a Geyer-truncated estimator, and failed about one run in seven. Enumerating all 400 seeds it
+  samples from gives a minimum of 0.837 of the draw count, so the band is now ±20 %, and the six
+  extreme seeds — including the 134 CI found — are pinned in a test of their own so they are
+  checked every run rather than one run in forty.
+
 ### Phase 7 — simulating futures (6 November 2026)
 
 Added

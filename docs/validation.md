@@ -1568,6 +1568,45 @@ The estimator mutation is the one that justifies D-108: swapping `1/n²` for `1/
 defensible choice in the abstract and a disagreement with every published score in practice, and
 the fixture catches it at the first case.
 
+### A flaky test from phase 5, found by this phase's CI run and corrected
+
+Phase 8's push turned CI red on a test phase 8 does not touch:
+`ConvergenceSuite`, "independent draws give R-hat near 1 and an effective size near the count",
+with `the tail effective size is 3397.3159941619515 for 4000.0 independent draws` at seed 134.
+
+Nothing was wrong with the diagnostics. 3397 of 4000 is an honest draw from that estimator's own
+sampling distribution; what was wrong was the test's band. Its comment derived ±15 % from
+`sqrt(2/total)` — 2.2 % here — which is the asymptotic standard error of an effective size when the
+autocorrelation structure is known. This estimator truncates by Geyer's rule on four chains of a
+thousand, and the tail version works on quantile-indicator series with about two hundred draws per
+tail, so both are noisier than that formula allows.
+
+The whole seed population the property samples from was enumerated — all 400 seeds, four chains of
+a thousand independent standard Gaussians each:
+
+| Statistic | min | 1st percentile | 5th | median | max | outside ±15 % |
+|---|---|---|---|---|---|---|
+| basic | 0.837 | 0.874 | 0.911 | 0.983 | 1.090 | 3 of 400 |
+| bulk | 0.845 | 0.885 | 0.917 | 0.987 | 1.092 | 2 of 400 |
+| tail | 0.838 | 0.866 | 0.887 | 0.971 | 1.048 | 3 of 400 |
+
+Six seeds fail on at least one statistic — 31, 134, 203, 249, 371, 386 — so a run of ten seeds
+failed about **one time in seven**. Every earlier CI run passed by luck.
+
+Two changes, and the second matters more than the first:
+
+1. The band is now **±20 %**, which contains all 400 seeds for all three statistics with margin and
+   is still far from the factor of two that would make the check vacuous. The comment in the test
+   cites this measurement rather than the formula that did not apply.
+2. The six extreme seeds are **pinned in a test of their own**. The property samples ten of four
+   hundred, so the cases it exists to cover were visited about one run in forty; they are now
+   checked every run. Reverting the pinned test's band to ±15 % fails it immediately — on seed 31,
+   whose basic effective size is 0.840 — which is how the fix was verified to have teeth.
+
+No seed was changed and nothing was skipped. The band was corrected because the test asserted
+something false 14 % of the time, and the correction is recorded here with the numbers that justify
+it.
+
 ### Known limits at the end of phase 8
 
 1. **The backtest does not refit.** Producing one forecast per origin, with no fit having seen its
