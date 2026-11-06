@@ -8,6 +8,39 @@ Versions follow git tags. Nothing is released yet.
 
 ## Unreleased
 
+### Phase 8 — scoring a forecast (6 November 2026)
+
+Added
+
+- `Crps`: the continuous ranked probability score in both of its forms — `ensemble`, sorted and
+  `O(n log n)`, and `energy`, the `O(n²)` definition — matched against properscoring at 1e-12, with
+  the tied case exact to the bit. The `1/n²` estimator, which is what the published numbers use;
+  the unbiased `1/(n(n-1))` one is a different number and the scaladoc says so. A closed form for
+  the Gaussian case, checked against 200 000 draws.
+- `Calibration`: the probability integral transform with ties counted as half, `bias` on
+  scoringutils' convention, Winkler's interval score, coverage, the transform histogram and its
+  chi-squared statistic. The interval score is asserted against the sum of the two pinball losses,
+  written independently.
+- `Backtest`: scores a sequence of forecasts, one row per date, taking each interval from the
+  forecast's own quantiles — and a **moving-block bootstrap** for the uncertainty of a mean score,
+  because scores on neighbouring dates are correlated and `sd/sqrt(n)` is too small.
+- `Special.phi`, the standard normal cumulative function (Stan's `Phi`, the partner of `invPhi`),
+  written through `erfc` so the left tail keeps its digits.
+- Chapter 8 of the manual, *Scoring a forecast*.
+- 19 tests, for 456 in all. Thirteen mutations, every one detected.
+
+Found
+
+- **The ordinary standard error of a mean score is wrong by a factor of several** when the scores
+  are correlated, and the suite measures it: on an AR(1) run with `phi = 0.9`, where the true
+  inflation is about 4.4, blocks of 40 recover more than 1.5 times the ordinary error while blocks
+  of one — the ordinary bootstrap — see none of it.
+- **An infinite sample makes the score `NaN`, not infinite.** Both terms diverge, so their
+  difference is indeterminate; found by the totality test rather than reasoned out in advance.
+- **The example in chapter 8 diagnoses itself**: coverage 1.0 against a nominal 0.9, a bias of
+  essentially zero, and a transform statistic past the 0.1 % point — three readings saying the
+  forecasts are centred correctly and far too wide, which the mean score alone would not have said.
+
 ### Phase 7 — simulating futures (6 November 2026)
 
 Added

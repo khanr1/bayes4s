@@ -1474,3 +1474,112 @@ failure: clamping moves a contribution that belongs nowhere into a period that i
 4. **`Ensemble` is dense.** A key with a value in one period of sixty still carries sixty doubles
    per sample. Nothing in this phase's use needs sparsity, and a sparse representation would make
    the monoid harder to get right, which is the part that must not be wrong.
+
+## Phase 8 — scoring a forecast
+
+456 tests, 435 fast and 21 slow, up from 437 — 19 added by this phase, all fast. The 416 fast tests
+of phases 0 to 7 are untouched; no tolerance, seed or assertion was weakened, and the register of
+encapsulated local mutation stays at 27 sites.
+
+### The score, against properscoring at 1e-12
+
+`python/scoring.json` carries properscoring 0.1's own values: six sample CRPS cases from one
+sample to a thousand, one case with ties, and four Gaussian closed forms. The fixture gives both
+the sample form and the energy form for each case, so the phase's own criterion — that the two are
+one function — has a reference on both sides.
+
+| Check | Reference | Result |
+|---|---|---|
+| the sample CRPS, six cases from n = 1 to n = 1000 | `properscoring.crps_ensemble` | green at 1e-12 relative |
+| the tied case, three equal samples and one apart | properscoring, 0.1875 | green **exactly**, to the bit |
+| the Gaussian CRPS, four cases | `properscoring.crps_gaussian` | green at 1e-12 relative |
+| the sorted form against the energy form | each other, over 100 generated cases with ties forced | green at 1e-12 |
+| a point forecast | the distance `abs(x - y)` | green at 1e-15 |
+| spread costs, and being wrong costs more | three forecasts ordered by hand | green |
+| scale equivariance and order independence | the score doubled with the scale | green at 1e-13 |
+| the sample score against the closed form | 200 000 Gaussian draws | green, 4 standard errors |
+| totality | empty, `NaN`, negative scale, infinite sample | green |
+
+The tied case is the one worth singling out. The sorted form weights each sample by its position,
+so ties are exactly where an implementation that deduplicated or used a strict inequality would
+drift — and the arithmetic there is exact, so the assertion is bit equality rather than a
+tolerance.
+
+`Special.phi` was added to `core` for the Gaussian closed form (D-107), written as
+`0.5 erfc(-x/sqrt 2)`: at `x = -10` the value is 7.6e-24 and the `erf` form loses every digit of
+it. The four Gaussian cases agree with properscoring to the last bit.
+
+### Calibration
+
+| Check | Reference | Result |
+|---|---|---|
+| the transform, above, below, in the middle, on a sample | by hand | green at 1e-15 |
+| a tie counts as half a sample | the randomised transform's expectation | green |
+| the bias at both ends and in the middle | scoringutils' `1 - 2 pit` convention | green at 1e-15 |
+| the interval score, inside, below, above | Winkler's definition, by hand | green at 1e-15 |
+| **the interval score against the two pinball losses** | `2/alpha (rho_{alpha/2} + rho_{1-alpha/2})`, written independently, 21 cases | green at 1e-13 |
+| coverage, boundaries included | by hand | green |
+| a calibrated forecast's transform histogram | chi-squared over 10 bins against the 0.1 % point of 27.877, 9 degrees of freedom | green |
+| a forecast shifted by one standard deviation | the same test, which must reject it | green |
+
+The pinball identity is the strongest check here because the two sides share no code: Winkler's
+interval score is `2/alpha` times the sum of the pinball losses at the interval's own quantile
+levels, and the test writes the pinball loss out from its definition.
+
+### The backtest and the standard error that is wrong
+
+| Check | Reference | Result |
+|---|---|---|
+| each date's row | the pieces called directly | green at 1e-15 |
+| the interval comes from the forecast's own type-7 quantiles | `Quantile.quantile` at 0.05 and 0.95 | green |
+| the aggregates, and an empty backtest | `NaN` rather than zero | green |
+| **the block bootstrap on independent dates** | the ordinary `sd/sqrt(n)` | green, within a quarter either way |
+| **the block bootstrap on AR(1) dates, phi = 0.9** | more than 1.5 times the ordinary error | green |
+| blocks of one reproduce the ordinary error's blindness | under 1.25 times it | green |
+| determinism by seed, and the degenerate cases | | green |
+
+The two bootstrap rows are the point of the component. On a run of 400 scores with an AR(1)
+correlation of 0.9 the true standard error of the mean is inflated by about 4.4 over the
+independent one; resampling single dates sees none of that, and blocks of 40 see most of it. Both
+directions are asserted, so neither a bootstrap that always inflates nor one that never does would
+pass.
+
+### Mutations tried
+
+Thirteen, one or more per component, every one detected.
+
+| Component | Mutation | Test that failed |
+|---|---|---|
+| `Crps.ensemble` | the sorted coefficient off by one | the fixture and the tied case |
+| `Crps.ensemble` | the unbiased `1/(n(n-1))` estimator instead of `1/n²` | the fixture at 1e-12 |
+| `Crps.energy` | the half dropped from the pairwise term | the form-equality property |
+| `Crps.gaussian` | the `1/sqrt(pi)` constant dropped | the Gaussian fixture and the sample convergence |
+| `Special.phi` | the sign of the argument flipped | the Gaussian fixture |
+| `Calibration.pit` | a tie counted in full instead of half | the transform test |
+| `Calibration.bias` | the sign flipped | the bias test |
+| `Calibration.intervalScore` | `1/alpha` instead of `2/alpha` | the hand cases **and** the pinball identity |
+| `Calibration.coverage` | the boundary excluded | the coverage test |
+| `Calibration.pitHistogram` | a transform of exactly 1 falls past the last bin | the histogram test |
+| `Backtest.run` | the interval taken from the extremes instead of the quantiles | the per-date test |
+| `Scored.covered` | the boundary excluded | the aggregates test |
+| `blockBootstrap` | single dates resampled whatever the block size | the correlated-dates test |
+
+The estimator mutation is the one that justifies D-108: swapping `1/n²` for `1/(n(n-1))` is a
+defensible choice in the abstract and a disagreement with every published score in practice, and
+the fixture catches it at the first case.
+
+### Known limits at the end of phase 8
+
+1. **The backtest does not refit.** Producing one forecast per origin, with no fit having seen its
+   own target, needs a model and a sampler that `scoring` deliberately does not depend on (D-111).
+   What is here is the scoring half; the protocol belongs to the caller, and the worked example
+   arrives with the nowcasting model in phase 10.
+2. **`sigma_err` is still uncalibrated.** Phase 7 deferred the grid over past dates to the phase
+   that has a backtest. The backtest is now here, but the model whose error it would calibrate is
+   not, so the pairing happens in phase 9 or 10.
+3. **No weighted or threshold-weighted CRPS.** Scoring the tail harder than the body is a real
+   need for a forecast used for capacity, and the weighted variants are a different estimator
+   rather than a weight applied afterwards; nothing in the plan asks for them yet.
+4. **The transform is the non-randomised one.** For a heavily discrete forecast the mid-rank
+   convention is an approximation to the randomised transform rather than a draw from it, so a
+   histogram over very few distinct values will still look lumpy. Said here rather than discovered.

@@ -38,6 +38,17 @@ final case class ExtremeCase(distribution: String, args: IArray[Double], value: 
 /** One type-7 quantile asserted by NumPy and R. */
 final case class Quantile7Case(data: IArray[Double], p: Double, value: Double)
 
+/** One sample CRPS asserted by properscoring, with both forms it reports. */
+final case class CrpsEnsembleCase(
+    ensemble: IArray[Double],
+    observation: Double,
+    crps: Double,
+    energyForm: Double
+)
+
+/** One Gaussian CRPS asserted by properscoring's closed form. */
+final case class CrpsGaussianCase(mu: Double, sigma: Double, observation: Double, crps: Double)
+
 /** A valid case of a Stan Math distribution test: the arguments and the value Stan asserts. */
 final case class StanValid(params: IArray[Double], expected: Double)
 
@@ -324,6 +335,22 @@ object Fixtures:
       v <- c.get("value")(using d)
     yield ExtremeCase(name, args, v)
 
+  private given crpsEnsembleCase: Decoder[CrpsEnsembleCase] = Decoder.instance: c =>
+    for
+      ensemble <- c.get("ensemble")(using ds)
+      observation <- c.get("observation")(using d)
+      crps <- c.get("crps")(using d)
+      energy <- c.get("energy_form")(using d)
+    yield CrpsEnsembleCase(ensemble, observation, crps, energy)
+
+  private given crpsGaussianCase: Decoder[CrpsGaussianCase] = Decoder.instance: c =>
+    for
+      mu <- c.get("mu")(using d)
+      sigma <- c.get("sigma")(using d)
+      observation <- c.get("observation")(using d)
+      crps <- c.get("crps")(using d)
+    yield CrpsGaussianCase(mu, sigma, observation, crps)
+
   private given quantile7Case: Decoder[Quantile7Case] = Decoder.instance: c =>
     for
       data <- c.get("data")(using ds)
@@ -372,6 +399,20 @@ object Fixtures:
 
   def quantile7: Either[String, List[Quantile7Case]] =
     at[List[Quantile7Case]]("python/scoring.json", List("quantile_type7"))
+
+  def crpsEnsemble: Either[String, List[CrpsEnsembleCase]] =
+    at[List[CrpsEnsembleCase]]("python/scoring.json", List("crps_ensemble"))
+
+  /** The one case with ties, which the sorted form has to get right without a special case. */
+  def crpsTied: Either[String, CrpsEnsembleCase] =
+    for
+      ensemble <- at[IArray[Double]]("python/scoring.json", List("crps_tied", "ensemble"))(using ds)
+      observation <- at[Double]("python/scoring.json", List("crps_tied", "observation"))(using d)
+      crps <- at[Double]("python/scoring.json", List("crps_tied", "crps"))(using d)
+    yield CrpsEnsembleCase(ensemble, observation, crps, crps)
+
+  def crpsGaussian: Either[String, List[CrpsGaussianCase]] =
+    at[List[CrpsGaussianCase]]("python/scoring.json", List("crps_gaussian"))
 
   def stanMath: Either[String, StanMathFixture] =
     at[Map[String, Map[String, StanFunction]]](

@@ -6,11 +6,12 @@ current build, so an example that stops compiling fails CI.
 
 Phase 1 delivers the core and the laws as values, phase 2 the automatic differentiation, phase 3 the
 models, phase 4 the sampler, phase 5 the diagnostics, phase 6b the multilevel models and model
-criticism and phase 7 the simulation of futures, so the chapters here are: a quick start, the concepts the whole library rests on —
+criticism, phase 7 the simulation of futures and phase 8 the scoring of them, so the chapters here
+are: a quick start, the concepts the whole library rests on —
 `Real[A]` included — how to write a model, how to sample it, how to tell whether to believe the fit
 and whether the model is any good, how to pool across groups and predict a group you have not seen,
-how to simulate a future and summarise it without adding percentiles, how to read and write
-CmdStan's files, the cost of those concepts, the error contract, and the
+how to simulate a future and summarise it without adding percentiles, how to score one after the
+fact, how to read and write CmdStan's files, the cost of those concepts, the error contract, and the
 classic worked examples.
 
 | Chapter | State |
@@ -23,6 +24,7 @@ classic worked examples.
 | [4. Diagnosing](04-diagnosing.md) | written, model criticism included: leave-one-out and power scaling |
 | [9. Interoperability](09-interoperability.md) | written for the pure parser; reading and writing files arrives with the `effect` module |
 | [6. Predicting](06-predicting.md) | written; the nowcasting example that uses it arrives with phase 9 |
+| [8. Scoring a forecast](08-scoring-a-forecast.md) | written; the worked comparison of two models arrives with phase 10 |
 | [11. Multilevel models](11-multilevel-models.md) | written; the fictional world's version of the example arrives with the `examples` module |
 | [Appendix A. Coming from Stan](appendix-a-from-stan.md) | written; the table is checked in CI |
 | [10. Performance and pitfalls](10-performance.md) | the cost of `Real[A]` is measured; the pitfalls arrive with phase 12 |
@@ -35,7 +37,7 @@ classic worked examples.
 | 3. Sampling, the `IO` half | 11 |
 | 5. Checking a model | 3 and 9 |
 | 7. Nowcasting step by step | 9 and 10 |
-| 8. Scoring a forecast | 8 and 10 |
+| 8. Scoring a forecast, the worked comparison | 10 |
 | 9. Interoperability, with files | 11 |
 | 10. Performance, completed | 12 |
 | Appendix B, completed | 12 |

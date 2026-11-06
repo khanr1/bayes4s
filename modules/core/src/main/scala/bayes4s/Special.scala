@@ -16,6 +16,7 @@
 
 package bayes4s
 
+import org.apache.commons.numbers.gamma.Erfc
 import org.apache.commons.numbers.gamma.LogGamma
 
 /** Special functions, total on the whole of `Double`.
@@ -88,6 +89,16 @@ object Special:
     * p = 1e-300 and beyond. `erfinv(2p - 1)` is not used: it loses every digit below p of about
     * 1e-50, which is exactly where the rank normalisation of the diagnostics needs it.
     */
+  /** The standard normal cumulative function, Stan's `Phi` (2.9) and the exact partner of
+    * [[invPhi]].
+    *
+    * Written through `erfc` rather than `erf`, so that the left tail keeps its digits: at
+    * `x = -10` the value is 7.6e-24, which `0.5 (1 + erf(x/sqrt 2))` computes as the difference of
+    * two numbers near one and loses entirely.
+    */
+  def phi(x: Double): Double =
+    if x.isNaN then Double.NaN else 0.5 * Erfc.value(-x / math.sqrt(2.0))
+
   def invPhi(p: Double): Double =
     if p.isNaN || p < 0.0 || p > 1.0 then Double.NaN
     else if p == 0.0 then Double.NegativeInfinity

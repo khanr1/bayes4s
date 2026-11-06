@@ -1449,3 +1449,91 @@ for the periods that cannot be corrected. The first punishes the periods that ar
 is the dangerous one, because an uncorrected count looks like a number and will be plotted next to
 corrected ones. `NaN` is the library's existing convention for "outside the domain" (2.1), and it
 propagates rather than misleading.
+
+### D-107. `Special.phi` is added to `core`: Stan's `Phi`, written through `erfc`
+
+The Gaussian CRPS needs a standard normal cumulative function and the library had none — only
+`invPhi`, its inverse, since phase 1b. So `Special.phi` is added, named by 2.9 (Stan's function is
+`Phi`, and the pairing `phi`/`invPhi` says which is which), and it is a **public addition to
+`core`** rather than a private helper in `scoring`, because a cumulative normal belongs with the
+other special functions and every later module will want it.
+
+It is `0.5 erfc(-x/sqrt 2)` rather than `0.5 (1 + erf(x/sqrt 2))`. The two are equal on paper and
+not in floating point: at `x = -10` the value is 7.6e-24, and the `erf` form computes it as the
+difference of two numbers near one, losing every digit. `Erfc` comes from
+`commons-numbers-gamma`, which the build already depends on, so no dependency is added.
+
+### D-108. The sample CRPS uses the `1/n²` estimator, not the unbiased `1/(n(n-1))`
+
+The second term of `E|X - y| - 0.5 E|X - X'|` can be estimated two ways, and they are different
+numbers: `1/n²` counts the `n` zero terms where a sample is paired with itself, `1/(n(n-1))` omits
+them and is unbiased for the population quantity. properscoring, and therefore the reference values
+in `python/scoring.json`, use `1/n²`; so does `scoringRules`' `crps_sample` by default.
+
+This library follows them, and the scaladoc says so, because the two differ by a factor
+`n/(n-1)` on the spread term — half a per cent at `n = 100`, far above the 1e-12 the suite asserts
+— and a library that quietly chose the other one would disagree with every published score while
+looking right. The mutation that switches estimators is in `docs/validation.md`.
+
+### D-109. Both forms of the score are public, and the suite says they are one function
+
+`Crps.energy` is `O(n²)` and nothing should call it on a real forecast; `Crps.ensemble` sorts and
+is `O(n log n)`. Keeping the slow one private was tempting, and would have made the phase's own
+criterion — "the sorted form equals the energy form" — a statement about a private method that a
+user could not check.
+
+Both are public. The definition is readable, the fast one is the one to use, and the property that
+links them is a public property. The sorted form's trick is that `sum_i sum_j |x_i - x_j|` is
+`2 sum_i (2i - n - 1) x_(i)` once sorted, which needs no special case for ties; the tied case from
+the fixture is asserted to the bit.
+
+### D-110. A tie counts as half a sample in the transform, and the bias is positive when the forecast is too high
+
+`Calibration.pit` counts `#{x < y} + 0.5 #{x = y}`, the expectation of the randomised transform.
+The alternative — counting ties in full — makes any forecast with repeated values, which is every
+count forecast, pile its transforms at the top of the range and look miscalibrated when it is not.
+
+`bias` is `1 - 2 pit`, which is scoringutils' convention: **+1 means the forecast sat entirely
+above what happened**. The sign is worth stating because it is invisible when wrong — a bias
+reported with the wrong sign is still a plausible-looking number — and the suite pins both ends.
+
+### D-111. `Backtest` scores a sequence; it does not produce it
+
+A leave-future-out backtest has two halves: refit the model at each origin so that no fit has seen
+its own target, and score what each fit predicted. The second half is here. The first needs a model
+and a sampler, and `scoring` depends on neither — by the module graph, and deliberately, so that
+the arithmetic everyone compares against is in a module with nothing behind it.
+
+`Backtest.run` therefore takes the forecasts as given, one per date, and the protocol that produced
+them belongs to the caller. The scaladoc says so, because a "backtest" that silently scored
+in-sample forecasts would flatter every model and look identical from the outside.
+
+### D-112. The block bootstrap returns its replicates, not a standard error
+
+`blockBootstrap` gives back one mean per replication rather than their standard deviation. A
+standard error is one summary of them, a compatibility interval is another, and a histogram is the
+honest thing to look at when the score distribution is skewed — which a CRPS over a short run
+usually is.
+
+Blocks, rather than single dates, because scores on neighbouring dates are correlated: a model
+wrong in March is usually wrong in April. The suite measures what that costs — on an AR(1) run of
+scores with `phi = 0.9`, where the true inflation over the independent standard error is about
+4.4, blocks of 40 give an error more than 1.5 times the ordinary one while blocks of one reproduce
+the ordinary one's blindness.
+
+### D-113. An infinite sample makes the score `NaN`, because the two infinities do not cancel
+
+Found by the totality test rather than reasoned out in advance. With a sample at infinity, both
+`E|X - y|` and `E|X - X'|` diverge, so the score is `∞ - ∞`: indeterminate, not infinite. `NaN` is
+therefore the correct value and not a shortcut, and the scaladoc says why so that nobody
+"improves" it into an infinity later.
+
+### D-114. Scored rows are generic in the date, rather than using `Periods`
+
+`Scored[D]` and `BacktestResult[D]` take whatever the caller indexes its forecasts by — a
+`YearMonth`, an `Int`, a label. `Periods` lives in `predictive` and `scoring` does not depend on
+it; inventing a second period type here would be worse, and depending on `predictive` would put a
+simulation module behind a scoring module that needs nothing from it.
+
+The only thing the backtest does with a date is carry it through to the scored row, so a type
+parameter costs nothing and keeps the dependency out.

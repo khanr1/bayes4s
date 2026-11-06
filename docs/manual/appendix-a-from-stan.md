@@ -44,6 +44,7 @@ sources. A function that is renamed and a row that is not breaks the build.
 | `lgamma` | `Special.lgamma` |
 | `digamma` | `Special.digamma` |
 | `lbeta` | `Special.lbeta` |
+| `Phi` | `Special.phi` |
 | `inv_Phi` | `Special.invPhi` |
 | `quantile` | `Quantile.quantile` |
 | `cumulative_sum` | `Real.cumulativeSum` |
