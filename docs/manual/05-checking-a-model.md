@@ -5,8 +5,6 @@ different kinds of wrong, in the order they cost least to run.
 
 ```scala mdoc:silent
 import bayes4s.*
-import cats.Monad
-import cats.syntax.all.*
 ```
 
 ## Before any data: the prior predictive

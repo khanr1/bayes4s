@@ -6,8 +6,6 @@ same machinery pointed further forward. This chapter builds one from the pieces,
 
 ```scala mdoc:silent
 import bayes4s.*
-import cats.Monad
-import cats.syntax.all.*
 import java.time.YearMonth
 ```
 
