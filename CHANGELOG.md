@@ -8,6 +8,56 @@ Versions follow git tags. Nothing is released yet.
 
 ## Unreleased
 
+### Phase 9 — the nowcasting models (6 November 2026)
+
+Added
+
+- `RateComponent` and `DelayComponent`, the two interchangeable pieces a count model is assembled
+  from, with `Ar1Trend` — a level, a trend and an AR(1) wobble started from its **stationary**
+  distribution — and `OrderedLogitDrift`, an ordered-categorical delay whose cut points drift with
+  time. Trying a different story means passing a different component.
+- `DelayCountModel`: `y[m, k] ~ Poisson(lambda[m] p[m](k))` over the **reported cells only**, with
+  its generative part, its derived rate, and a gradient checked against the dual-number oracle.
+- `Checks.priorPredictive` and `posteriorPredictive` with `PredictiveSample`, whose statistic is the
+  number of reports that *arrived* in each period — the diagonal of the grid — because creations in
+  the recent months are what nobody has seen.
+- `Forecast.run`, assembling the rate's projection, the delay's drift, a Poisson thinning, a
+  bootstrap pool, a `SizeModel` and a contribution rule, with a partial first period and `perDraw`.
+- `GammaPoissonShrinkage` (empirical Bayes, the dispersion by maximum marginal likelihood) and
+  `GammaPoissonHierarchical` (the same model with the dispersion sampled and the rates integrated
+  out), plus `LogNormalTrendRegression` for sizes that trend and depend on how late they arrived.
+- `Mcmc.draws`, the bridge from a fit's chains to named constrained values — which nothing had,
+  meaning `StanCsv.render` had been uncallable on a fit since phase 5.
+- A NumPyro reference posterior for the whole assembly, written by
+  `reference/build_nowcast_reference.py`: all 34 parameters, the 24 monthly rates included, agree
+  within 4 combined MCSE.
+- Chapters 5 and 7 of the manual, *Checking a model* and *Nowcasting step by step*.
+- 38 tests, for 494 in all. Nineteen mutations, every one detected.
+
+Fixed
+
+- **An unbounded dispersion froze a chain.** `GammaPoissonHierarchical` let `alpha` run to 3e21,
+  where the step-size adaptation collapsed to `10^-32` and the acceptance statistic became `NaN`;
+  the fit then reported two chains in different universes and the comparison came out as nonsense
+  rather than as a failure. `alpha` is now bounded four orders of magnitude above what the data can
+  identify and seven below where the arithmetic fails — and the fit went from 1:47 to 1 second.
+
+Found
+
+- **A uniform prior on an AR(1) persistence costs 173 divergent transitions in 32 000**, against one
+  with a Beta(2, 2) on `(phi + 1)/2`. The Beta's density is proportional to `1 - phi²`, which
+  exactly cancels the stationary scale's blow-up at a unit root. Measured while writing the
+  reference, and adopted in both implementations.
+- **The negative binomial's gradient degenerates for a huge shape.** The value converges to the
+  Poisson limit to the last bit, but the derivative with respect to `log alpha` has the wrong sign
+  by `alpha = 1e13` and is a constant `-2.0` beyond it. Reported with the measurement rather than
+  fixed: it is phase 2's adjoint, and a wrong constant gradient is worse than a wrong value because
+  the sampler follows it.
+- **A mutation that removed the whole point of the full Bayesian fit survived the statistical
+  tests.** Dropping the uncertainty about the dispersion from `theta` changed nothing the suite
+  measured, because the suite asserted agreement where the term is negligible. The fix is an exact
+  test — the law of total variance on four hand-chosen values — rather than a better statistic.
+
 ### Phase 8 — scoring a forecast (6 November 2026)
 
 Added

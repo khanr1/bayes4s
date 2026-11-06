@@ -235,6 +235,34 @@ object Mcmc:
   /** `settings.chains` chains in sequence, chain `c` from the seed `fold(c)`: the same chains
     * whether they are run here or in parallel by the `effect` module.
     */
+  /** A fit's samples as named, constrained values: the shape everything downstream reads.
+    *
+    * A chain carries unconstrained points, which is what the sampler needs and what nothing else
+    * wants. `Draws` carries named constrained ones, which is what a CSV row is, what ArviZ reads,
+    * and what a predictive check has to turn back into parameters. Nothing bridged the two until
+    * a predictive check needed it, which is why this is here rather than in `core` — `Draws` knows
+    * nothing about models, and a model knows nothing about chains (docs/design.md).
+    *
+    * The values are the **declared** blocks, in the order `params.names` lists them, and derived
+    * quantities are left out on purpose: this is the shape `Model.unconstrain` can invert, and a
+    * derived quantity has no unconstrained point of its own.
+    */
+  def draws[T[_]](model: Model[T], chains: List[Chain]): Either[BayesError, Draws] =
+    val names = IArray.from(model.params.names)
+    val rows = chains.map { chain =>
+      IArray.from(chain.draws.map { q =>
+        val values = Model.values(model, q)
+        IArray.from(
+          model.params.layout.flatMap(block =>
+            (0 until block.size).map(i =>
+              values.get(block.name).map(column => column(i)).getOrElse(Double.NaN)
+            )
+          )
+        )
+      })
+    }
+    Draws.of(names, IArray.from(rows))
+
   def runNuts[T[_]](
       model: Model[T],
       settings: RunSettings

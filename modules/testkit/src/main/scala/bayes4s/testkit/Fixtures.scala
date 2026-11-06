@@ -38,6 +38,9 @@ final case class ExtremeCase(distribution: String, args: IArray[Double], value: 
 /** One type-7 quantile asserted by NumPy and R. */
 final case class Quantile7Case(data: IArray[Double], p: Double, value: Double)
 
+/** One shrinkage weight from the worked examples: `w = e/(alpha + e)`. */
+final case class ShrinkageWeightCase(alpha: Double, exposure: Double, weight: Double)
+
 /** One sample CRPS asserted by properscoring, with both forms it reports. */
 final case class CrpsEnsembleCase(
     ensemble: IArray[Double],
@@ -335,6 +338,13 @@ object Fixtures:
       v <- c.get("value")(using d)
     yield ExtremeCase(name, args, v)
 
+  private given shrinkageWeightCase: Decoder[ShrinkageWeightCase] = Decoder.instance: c =>
+    for
+      alpha <- c.get("alpha")(using d)
+      exposure <- c.get("e")(using d)
+      weight <- c.get("w")(using d)
+    yield ShrinkageWeightCase(alpha, exposure, weight)
+
   private given crpsEnsembleCase: Decoder[CrpsEnsembleCase] = Decoder.instance: c =>
     for
       ensemble <- c.get("ensemble")(using ds)
@@ -399,6 +409,9 @@ object Fixtures:
 
   def quantile7: Either[String, List[Quantile7Case]] =
     at[List[Quantile7Case]]("python/scoring.json", List("quantile_type7"))
+
+  def shrinkageWeights: Either[String, List[ShrinkageWeightCase]] =
+    at[List[ShrinkageWeightCase]]("python/worked_examples.json", List("shrinkage_weight", "cases"))
 
   def crpsEnsemble: Either[String, List[CrpsEnsembleCase]] =
     at[List[CrpsEnsembleCase]]("python/scoring.json", List("crps_ensemble"))
@@ -886,6 +899,14 @@ object Fixtures:
   /** The reference posterior of the fictional correlated-effects model, and its data. */
   def correlatedEffects: Either[String, (Json, ReferenceLike)] =
     val name = "posteriordb-like/fictional-varying_intercept_slope_correlated"
+    for
+      data <- at[Json](s"$name/data.json", Nil)
+      summary <- at[Json](s"$name/reference_summary.json", Nil)
+    yield (data, ReferenceLike(summary))
+
+  /** The delay-count reference: fictional data, and a NumPyro posterior for the same model. */
+  def delayCount: Either[String, (Json, ReferenceLike)] =
+    val name = "posteriordb-like/fictional-delay_count_ar1_ordered_logit"
     for
       data <- at[Json](s"$name/data.json", Nil)
       summary <- at[Json](s"$name/reference_summary.json", Nil)

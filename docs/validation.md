@@ -1622,3 +1622,191 @@ it.
 4. **The transform is the non-randomised one.** For a heavily discrete forecast the mid-rank
    convention is an approximation to the randomised transform rather than a draw from it, so a
    histogram over very few distinct values will still look lumpy. Said here rather than discovered.
+
+## Phase 9 — the nowcasting models
+
+494 tests, 470 fast and 24 slow, up from 456 — 38 added by this phase, 34 fast and 4 slow. The 435
+fast tests of phases 0 to 8 are untouched; no tolerance, seed or assertion was weakened, and the
+register of encapsulated local mutation stays at 27 sites.
+
+This is the phase where everything built so far is used at once: a model written against `Real[A]`,
+differentiated by the tape, sampled by NUTS, summarised by the diagnostics, simulated forward with
+phase 7's ensemble machinery, scored by phase 8's rules, and checked three ways.
+
+### The components, on their own
+
+| Check | Reference | Result |
+|---|---|---|
+| the rate is level plus trend plus wobble | written out by hand | green at 1e-14 |
+| the wobble starts from the **stationary** distribution | the first and last month's variances agree, 20 000 draws | green within 6 % |
+| a projection continues the recursion at the times it is given | the trend line, no noise | green at 1e-14 |
+| a projection carries the last wobble forward | the decay from a planted final innovation | green |
+| the delay probabilities sum to one, at five drifts | exactly one | green at 1e-14 |
+| the delay probabilities are the differences of the cumulative logistic | written out by hand from §5.10 | green at 1e-13 |
+| a positive drift makes reporting slower | the sign convention | green |
+| decreasing cut points give `NaN` | not an ordering | green |
+| both components name their parameters as CmdStan would | the layout | green |
+
+### The count model
+
+| Check | Reference | Result |
+|---|---|---|
+| the data refuses a shape it cannot hold | four malformed cases | green |
+| the visible cells are the reported triangle | enumerated by hand, 18 of 24 cells | green |
+| the log likelihood is the Poisson sum over the visible cells | written out by hand | green at 1e-13 |
+| **an unreported cell cannot change the answer** | a thousand planted in an invisible cell | green, bit for bit |
+| a reported cell must change it | fifty added to a visible one | green |
+| the gradient against the dual-number oracle | `Dual.gradient` | green at 1e-11 |
+| the gradient against central differences | `GradientCheck` | green at 1e-5 |
+| the derived rate is the component's | `exp(logRate)` | green at 1e-14 |
+| the generative part's cell means | `lambda[m] p[m](k)`, 24 cells, 3000 replications | green, 4 standard errors |
+
+The unreported-cell test is the one that matters most. A nowcast exists because the recent periods
+are incomplete, so a likelihood that treated an unseen cell as a zero would be confidently wrong
+about exactly the months anyone cares about. The fixture carries zeros in those cells — as such
+data usually arrives — which is why the test plants a thousand in one of them instead of trusting
+the zeros.
+
+### Against NumPyro, on the whole assembly
+
+`reference/build_nowcast_reference.py` simulates eighteen months of fictional data from known
+parameters and fits the same model in NumPyro: 8 chains, 3000 warmup, 4000 draws, target acceptance
+0.99. One divergent transition in 32 000, worst R-hat 1.0005, smallest bulk effective size 8 076 —
+and the count is recorded in the fixture rather than reseeded away (D-123).
+
+**All 34 parameters agree within 4 combined MCSE**, first run: `a`, `b`, `phi`, `tau`, `cut0`,
+`beta`, the four cut-point increments, and all 24 monthly rates. Including the rates is what makes
+it a test of the whole assembly rather than of six scalars: a model that got the average level
+right and the shape wrong would pass on the scalars and fail on `lambda[1..24]`.
+
+Writing that reference produced the phase's sharpest finding. With a **uniform** prior on `phi` the
+same run reported **173 divergent transitions**; with a Beta(2, 2) on `(phi + 1)/2` it reported
+**one**. The Beta's density is proportional to `1 - phi²`, which exactly cancels the stationary
+scale's `1/sqrt(1 - phi²)` blow-up at a unit root (D-117). Both the Scala component and the script
+carry it, because the comparison is only meaningful if the two are the same model.
+
+### Recovery, calibration and the predictive checks
+
+| Check | Threshold | Result |
+|---|---|---|
+| 90 % intervals cover about 90 % of the time | 240 intervals, 4 standard errors of `sqrt(.9·.1/240)` | green |
+| no single parameter covers far less often | above 70 % over 40 replications | green |
+| the reduced model is calibrated | 40 replications, 4 bins, the 0.1 % point of chi-squared with 3 df, 16.266 | green on all six parameters |
+| the posterior predictive covers its band | at most 2 of 11 periods outside the 90 % band | green |
+| a series shifted far away is rejected | at least 9 of 11 outside | green |
+
+The two slow checks look similar and fail for different reasons. Coverage asks whether one interval
+is honest; calibration asks whether the whole rank distribution is, which is what catches a prior
+written twice and differently, a wrong Jacobian, or a sampler that cannot explore the model.
+
+### The shrinkage pair
+
+| Check | Reference | Result |
+|---|---|---|
+| the shrinkage weight | `worked_examples.json`, 8 cases | green at 1e-15 |
+| the fitted dispersion | the maximum of the marginal likelihood on a 40 001-point grid | green: the fit's likelihood is at least the grid's best, and `alpha` agrees to 2e-3 |
+| a group's posterior | the conjugate `Gamma(alpha + n, alpha + e)` | green at 1e-14 |
+| a small group borrows more than a large one | the weights' order | green |
+| **the mixture over the dispersion** | the law of total variance, by hand | green at 1e-14 |
+| at 200 groups the two methods agree | widths within 5 %, means within 5 % | green: 0.1 % and 1.6 % |
+| at 4 groups the dispersion is barely identified | relative spread above 2, and 10× the 200-group one | green: 4.3 against 0.13 |
+| at 4 groups the two methods part | worst group differs by over 10 % | green: 12 % to 58 % |
+
+Measured over six seeds at each size before the thresholds were written:
+
+| groups | width ratio | worst mean gap | `alpha`'s relative spread | `alphaHat` |
+|---|---|---|---|---|
+| 200 | 0.999 to 1.000 | 0.9 % to 1.6 % | 0.125 to 0.139 | 3.3 to 4.6 |
+| 20 | 1.001 to 1.004 | 4.2 % to 9.9 % | 0.396 to 1.954 | 3.1 to 5.8 |
+| 4 | 0.852 to 1.148 | 12 % to 58 % | 4.261 to 12.577 | 1.3 to 10.8 |
+
+The suite deliberately does **not** assert that the full fit is wider at four groups: it is not,
+in two of six seeds, and the reason is that the shortcut's width is set by wherever its point
+estimate landed (D-126). "More uncertain" is a claim about the dispersion, and that is what is
+asserted.
+
+### The forecast and the sizes
+
+| Check | Reference | Result |
+|---|---|---|
+| one future per sample, times `perDraw` | 5 and 15 | green |
+| the expected total | the rate times the mean size, 2000 futures | green, 4 standard errors |
+| the partial first period | 70 instead of 80 at a factor of 0.5 | green, 4 standard errors |
+| a delay moves contributions later | the first two periods stay empty | green |
+| log-normal sizes' mean | `exp(mu + s²/2)`, 40 000 draws | green, 4 standard errors |
+| the cap truncates and leaves the median | the median is `exp(mu)` | green within 2 % |
+| the same seed forecasts the same futures | | green |
+| the regression recovers its parameters | 400 rows, four posterior standard deviations | green |
+| the mean amount exceeds the median | `exp(s²/2)`, 8.3 % at `s = 0.4` | green at 1e-14 |
+
+### Two defects found, one fixed and one reported
+
+**Fixed, in this phase's own model.** `GammaPoissonHierarchical` left `alpha` unbounded, and a
+chain wandered to `alpha = 3e21`, where the step-size adaptation froze it at `10^-32` with an
+acceptance statistic of `NaN`: the fit reported one chain at 3e21 and another, correct, at 3.9, and
+the comparison came out as nonsense rather than as a failure. `alpha` is now bounded at `10^6` —
+four orders of magnitude above anything the data can identify and seven below the breakdown below
+— and the fit went from 1 minute 47 to 1 second (D-118).
+
+**Reported, not fixed.** The reason that region is fatal is that the negative binomial's gradient
+degenerates there. Measured on `LogMass.negativeBinomial(1, alpha, alpha/10)` differentiated with
+respect to `log alpha`:
+
+| `log alpha` | value | gradient | what it should be |
+|---|---|---|---|
+| 10 | -7.6955994936 | -1.8e-3 | correct |
+| 20 | -7.6974148246 | -6.6e-7 | correct |
+| 30 | -7.6974149070 | **+1.2e-2** | wrong sign, about 1e-13 |
+| 38, 41, 50 | -7.6974149070 | **-2.0 exactly** | about 0 |
+
+The value is right to the last bit everywhere — it converges to `Poisson(1 | 10)` exactly, which is
+what `Real[A].lbeta` exists for. It is the derivative that collapses, and a wrong constant gradient
+is worse than a wrong value because the sampler follows it. That is phase 2's component and fixing
+it means reworking the adjoint of a cancelling expression, so phase 9 keeps its models away from
+the region and records the measurement (D-119).
+
+### Mutations tried
+
+Nineteen, one or more per component, every one detected — but one needed a new test first.
+
+| Component | Mutation | Test that failed |
+|---|---|---|
+| `Ar1Trend.wobbleOf` | the first value starts at zero, not stationary | the rate and the stationary-variance tests |
+| `Ar1Trend.wobbleOf` | the persistence dropped from the recursion | the same two |
+| `Ar1Trend.project` | the wobble restarted at zero | the carry-forward test |
+| `Ar1Trend.logPrior` | the Beta persistence prior dropped | **the NumPyro comparison** |
+| `OrderedLogitDrift.cutsOf` | the first cut dropped from the later ones | the cumulative-logistic test |
+| `OrderedLogitDrift.logPmf` | the delay used as the category, off by one | the sum-to-one and difference tests |
+| `OrderedLogitDrift.logPmf` | the drift's sign flipped | the drift-direction test |
+| `DelayCountModel.logLikelihood` | every cell read, not only the visible ones | the hand sum and the unreported-cell test |
+| `DelayCountModel.logLikelihood` | the delay probability dropped from the rate | the hand sum |
+| `DelayCountModel.generative` | a flat delay distribution when simulating | the cell-means test |
+| `Checks.arrivals` | reports counted in the creation period | the diagonal test |
+| `PredictiveSample.band` | the wrong tail probabilities | the band test |
+| `GammaPoissonShrinkage.fit` | the likelihood maximised by minimising it | the grid test |
+| `GammaPoissonShrinkage.weight` | the prior and the exposure swapped | the fixture and the borrowing test |
+| `GammaPoissonHierarchical.theta` | the uncertainty about the dispersion dropped | **survived at first** |
+| `Forecast.run` | the partial first period ignored | the expected-total test |
+| `Forecast.run` | the reporting delay not added to the close | the delay test |
+| `SizeModel.logNormal` | the cap ignored | the cap test |
+| `LogNormalTrendRegression.meanAmount` | the lognormal correction dropped | the mean-against-median test |
+
+The survivor is the instructive one. Dropping the between-draw variance from `theta` removes
+exactly what distinguishes the full fit from the shortcut — and it survived, because the suite
+asserted the two **agree** at 200 groups (where the term is negligible) and deliberately did not
+assert a width ordering at 4 (D-126). The fix was a new test that is exact rather than statistical:
+the law of total variance on four hand-chosen dispersion values, asserted at 1e-14. It now fails
+the mutation immediately.
+
+### Known limits at the end of phase 9
+
+1. **One group only.** §5.10 describes partially pooled groups, group-varying cut points, and two
+   populations sharing a level; the phase's own criterion is the one-group model, and that is what
+   is here. The component traits take `groups` throughout, so the structure is in place.
+2. **`sigma_err` is still uncalibrated.** Phase 7 deferred it to the phase with a backtest and
+   phase 8 delivered the backtest; the grid over past dates now has everything it needs and is a
+   phase-10 job, since it belongs with the worked example rather than with the model.
+3. **The negative binomial's gradient above `10^13`** (D-119). Reported, measured, worked around.
+4. **`LocalLevel` and the tightened-trend variant are not written.** §5.10 lists them as
+   `RateComponent` alternatives; one component satisfies the phase, and a second would be tested
+   against nothing the first does not already cover until there is a model comparison to run.

@@ -1537,3 +1537,159 @@ simulation module behind a scoring module that needs nothing from it.
 
 The only thing the backtest does with a date is carry it through to the scored row, so a type
 parameter costs nothing and keeps the dependency out.
+
+### D-115. `RateComponent.project` takes the future's times, not a horizon
+
+§5.10 sketches `project(p, group, horizon: Int, seed)`. A trend cannot be projected from a count:
+"three periods ahead" is three months only if the time covariate is months, and the component has
+no way to know what the caller's `t` meant — it is handed `t` for the data and nothing else.
+
+So `project` takes `futureT: IArray[Double]`, the times to project at, and its length is the
+horizon. The component stays stateless, which is what lets a model hold two of them without
+either knowing about the data, and the suite checks the projection against the trend line
+evaluated at exactly those times.
+
+### D-116. `Mcmc.draws` bridges a fit to named values, because nothing did
+
+A `Chain` carries unconstrained points; `Draws` carries named constrained ones. The first is what
+the sampler needs, the second is what a CSV row is, what ArviZ reads, and what a predictive check
+has to invert back into parameters. Nothing in the library turned one into the other — which means
+`StanCsv.render`, shipped in phase 5, has had no way to be called on a fit since phase 5.
+
+`Mcmc.draws(model, chains)` is that bridge, in `inference` because it is the lowest module that
+sees both a `Model` and a `Chain`: `Draws` lives in `core` and knows nothing of models, and
+`transforms` knows nothing of chains. It writes the **declared** blocks only, in `params.names`
+order, because that is the shape `Model.unconstrain` can invert — a derived quantity has no
+unconstrained point of its own.
+
+`Checks.posteriorPredictive` reads such a row back by walking the model's own layout, block by
+block, rather than by splitting names on a dot: the second works until a block's name contains one.
+
+### D-117. The persistence gets a Beta(2, 2) prior, which cancels the stationary singularity
+
+`Ar1Trend` initialises its wobble from the stationary distribution, whose scale is
+`tau/sqrt(1 - phi²)`. With a uniform prior on `phi` over (-1, 1) that scale is unbounded at the
+boundary, and the posterior inherits the singularity.
+
+The reference run measured what that costs: **173 divergent transitions in 32 000** with a uniform
+prior, at a target acceptance of 0.99, against **1** with a Beta(2, 2) on `(phi + 1)/2`. The Beta's
+density is proportional to `1 - phi²`, which is exactly the reciprocal of the squared stationary
+scale, so the two cancel and the geometry becomes ordinary. It also says something defensible —
+that a unit root is less likely than a middling persistence — which is what a model that assumes
+stationarity ought to say.
+
+Both the Scala component and `reference/build_nowcast_reference.py` carry it, because the
+cross-comparison is only meaningful if the two models are the same model.
+
+### D-118. The hierarchical dispersion is bounded, for a numerical reason
+
+`GammaPoissonHierarchical` declares `alpha` on `(1e-3, 1e6)` rather than merely positive.
+
+The inferential part of that is free: as `alpha` grows the groups become identical and the marginal
+becomes Poisson, so with an exposure of about ten per group nothing above a few hundred is
+distinguishable from infinity. The bound at `1e6` is four orders of magnitude above anything the
+data can speak to.
+
+The numerical part is the reason it is there. Above `alpha` of about `10^13` the negative binomial's
+**gradient** with respect to `log alpha` degenerates (D-119). Unbounded, a chain wandered there
+during warmup and the step-size adaptation froze it at `10^-32`: the fit then reported one chain at
+`alpha = 3e21` and another, correct, at 3.9, and the two methods' comparison came out as nonsense
+rather than as a failure. Bounded seven orders of magnitude below the breakdown, that cannot
+happen — and the fit went from 1 minute 47 to 1 second.
+
+### D-119. The negative binomial's gradient degenerates for a huge shape: reported, not fixed
+
+Measured while diagnosing D-118, on `LogMass.negativeBinomial(1, alpha, alpha/10)` differentiated
+with respect to `log alpha`:
+
+| `log alpha` | value | gradient | what it should be |
+|---|---|---|---|
+| 10 | -7.6955994936 | -1.8e-3 | correct |
+| 20 | -7.6974148246 | -6.6e-7 | correct |
+| 30 | -7.6974149070 | **+1.2e-2** | wrong sign, ~1e-13 |
+| 38, 41, 50 | -7.6974149070 | **-2.0 exactly** | ~0 |
+
+The **value** is right everywhere — it converges to `Poisson(1 | 10)` to the last bit, which is
+what `Real[A].lbeta` was made a primitive for (D-38). It is the derivative that collapses, and a
+wrong constant gradient is worse than a wrong value because the sampler follows it.
+
+This is phase 2's component, and fixing it means reworking the adjoint of a cancelling expression —
+out of this phase's scope. Phase 9 keeps its own models away from the region (D-118) and reports
+the measurement here. Anyone writing a model whose dispersion can reach `10^13` should know that
+the gradient there is not to be trusted.
+
+### D-120. The predictive statistic is the arrival diagonal, not the creation row
+
+`Checks` replicates the number of reports that **arrived** in each calendar period — the cells with
+`month + delay = period` — rather than the number of events created in each month.
+
+Creations in the recent months are precisely what nobody has observed; they are what the model is
+for. Checking a model against its own estimate of them would be checking it against itself. Reports
+per period is the series that exists, and a model that gets the rate right while getting the delay
+wrong will match the totals and fail the diagonal, which is the failure worth catching.
+
+### D-121. The hierarchical rates are integrated out, and the mixture is summarised by hand
+
+`GammaPoissonHierarchical` samples only `alpha`: the per-group rates are integrated out
+analytically, since `theta[j] ~ Gamma(alpha, alpha)` against a Poisson leaves a negative binomial.
+That makes the fit one-dimensional and fast, and it removes `J` parameters from the geometry.
+
+What it costs is that the rates are no longer sampled, so `theta` reconstructs each one as a
+**mixture** of `Gamma(alpha + n, alpha + e)` over the samples of `alpha`, by the law of total
+variance: the mean of the conditional variances plus the variance of the conditional means. The
+second term is the uncertainty about `alpha` — exactly what empirical Bayes drops — and it is
+asserted exactly rather than statistically, because a mutation that removed it survived every
+statistical test in the suite.
+
+### D-122. A size is its own model, and the cap is a parameter with no default
+
+`Forecast` asks a `SizeModel[P]` how big an event is, rather than taking sizes from the template
+pool. A pool says which kind of event happens; how large it is depends on the application, and the
+log-normal answer — trending, depending on how late the report was — is provided because it is the
+usual one.
+
+The cap is optional and has no default. A log-normal has no largest value, so a long enough
+simulation will draw something absurd, and one absurd event can dominate a total and make an
+interval meaningless. Capping says sizes above some value do not happen in this application;
+leaving it off says they do. Neither is the library's business to assume.
+
+### D-123. The reference posterior records its one divergent transition rather than reseeding
+
+`reference/build_nowcast_reference.py` asserts at most three divergent transitions in 32 000, not
+zero, and the fixture's `inference` block carries the actual count — one.
+
+Zero would have been obtainable by trying seeds until one gave it, which is exactly the practice
+the repository forbids elsewhere. One divergence in 32 000, with a worst R-hat of 1.0005 and a
+smallest bulk effective size of 8 076, is a sound reference; hiding it would make the fixture less
+trustworthy, not more.
+
+### D-124. `nowcast` borrows three modules in test scope only
+
+`ad % "test->test"` for the dual-number oracle, so the count model's gradient is checked the way the
+ported posteriors' are; `diagnostics % Test` for the convergence guard and `Sbc`; `stanIo % Test`
+for the reference-summary parser. None of `nowcast`'s own sources depends on any of them, and the
+module graph of §4 is unchanged for anything that ships.
+
+### D-125. Calibration ranks the interpretable parameters, not the innovations
+
+`DelayCountModel.generative`'s `named` returns `a`, `b`, `phi`, `tau`, `cut0` and `beta` — not the
+twelve innovations of the AR(1) nor the increments of the cut points.
+
+The innovations are standard normal by construction and there are as many of them as there are
+months, so ranking them would multiply the number of checks, and the announced failure rate with
+it, without testing anything the rate they build does not already test. The rate is ranked through
+`a`, `b`, `phi` and `tau`; a mistake in how the innovations assemble into it shows up there.
+
+### D-126. The full fit is not asserted to be wider than the shortcut at four groups
+
+The phase's criterion asks for `GammaPoissonHierarchical` to be "notably more uncertain" than
+`GammaPoissonShrinkage` with four groups. Measured over six seeds, the ratio of their interval
+widths ran from **0.852 to 1.148** — the full fit is sometimes narrower.
+
+That is not a defect, and the reason is worth stating. The shortcut's width is set by wherever its
+point estimate landed, and with four groups that estimate ranged from 1.3 to 10.8 across seeds: a
+large `alphaHat` makes the shortcut absurdly confident and a small one makes it wide. "More
+uncertain" is therefore a statement about the **dispersion**, not a guarantee about every group's
+interval, and that is what the suite asserts: `alpha`'s own relative posterior spread is 4.3 to
+12.6 at four groups against 0.125 to 0.139 at two hundred, thirty to ninety times wider, and the
+two methods' per-group answers differ by 12 % to 58 % against under 1.6 %.

@@ -182,7 +182,20 @@ lazy val predictive = mod("predictive").dependsOn(distributions, testkit % Test)
 
 lazy val scoring = mod("scoring").dependsOn(distributions, testkit % Test)
 
-lazy val nowcast = mod("nowcast").dependsOn(inference, predictive, testkit % Test)
+// `ad % "test->test"` for the dual-number oracle: the count model's gradient is checked against it
+// the way the ported posteriors' are (docs/design.md).
+// `diagnostics` and `stan-io` in Test only: the slow suites compare against a reference summary,
+// which needs the convergence diagnostics to guard the comparison and the summary parser to read
+// it. Nothing in `nowcast`'s own sources depends on either (docs/design.md).
+lazy val nowcast =
+  mod("nowcast").dependsOn(
+    inference,
+    predictive,
+    ad % "test->test",
+    diagnostics % Test,
+    stanIo % Test,
+    testkit % Test
+  )
 
 // `Draws` lives in `core` (docs/design.md, D-5), so `stan-io` does not need `predictive`.
 lazy val stanIo = mod("stan-io")
