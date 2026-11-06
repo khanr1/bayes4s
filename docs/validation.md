@@ -1304,7 +1304,10 @@ posterior needs more samples than the stress settings give it.
 5. **`Init.Uniform(2.0)` leaves about one ARMA chain in twenty outside the stationary region**, and
    it does not come back. Found by this phase's stress run and quantified above; it is phase 6's
    suite and Stan's own default, so nothing here was changed for it, and it is reported to the
-   maintainer as the one thing phase 6b found that it did not fix.
+   maintainer as the one thing phase 6b found that it did not fix. Accepted on 6 November 2026: the
+   weekly stress workflow will therefore fail roughly one Monday in five, the seed stays random
+   because a pinned one would defeat the job, and the fix waits for the phase that next revisits
+   `Init`. A red stress run is to be read, not rerun.
 6. **The correlated calibration is the slowest test in the repository**: 2 minutes 24 at 256
    replications and 23 minutes 33 at 512. Six clusters is already the reduced model; the cost is
    256 separate fits of an 18-parameter posterior, and the only real lever is the number of

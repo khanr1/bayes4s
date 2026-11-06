@@ -1289,7 +1289,7 @@ The test is a runtime-class assertion plus the operation that provoked it — `m
 signature is `IArray[IArray[Double]]`, so calling it *is* the cast. Three `final` methods were
 added to a public trait to fix it; that is the smallest change that stops user models hitting it,
 since a `private[bayes4s]` helper would leave the trap in place for anyone writing a model outside
-the library.
+the library. **Confirmed on 6 November 2026: the three methods stay on `Real[A]`.**
 
 ### D-96. Simulation-based calibration ranks derived quantities, and names a quantity it cannot find
 
