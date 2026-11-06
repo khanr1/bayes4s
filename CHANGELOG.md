@@ -8,6 +8,49 @@ Versions follow git tags. Nothing is released yet.
 
 ## Unreleased
 
+### Phase 7 — simulating futures (6 November 2026)
+
+Added
+
+- `Ensemble[K]`: simulated futures aligned by sample from the posterior, with a
+  `CommutativeMonoid` that is lawful across shapes, `total`, `regroup`, and `quantiles` —
+  **computed at the end, never added.** The 90th percentile of a total is not the sum of its parts'
+  90th percentiles, and the suite builds the case where the two cannot coincide.
+- `Contribution`, `ContributionRule` and `SimulatedFuture`: what an event contributes, under a key,
+  at an offset from the period it closes in. A contribution falling outside the run is dropped
+  rather than clamped to the last period, which would bias the end of every horizon upwards.
+- `Simulator` and `Simulator.run`: one future per sample, each from `seed.fold(i)`, so the result
+  is a function of the seed and not of the order the futures are computed in.
+- `Periods` and `Quarter`: a contiguous run of whole months, offsets and month names inverse on the
+  run, and quarters taken from the calendar rather than counted in threes from the start.
+- `Ar1.project` and `TrendScaling`: an AR(1) state carried forward, checked against the mean and
+  variance its recursion implies at every horizon, and a multiplicative trend with its cyclic
+  pairing of draws to futures stated and tested.
+- `PoissonThinning` and `ReportingTriangle`: counts by creation period and delay, and an
+  **arbitrary mask** over them with right censoring and left truncation as constructors. The
+  exposure reproduces `F(c - 1 - m)` where that closed form applies, and corrected counts refuse to
+  divide by an exposure below a stated visibility threshold.
+- `BayesianBootstrap`, `TemplatePool` and `StratifiedPools`: Dirichlet(1, ..., 1) weights drawn once
+  per future and held for the whole horizon, the alias method for drawing from them, pools per
+  stratum with a minimum size and a fallback, and group-to-global mixing at `n/(n + k0)`.
+- `ModelError`: the Gaussian term on the log rate.
+- Chapter 6 of the manual, *Predicting*, with the pitfalls in one list.
+- 60 tests, for 437 in all. Sixteen mutations, every one detected. No reference fixture: every claim
+  is a closed form, a distributional property, a law, or a case worked out by hand.
+
+Found
+
+- **Holding the bootstrap weights over the horizon really does widen the futures**, and by enough to
+  measure: the spread of 2000 futures' averages is over 1.5 times what redrawing the weights each
+  period gives. Both are unbiased for the pool's mean, which is why this had to be measured rather
+  than reasoned about.
+- **`Ensemble`'s monoid is associative over the reals and not over `Double`.** The two groupings of
+  a three-way sum land one ulp apart — 1.776e-15, exactly `ulp(10.0)` for the cells generated — so
+  the published equality stays exact, the law check allows a few ulp, and the gap is asserted
+  rather than hidden.
+- **A multiplicative error term raises a mean by `exp(sigma²/2)`** while leaving the median alone:
+  4.6 % at a sigma of 0.3. Asserted, documented, and deliberately not silently corrected.
+
 ### Phase 6b — multilevel models and model criticism (5 November 2026)
 
 Added

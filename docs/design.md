@@ -1336,3 +1336,116 @@ So the suite uses two datasets, each rejecting one extreme, and asserts what is 
 partial pooling ranks first, and the extreme that is wrong for the data is rejected. The honest
 claim is that partial pooling is the only model rejected on neither, and chapter 11 says so in
 those words rather than overselling the comparison.
+
+### D-99. `Ensemble`'s monoid is lawful across shapes, and the laws are checked to a few ulp
+
+The specification asks for a `CommutativeMonoid[Ensemble[K]]` that sums "sample by sample, key by
+key" and says nothing about two ensembles of different shapes. An instance that required equal
+shapes could not be a monoid: `combine` would have nowhere to put a mismatch, since its signature
+has no room for an error and `empty` has neither periods nor samples.
+
+So `combine` is total. The periods become the run covering both (`Periods.cover`), the samples the
+larger count, and a cell neither side has is zero. `Periods.cover` is associative and so is `max`,
+so the instance is associative and commutative for **every** value rather than only for the ones a
+simulation produces — where all ensembles share a shape and no padding ever happens.
+
+Padding samples positionally deserves a word, because it looks like a statistical claim and is not
+one. Sample `s` of two ensembles over the same run came from the same posterior sample — that is
+what `Simulator.run` guarantees — which is exactly why they may be added. Two ensembles with
+different sample counts did not come from one run, so the shorter contributes zero where it has
+nothing; the alternative is to refuse, and a monoid cannot refuse.
+
+The law check uses an equality that allows a few ulp while the published `Ensemble.eq` stays exact.
+`Ensemble`'s monoid is associative over the reals: each cell is a sum of the same terms whichever
+grouping is used. `Double` addition is not associative, so the two groupings can land one ulp apart
+— measured at 1.776e-15, exactly `ulp(10.0)` for cells drawn from (-5, 5). Publishing a tolerant
+`Eq` would be the wrong semantics for a value type and would hide real differences; claiming a law
+`Double` does not obey would be false. The suite therefore asserts the gap is bounded by a few ulp
+and never claims it is zero.
+
+### D-100. `Simulator.run` stacks futures into rows; summing them by monoid would collapse them
+
+§5.8 comments `run` with "somme par monoïde". Read literally — sum the per-future ensembles — it
+would add future 1 to future 2 and leave a single story where there were a thousand, which
+contradicts the same section's rule that quantiles are computed at the end from an ensemble.
+
+What `run` does is place each future in its own row, which **is** the monoid sum of the per-future
+ensembles once each has been placed in its own row: disjoint rows, so addition is placement. The
+suite asserts exactly that — the stacking and the literal monoid fold agree cell for cell — so the
+specification's sentence is satisfied rather than reinterpreted. Stacking is what the code does
+because the monoid version allocates a full matrix per future to hold one row of content.
+
+### D-101. `SimulatedFuture` exists, and a contribution outside the run is dropped
+
+Between a `ContributionRule`, which returns contributions at offsets from an event's close, and an
+`Ensemble`, which is indexed by offsets from the start of a run, something has to do the placement.
+§5.8 sketches no such type, so one is added: `SimulatedFuture[K]`, a total per key per period that
+events are added to one at a time. It is the smallest thing that can hold a future under
+construction, and it is what makes the placement testable on cases built by hand — which the
+phase's own criterion asks for.
+
+A contribution landing outside the run is **dropped**: not clamped to the last period, not wrapped,
+not collected in an overflow bucket. Clamping is the tempting choice and it is the wrong one: it
+piles every delay longer than the horizon onto the final period and makes that period look busy,
+which is a bias towards the end of every forecast. Dropping states what is true — the run does not
+cover that period — and the suite asserts both halves, that nothing lands outside and that nothing
+is clamped inside.
+
+### D-102. A stratum's pool is the whole item array under a weight vector that is zero outside it
+
+`TemplatePool[P]` is generic in the payload and holds `IArray[P]`. Building a sub-array per stratum
+would need a `ClassTag[P]` — an `IArray` of an abstract type cannot be built without one (D-95) —
+and that bound would appear in every signature that touches a pool, for the sake of copying
+payloads around.
+
+Instead a stratum's pool is the same `items` array with a weight of zero outside the stratum. The
+alias table does the selecting, nothing is copied, no payload is moved, and `TemplatePool` needs
+nothing of `P` at all. `StratifiedPools` keeps the stratum sizes separately, because a pool's
+`size` is now the number of items rather than the size of the stratum and the mixing weight needs
+the latter.
+
+### D-103. `ModelError` carries the term, not its calibration, and the lognormal bias is documented
+
+§5.8 asks for `eta ~ Normal(0, sigma_err)` on the log rate with "`sigma_err` calibrated by grid on
+past dates". The term is here; the calibration is not, because scoring a grid of candidates against
+what actually happened is a backtest, and `Backtest` arrives with the scoring module in phase 8.
+Delivering a calibration without a scoring rule would mean inventing one here and replacing it
+there.
+
+What is delivered instead of a second API is a fact, asserted: multiplying a rate by `exp(eta)`
+leaves the median alone and raises the mean by `exp(sigma²/2)` — 4.6 % at a sigma of 0.3. A
+mean-preserving variant (`exp(eta - sigma²/2)`) was deliberately **not** added: it is not in the
+specification, and which of the two a forecast wants depends on what the forecast is for. The
+scaladoc and the manual say what the term does to a mean so that nobody meets the 4.6 % by
+accident.
+
+### D-104. `Periods` lives in `predictive`, and aggregating periods waits for `forecast`
+
+The period axis is what a simulated future is indexed by, so it sits with the simulation rather
+than in `core` — nothing below `predictive` has any use for a run of months. Quarters are the
+calendar's own, from `java.time`: a run that starts in February starts mid-quarter and its first
+quarter is short, which is the answer a report wants and not the one counting in threes gives.
+
+Summing an ensemble's months into quarters is **not** here. It is one line for a caller who has
+`Periods.quarterOf`, and §5.8 gives it to `forecast` in phase 9, where quarterly output is asked
+for; adding a second aggregation API now would mean guessing its shape before its use exists.
+
+### D-105. The `Ensemble` generators live in `predictive`'s test sources, not in `testkit`
+
+§6.9 puts the ScalaCheck generators of law-tested types in `testkit`. For `Ensemble` that is a
+cycle: `testkit` would need `predictive`, which depends on `testkit` for its own tests. Same shape
+as D-97 and the same resolution — the generator is in the suite that checks the laws, where it is
+also the only place it is used.
+
+### D-106. Counts below the visibility threshold are `NaN`, not errors and not uncorrected
+
+`ReportingTriangle.correctedCounts` divides an observed count by the share of its events that could
+have been reported by now. For the newest creation period that share is near zero, and dividing by
+it turns one early report into an enormous estimate — the classic way a nowcast explodes at the
+right-hand edge.
+
+Three answers were possible: refuse the whole call, return the uncorrected count, or return `NaN`
+for the periods that cannot be corrected. The first punishes the periods that are fine; the second
+is the dangerous one, because an uncorrected count looks like a number and will be plotted next to
+corrected ones. `NaN` is the library's existing convention for "outside the domain" (2.1), and it
+propagates rather than misleading.

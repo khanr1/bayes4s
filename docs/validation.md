@@ -1312,3 +1312,165 @@ posterior needs more samples than the stress settings give it.
    replications and 23 minutes 33 at 512. Six clusters is already the reduced model; the cost is
    256 separate fits of an 18-parameter posterior, and the only real lever is the number of
    replications, which is what sets the test's power.
+
+## Phase 7 — simulating futures
+
+437 tests, 416 fast and 21 slow, up from 377 — 60 added by this phase, all fast. The 356 fast tests
+of phases 0 to 6b are untouched; no tolerance, seed or assertion was weakened, and the register of
+encapsulated local mutation stays at 27 sites.
+
+This phase has **no reference fixture**, and that is a property of what it delivers rather than a
+gap: every claim here is a closed form, a distributional property, a law, or a case small enough to
+work out by hand. Where a number comes from a simulation it is compared against its own analytic
+mean and variance at four standard errors.
+
+### The ensemble and its monoid
+
+| Check | Reference | Result |
+|---|---|---|
+| the shape is validated once, at construction | ragged, short and over-long matrices | green |
+| `total` sums over keys, sample by sample | a 2-by-3-by-2 case by hand | green |
+| `total` after `regroup` equals `total` | three regroupings: collapsing, renaming, partitioning | green |
+| keys mapped together are summed, not overwritten | the collapsing case | green |
+| the commutative monoid's laws | `CommutativeMonoidTests`, 19 properties | green |
+| ensembles of different horizons sum over the covering run | January-to-April by hand | green |
+| the two groupings of a sum agree to a few ulp, and not exactly | measured against `ulp` | green |
+
+The monoid is lawful for ensembles of **different shapes**, which it has to be to be a monoid at
+all (D-99), and the law check uses an equality that allows a few ulp while the published `Eq` stays
+exact. The reason is arithmetic: the instance is associative over the reals, and `Double` addition
+is not. The gap was measured at 1.776e-15 — exactly `ulp(10.0)` for cells drawn from (-5, 5) — and
+the suite now asserts that it is bounded by a few ulp rather than claiming it is zero.
+
+### Why quantiles are computed last
+
+The criterion asks for the sum per sample against the sum of quantiles. The case is built so the
+two cannot coincide: two keys perfectly anti-correlated across 100 samples, so their total is
+constant.
+
+| Quantity | Value |
+|---|---|
+| the 90th percentile of the total | 99 (the constant itself) |
+| the sum of the two keys' own 90th percentiles | 178 |
+
+A library that added quantiles would report 178 for a quantity that never leaves 99. The manual's
+chapter 6 shows the same contrast on a four-sample case: 60.5 against 40.0.
+
+### One simulated future, and a run of them
+
+| Check | Result |
+|---|---|
+| a rule with an offset places each contribution at close plus offset | green, by hand |
+| a contribution falling outside the run is dropped, not clamped or wrapped | green |
+| an event closing outside the run contributes nothing | green |
+| two events in one future add, period by period | green |
+| the amount and its parts come from the same template in the same future | green, exactly |
+| a run of futures equals the monoid sum of the futures, each in its own row | green, cell for cell |
+| the same seed gives the same futures, a different one does not | green |
+| a future computed alone equals the same future computed in a run | green |
+
+The correlation test is the one that would be hard to notice failing. In every future the parts sum
+to exactly three quarters of the size, because they are shares of the same drawn number; had the
+simulator drawn the size in one future and the parts in another, the identity would break while
+every mean stayed plausible and every interval came out too narrow.
+
+### The AR(1) projection and the trend
+
+| Check | Reference | Result |
+|---|---|---|
+| the mean at each of six horizons | `phi^h z_last` | green, 4 standard errors, 20 000 futures |
+| the variance at each of six horizons | `tau² (1 - phi^2h)/(1 - phi²)` | green, 4 standard errors |
+| the variance at horizon 40 | the stationary `tau²/(1 - phi²)` | green, 4 standard errors |
+| a projection with no noise | `z_last phi^h`, exactly | green at 1e-15 |
+| totality | `NaN` in gives `NaN`; `abs(phi) > 1` explodes as documented | green |
+| the trend | `amount exp(kappa years)`, and two years is one year squared | green at 1e-14 |
+| whole months as years, forwards and backwards | `months/12` | green at 1e-15 |
+| draws paired with futures cyclically | `index mod draws` by hand | green |
+
+### Thinning, the triangle and the exposure
+
+| Check | Reference | Result |
+|---|---|---|
+| every cell's mean | `rate × share`, 20 cells, 4000 replications | green, 4 standard errors |
+| a cell's variance equals its mean | the Poisson property, 20 000 replications | green, 4 standard errors |
+| the first period's factor applies to the first delay only | by hand | green |
+| right censoring keeps `m + k <= c - 1` | all 20 cells enumerated | green |
+| censoring intersected with left truncation | the band `1 <= m + k <= 2`, by hand | green |
+| an arbitrary mask with a hole in it | summed visible shares | green |
+| the censored triangle's exposure | **`F(c - 1 - m)` per period, and the sum over periods** | green at 1e-14 |
+| corrected counts | `observed / exposure` | green at 1e-14 |
+| a period below the visibility threshold | `NaN`, not a number and not the raw count | green |
+
+### The Bayesian bootstrap
+
+| Check | Reference | Result |
+|---|---|---|
+| the weights are positive and sum to one | exactly, over 20 000 sets | green within 1e-12 |
+| each weight's mean | `1/n` | green, 4 standard errors |
+| each weight's variance | `(1/n)(1 - 1/n)/(n + 1)` | green, 4 standard errors |
+| a pool draws in proportion to its weights | the multinomial standard error | green, 4 standard errors |
+| **weights held over the horizon give wider futures than weights redrawn per period** | the spread of 2000 futures' own averages | green, the held spread over 1.5 times the redrawn one |
+| a stratum below the minimum size falls back on the whole pool | the global share of the rare item | green, 4 standard errors |
+| a stratum above it mixes at `n/(n + k0)` | `0.2 × 2/42` | green, 4 standard errors |
+| the mixing weight | `n/(n + k0)`, and its three edges | green |
+
+The fifth row is the one §5.8 is emphatic about and the only one that could not be checked by
+reading the code. Both ways of drawing the weights give the same mean; what differs is the spread,
+and holding one opinion per future gives the wider — which is the whole reason for the rule.
+
+### The model's error term
+
+| Check | Reference | Result |
+|---|---|---|
+| `eta` has mean 0 and variance `sigma²` | 40 000 draws | green, 4 standard errors |
+| the perturbed rate's mean | `rate exp(sigma²/2)` | green, 4 standard errors |
+| its median | `rate`, unchanged | green, 4 standard errors |
+| the inflation at `sigma = 0.3` | 1.0460279 | green at 1e-6 |
+| two error terms applied in turn | one term of their sum | green at 1e-14 |
+
+The mean and the median are asserted separately on purpose. A multiplicative error leaves the
+median where it was and raises the mean by 4.6 % at this sigma, which is a bias nobody meets on
+purpose; the documentation says so because the library does not silently centre it (D-103).
+
+### Mutations tried
+
+Sixteen, one or two per component, every one detected.
+
+| Component | Mutation | Test that failed |
+|---|---|---|
+| `Periods.cover` | the later start kept instead of the earlier | the covering-run test |
+| `Ensemble.combine` | the period shift ignored, so a run is placed at offset 0 | the different-horizons test |
+| `Ensemble.quantiles` | the quantile taken across periods instead of samples | the sum-against-quantiles test |
+| `Ensemble.regroup` | keys mapped together overwrite instead of adding | the total and the regroup tests |
+| `SimulatedFuture.add` | the close offset dropped | the close-plus-offset test |
+| `SimulatedFuture.add` | a late contribution clamped to the last period | the dropped-not-clamped test |
+| `Simulator.run` | every future given the same seed | the determinism and monoid-equality tests |
+| `Ar1.project` | the decay towards zero dropped | the mean and variance at six horizons |
+| `TrendScaling.at` | clamped to the last draw instead of cycling | the cyclic-pairing test |
+| `PoissonThinning.means` | the first-period factor applied to every delay | the means test |
+| `ReportingTriangle.rightCensored` | off by one: `m + k <= current` | the censoring and intersection tests |
+| `ReportingTriangle.correctedCounts` | the visibility threshold ignored | the corrected-counts test |
+| `BayesianBootstrap.weights` | equal weights instead of Dirichlet | the weight moments **and** the held-over-horizon test |
+| `BayesianBootstrap.mixingWeight` | the prior and the size swapped | the mixing tests |
+| `StratifiedPools.draw` | the stratum's own pool always used, never the global | the fallback test |
+| `ModelError.applied` | the error added instead of multiplying | the median-and-mean test |
+
+Two are worth a line. Replacing the Dirichlet weights by equal ones failed the moment test, as it
+should, **and** the held-over-horizon test — because equal weights carry no opinion at all, so
+holding them costs nothing and the two spreads coincide. And clamping a late contribution into the
+last period failed the placement test rather than only the dropping test, which is the right
+failure: clamping moves a contribution that belongs nowhere into a period that is reported.
+
+### Known limits at the end of phase 7
+
+1. **Aggregating an ensemble's months into quarters is not here.** `Periods.quarterOf` says which
+   quarter a period belongs to and §5.8 gives the summing to `forecast` in phase 9; adding a second
+   aggregation API now would mean guessing its shape before its only caller exists (D-104).
+2. **`ModelError`'s `sigma_err` is not calibrated.** The grid over past dates needs a scoring rule
+   and a backtest, which arrive in phase 8 (D-103). The term itself is here and tested.
+3. **No mean-preserving variant of the error term.** `exp(eta - sigma²/2)` is one line for a caller
+   who wants it; which of the two a forecast should use depends on the forecast, so the library
+   documents the 4.6 % rather than choosing.
+4. **`Ensemble` is dense.** A key with a value in one period of sixty still carries sixty doubles
+   per sample. Nothing in this phase's use needs sparsity, and a sparse representation would make
+   the monoid harder to get right, which is the part that must not be wrong.
