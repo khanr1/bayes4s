@@ -1810,3 +1810,148 @@ the mutation immediately.
 4. **`LocalLevel` and the tightened-trend variant are not written.** §5.10 lists them as
    `RateComponent` alternatives; one component satisfies the phase, and a second would be tested
    against nothing the first does not already cover until there is a model comparison to run.
+
+## Phase 10 — the group structures
+
+520 tests, 486 fast and 34 slow, up from 494 — 26 added by this phase, 16 fast and 10 slow. The 470
+fast tests of phases 0 to 9 are untouched; no tolerance, seed or assertion was weakened, and the
+register of encapsulated local mutation stays at 27 sites.
+
+Phase 9 delivered the one-group count model. This phase answers the question a second group asks:
+what does a quiet group fall back on?
+
+### The components
+
+| Check | Reference | Result |
+|---|---|---|
+| a hierarchical rate is the group's own level and trend plus the shared wobble | written out by hand | green at 1e-14 |
+| centred and non-centred describe the same rate | each other, four groups | green at 1e-14 |
+| the two parameterisations have **different priors** | a flag that changed nothing would do nothing | green |
+| two populations have their own levels and share the spread | by hand, four groups in two populations | green at 1e-14 |
+| a population index out of range is refused | `Ar1TrendHierarchical.of` | green |
+| a local level is a random walk | one innovation, then none | green at 1e-14 |
+| a local level's projection does not drift | the last level, 8 horizons, 20 000 seeds | green, 4 standard errors |
+| its spread grows with the horizon | more than doubling over 8 periods | green |
+| a per-group delay shifts every cut point together | the common delay plus an offset | green at 1e-14 |
+| the offsets are drawn around their **own fitted spread** | the Gaussian written out by hand | green at 1e-13 |
+| every component is total in its time axis and its group | `NaN` past the innovations | green |
+
+The offsets' prior scale deserves its row. `delta[g] ~ Gaussian(0, sigmaCut)` with `sigmaCut` a
+parameter is what lets the data say how much the groups' reporting speeds differ, and replacing it
+with a constant is invisible to calibration — a parameter whose posterior equals its prior still
+has uniform ranks. That mutation survived the whole suite until this test was written (below).
+
+### The three criteria that need fits
+
+| Criterion | Threshold | Result |
+|---|---|---|
+| recovery on fictional data | four posterior standard deviations, on `muA`, `muB`, `cut0`, `beta` | green |
+| **R-hat below 1.01** | on the same four | green |
+| per-group forecast summed sample by sample equals the total | exactly, by `Ensemble.eq` | green |
+| the sum of the groups' percentiles exceeds the total's | the contrast of chapter 6 | green |
+| a trend fitted to walk-generated data contains zero | its 90 % interval | green |
+| the walk, on the same data, finds the wandering | its step size above 0.01 at the 5th percentile | green |
+
+### Every combination, calibrated
+
+The point of interchangeable components is that a variant costs a component rather than a rewrite;
+the price is that each combination is a model nobody has checked. All eight are now checked — four
+stories about the rate against two about the delay, 32 replications each on a reduced model (8
+months, maximum delay 3, two groups).
+
+| Combination | Result |
+|---|---|
+| independent groups, one delay | green |
+| independent groups, a delay per group | green |
+| pooled groups, non-centred, one delay | green |
+| pooled groups, non-centred, a delay per group | green |
+| pooled groups, centred, one delay | green |
+| two populations, one delay | green |
+| a local level, one delay | green |
+| a local level, a delay per group | green |
+
+The threshold is the **0.01 %** point of chi-squared with three degrees of freedom, 21.108, rather
+than the 0.1 % point the other calibration suites use. Eight combinations ranking six to nine
+parameters each is about fifty-six checks; at 0.1 % that fails by chance about one run in eighteen,
+and phase 8 spent a round fixing exactly that kind of flake. At 0.01 % the announced rate is near
+one run in a hundred and eighty. The power lost is the point of the division of labour: this suite
+catches a combination that is **broken**, and phase 9's single-combination suite checks one deeply.
+
+### The model's error, calibrated at last
+
+Phase 7 deferred `sigma_err`'s calibration to the phase with a backtest; phase 8 delivered the
+backtest; here it is. Each candidate scale widens every past forecast, the widened ensembles are
+scored, and the best candidate wins.
+
+| Check | Reference | Result |
+|---|---|---|
+| the scale the observations were generated with | 0.3, on a grid of 0.05 steps, 400 dates | green within two grid steps |
+| the score is worse at both ends than at the optimum | a minimum, not a slope | green |
+| an already-calibrated forecast is not widened | the honest answer is nothing | green, at most 0.10 |
+| widening is per sample | 4000 distinct values | green |
+| the widened mean rises by `exp(sigma²/2)` and the median does not | the lognormal | green within 3 % |
+| the search is a function of its seed | the same seed, the same scores | green |
+| it refuses no dates and an empty grid | | green |
+
+The first row works because the score is **proper**: forecasts that are certain and observations
+that are not give a known right answer, and the scale that minimises the CRPS is the one the
+observations were really generated with. That is a property of the scoring rule, which is exactly
+what makes it a test of this code.
+
+### Mutations tried
+
+Twelve, every one detected — two only after a new test was written for them.
+
+| Component | Mutation | Test that failed |
+|---|---|---|
+| `Ar1TrendHierarchical` | the spread dropped from the non-centred effect | the hierarchical rate and the agreement tests |
+| `Ar1TrendHierarchical` | the centred flag ignored when reading the effects | the agreement test |
+| `Ar1TrendHierarchical` | every group read as population zero | the two-populations test |
+| `Ar1TrendHierarchical` | the centred prior used for both parameterisations | the agreement test |
+| `LocalLevel.logRate` | the innovations not accumulated, so not a walk | the walk test |
+| `LocalLevel.project` | mean-reverting instead of a walk | the no-drift test |
+| `OrderedLogitDriftByGroup` | the group's offset ignored | the offset test |
+| `OrderedLogitDriftByGroup` | the offsets given a fixed spread, not the fitted one | **survived at first** |
+| `ModelError.widen` | one error for the whole ensemble, not one per sample | the per-sample and recovery tests |
+| `ModelError.calibrate` | the worst candidate chosen | the recovery test |
+| `ModelError.calibrate` | every candidate scored on its own noise | **survived at first** |
+| `Forecast.byGroup` | only the first group forecast | the per-group total test |
+
+The two survivors are both instructive. Giving the group offsets a **constant** prior scale instead
+of the fitted one cannot be seen by calibration, for a reason worth remembering: it severs the only
+link between `sigmaCut` and the likelihood, so `sigmaCut`'s posterior becomes its prior — and ranks
+drawn from the prior are uniform by construction. The fix is an exact test of the prior itself, with
+the Gaussian written out by hand.
+
+Scoring each candidate on **its own** noise instead of shared noise is not wrong at 400 dates, which
+is why it survived: common random numbers reduce the variance of a comparison but do not bias it.
+What it breaks is reproducibility, so the test that catches it is the one every seeded thing in this
+library should have had — the same seed gives the same scores.
+
+### Two defects found, both in earlier phases' code
+
+**A rate component threw.** `Ar1Trend.logRate` indexed the wobble by month without checking that an
+innovation existed for it, so asking for the rate at a time beyond the data raised an
+`ArrayIndexOutOfBoundsException` — against 2.1's rule that a public function returns a value. It had
+been there since phase 9 and was found by writing chapter 8, which asked exactly that question. All
+three components are now total in their time axis and in their group (D-133).
+
+**A dead type parameter.** `ModelError.calibrate` was declared `[F[_]: Monad: Rng]` and interpreted
+`State` internally, so `F` was never used. Caught by the compiler under CI's fatal-warning settings
+— the second time in two phases that those settings found something a plain local build does not
+(D-132), which is why the verification command now carries them.
+
+### Known limits at the end of phase 10
+
+1. **A group that is quick at first and slow in the tail is not expressible.**
+   `OrderedLogitDriftByGroup` shifts all of a group's cut points together, so only the position of
+   its delay distribution varies and not its shape. Per-group increments would be the fix and
+   nothing in the plan asks for them.
+2. **The predictive score does not separate the rate variants** (D-134). Measured, reported in
+   chapter 8, and sharper as a question about the parameter than about the forecast.
+3. **`Ar1Trend` with a tightened trend prior** is listed in §5.10 as a variant and is not written:
+   it is `Ar1Trend(trendPrior = (0.0, 0.1))`, a constructor argument rather than a component, so
+   there is nothing to add.
+4. **The fictional world has no named generator yet.** §9.2 puts `examples.FictionalWorld` in the
+   `examples` module as whole programs (`IOApp.Simple`), which needs the `effect` module of phase
+   11; the manual's chapters generate their invented data in place, as they have since phase 9.

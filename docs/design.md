@@ -1693,3 +1693,113 @@ uncertain" is therefore a statement about the **dispersion**, not a guarantee ab
 interval, and that is what the suite asserts: `alpha`'s own relative posterior spread is 4.3 to
 12.6 at four groups against 0.125 to 0.139 at two hundred, thirty to ninety times wider, and the
 two methods' per-group answers differ by 12 % to 58 % against under 1.6 %.
+
+### D-127. Nine blocks need a nested sub-spec, because `mapN` stops at eight
+
+`ParamSpec`'s `mapN` is written out for arities two to eight. `Ar1TrendHierarchical` declares nine
+blocks, so its AR(1) part — `phi`, `tau`, `eps` — is composed as a sub-spec of its own and unpacked
+into the flat parameter class.
+
+The declared names and their order are identical to a flat declaration, so nothing downstream can
+tell: a CSV row, a summary table and `Model.unconstrain` all see `muA, muB, sigmaA, sigmaB, aRaw,
+bRaw, phi, tau, eps` in that order. Adding a ninth arity was the alternative; nesting costs three
+lines at one call site and the arity would cost thirty in a public file, for a model that is
+already at the edge of what one component should declare.
+
+### D-128. Centred and non-centred are a flag on one component, not two components
+
+§5.10 asks for "centrée ou non centrée" as "un réglage, pas deux modèles", and that is what
+`Ar1TrendHierarchical(centred = ...)` is. The two parameterisations describe the **same posterior**
+and differ in one place each: how the group effects are read (`a[g]` itself, or
+`muA + sigmaA * aRaw[g]`), and which prior the declared effects carry (the group prior, or a
+standard Gaussian).
+
+The suite asserts both halves of that: the rates agree to 1e-14 for parameters that describe the
+same levels, and the two priors **differ** — because a flag that changed nothing would be a flag
+that does nothing. The default is non-centred, which is the one that still samples when `sigmaA`
+approaches zero.
+
+### D-129. `LocalLevel` projects with `phi = 1`, which is what makes it a walk
+
+`Ar1.project(1.0, sigma, last, horizon, seed)`: the persistence is one, so there is no pull back to
+a level and the forecast is the last value plus accumulated noise. Its mean is flat and its spread
+grows as the square root of the horizon — the honest statement that the further out you look the
+less you know, and the exact opposite of a trend, which claims to know the direction better the
+further it extrapolates.
+
+That is also how the component answers the phase's criterion. It has no trend parameter, so it
+cannot report one; the measurable version of "does not detect a trend" is that its projection does
+not drift, which is asserted over 20 000 seeds at eight horizons.
+
+### D-130. The whole group is simulated inside one future, never forecast separately and added
+
+`Forecast.byGroup` loops over the groups **inside** each simulated future, from one sample from the
+posterior. The alternative — forecast each group on its own and add the ensembles afterwards — is
+easier to write and wrong: the groups share the AR(1) wobble, the delay's shape and the
+hyperparameters, and simulating them in separate runs makes those shared things independent. The
+total's interval then comes out too narrow, which is the same error as adding quantiles and just as
+invisible.
+
+The rule is a function of the group so that contributions can be keyed by it, which is what lets
+the per-group ensemble and its `total` come out of one simulation. The suite asserts that keying
+the same run two ways gives totals that agree exactly — keying is labelling, and if it changed a
+single draw the two would differ.
+
+### D-131. `ModelError.calibrate` takes its scoring rule as an argument
+
+The scale of the model's own error is calibrated by widening past forecasts by each candidate and
+keeping the one that scores best. That needs a scoring rule, and `predictive` does not depend on
+`scoring` — by the module graph of §4, and usefully, since a scale calibrated under one rule is not
+calibrated under another.
+
+So the rule is a parameter: `Crps.ensemble` is what anyone would pass, and the suite passes it
+through a test-scope dependency rather than a shipping one. The convention is that **lower is
+better**, which CRPS, the interval score and the log score all are; a rule where higher is better
+must be negated by the caller, and the scaladoc says so.
+
+Two details the suite pins. Widening draws one `eta` **per sample**, not one per ensemble: one per
+ensemble would shift it bodily and leave its width alone, which is the opposite of the intention.
+And every candidate is scored on the same underlying noise, derived from the seed and the
+candidate's index, so the comparison between candidates is a comparison of scales rather than of
+two draws of noise — and the whole search is a function of its seed, which is asserted directly.
+
+### D-132. `calibrate` is not generic in `F`, because it interprets `State` itself
+
+It takes a `Seed` and returns a value, like `Ar1.project` and `Simulator.run`: a grid search is one
+answer rather than a program the caller composes with, so threading an `F` through it would be
+ceremony. The dead `[F[_]: Monad: Rng]` it was first written with was caught by the compiler's
+unused-parameter warning under CI's fatal-warning settings, which is the second time this phase
+that those settings found something a local build would not.
+
+### D-133. Every rate component is total in its time axis, and in its group
+
+Found by the manual: a chapter asked for the rate at times beyond the data's, and
+`Ar1Trend.logRate` **threw** — it indexed the wobble by month without checking that there was an
+innovation for it. That breaks 2.1's rule that a public function returns a value rather than an
+exception, and it had been there since phase 9.
+
+All three components now return `NaN` for a month whose innovation was never declared, and for a
+group that does not exist. `NaN` rather than an exception because it is the library's convention
+for outside-the-domain, and rather than silently reading the first group's rate because that is a
+plausible-looking answer to a question about a group that is not there. The future is reached
+through `project`, which is given its own times, and the manual now says so where the mistake was
+tempting.
+
+### D-134. The two rate variants cannot be separated by their predictive score, and the chapter says so
+
+§9.3 asks chapter 8 for a worked comparison of two rate variants. It is there, and its finding is
+that the comparison is **inconclusive**: measured across three trend strengths (0.6, 1.5, 3.0 a
+year) and two horizons (10 and 24 periods), the ratio of the walk's mean CRPS to the trend's ran
+from 0.990 to 1.002 — and at the longer horizon the walk was marginally ahead twice, on data the
+trend component generated.
+
+The reason is worth the chapter's space. A walk forecasts from the last level, which already
+embodies what the trend has done, and its uncertainty widens with the horizon; on a smooth
+exponential series that tracks the truth about as well as extrapolating the slope, and the score is
+dominated by the rate's own uncertainty, which both inflate the same way. What does separate them is
+the **parameter**: fit the trend component to walk-generated data and ask whether its trend excludes
+zero, which is what `MultiGroupFitSlowSuite` asserts.
+
+Writing a rigged example that made the trend win was the alternative. Reporting the measurement is
+more useful, and it demonstrates the chapter's own cautions about short horizons and single
+realisations instead of merely stating them.

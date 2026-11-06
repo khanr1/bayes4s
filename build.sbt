@@ -178,7 +178,11 @@ lazy val diagnostics = mod("diagnostics")
     testkit % Test
   )
 
-lazy val predictive = mod("predictive").dependsOn(distributions, testkit % Test)
+// `scoring % Test` only: `ModelError.calibrate` takes its scoring rule as an argument, so nothing
+// here depends on `scoring` — but its test passes `Crps.ensemble`, the rule anyone would really
+// use (docs/design.md).
+lazy val predictive =
+  mod("predictive").dependsOn(distributions, scoring % Test, testkit % Test)
 
 lazy val scoring = mod("scoring").dependsOn(distributions, testkit % Test)
 
@@ -193,6 +197,7 @@ lazy val nowcast =
     predictive,
     ad % "test->test",
     diagnostics % Test,
+    scoring % Test,
     stanIo % Test,
     testkit % Test
   )

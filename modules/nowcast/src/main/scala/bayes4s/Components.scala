@@ -115,9 +115,17 @@ final case class Ar1Trend(
       LogDensity.halfNormal(p.tau, wobbleScalePrior.lift[A]) +
       LogDensity.normal(p.eps, 0.0.lift[A], 1.0.lift[A])
 
+  /** Total: a time axis longer than the innovations gives `NaN` for the months beyond them,
+    * rather than throwing. The rate of a month whose innovation was never declared is not
+    * knowable, and a forecast must go through [[project]], which is given its own times.
+    */
   def logRate[A: Real](p: Ar1TrendParams[A], group: Int, t: IArray[Double]): IArray[A] =
+    val r = Real[A]
     val z = Ar1Trend.wobbleOf(p.phi, p.tau, p.eps)
-    Real[A].vectorOf(t.length)(m => p.a(group) + p.b(group) * t(m).lift[A] + z(m))
+    r.vectorOf(t.length)(m =>
+      if m >= z.length || group < 0 || group >= p.a.length then r.const(Double.NaN)
+      else p.a(group) + p.b(group) * t(m).lift[A] + z(m)
+    )
 
   def samplePrior[F[_]: Monad: Rng](groups: Int, months: Int): F[Ar1TrendParams[Double]] =
     for

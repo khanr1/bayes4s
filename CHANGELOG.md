@@ -8,6 +8,47 @@ Versions follow git tags. Nothing is released yet.
 
 ## Unreleased
 
+### Phase 10 — the group structures (6 November 2026)
+
+Added
+
+- `Ar1TrendHierarchical`: levels and trends drawn around their population's own, with the AR(1)
+  wobble shared. One population is the partially pooled case; two is the structure §5.10 asks for,
+  where each has its own level and trend and what they share is the spread above them. **Centred and
+  non-centred are a flag**, not two models — the suite asserts both that the rates agree and that
+  the priors differ.
+- `LocalLevel`: a random walk, no trend. Its projection is flat in expectation with a spread that
+  grows as the square root of the horizon, asserted over 20 000 seeds at eight horizons.
+- `OrderedLogitDriftByGroup`: one reporting speed per group, drawn around a common one.
+- `Forecast.byGroup`: every group simulated **inside the same future**, from one sample from the
+  posterior, so what the groups share stays shared. The per-group ensemble summed sample by sample
+  equals the forecast of the total, exactly.
+- `ModelError.calibrate` and `widen`: the error scale chosen by grid search on dates already past,
+  with the scoring rule as an argument. On forecasts that are certain and observations that are
+  not, it recovers the scale the observations were generated with — because the score is proper.
+- All eight combinations of components calibrated.
+- The group section of chapter 7 and the worked model comparison of chapter 8.
+- 26 tests, for 520 in all. Twelve mutations, every one detected.
+
+Fixed
+
+- **A rate component threw.** `Ar1Trend.logRate` indexed its wobble by month without checking there
+  was an innovation for it, so asking for a rate beyond the data raised an exception rather than
+  returning a value — in place since phase 9, and found by writing a manual chapter that asked
+  exactly that. All three rate components are now total in their time axis and in their group.
+
+Found
+
+- **The predictive score cannot separate a trend from a random walk** on this family of data.
+  Measured across three trend strengths and two horizons, the ratio of their mean CRPS ran from
+  0.990 to 1.002, and at the longer horizon the walk was marginally ahead twice — on data the trend
+  component generated. Chapter 8 reports that, and says what does separate them: the parameter, not
+  the forecast.
+- **A mutation that cuts a hyperparameter out of the model is invisible to calibration.** Giving the
+  group offsets a constant prior scale instead of the fitted one severs the only link between
+  `sigmaCut` and the likelihood, so its posterior becomes its prior — and ranks drawn from the prior
+  are uniform by construction. Only an exact test of the prior catches it.
+
 ### Phase 9 — the nowcasting models (6 November 2026)
 
 Added

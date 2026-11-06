@@ -17,6 +17,7 @@
 package bayes4s
 
 import cats.Functor
+import cats.Monad
 import cats.syntax.all.*
 
 /** The model's own error: `eta ~ Gaussian(0, sigmaError)` on the log rate.
@@ -31,9 +32,9 @@ import cats.syntax.all.*
   * for — it is the honest mean of a multiplicative error — but it is never what someone expects by
   * accident, so this says it rather than leaving it to be discovered.
   *
-  * `sigmaError` is meant to be calibrated on dates already past, over a grid, by scoring each
-  * candidate against what actually happened. That needs a backtest, which arrives with the scoring
-  * module, so this carries the term and not its calibration (docs/design.md).
+  * `sigmaError` is calibrated on dates already past by [[ModelError.calibrate]], which widens every
+  * past forecast by each candidate scale and keeps the one that scores best. The scoring rule is
+  * the caller's, so this module needs no dependency on `scoring` (docs/design.md).
   */
 object ModelError:
 
@@ -45,3 +46,73 @@ object ModelError:
 
   /** A rate under an error term: `rate * exp(eta)`. */
   def applied(rate: Double, eta: Double): Double = rate * math.exp(eta)
+
+  /** An ensemble widened by the error term: one `eta` per sample, not one per ensemble.
+    *
+    * Per sample, because the error is about what the model does not explain and a different
+    * future would have a different amount of it. One `eta` for the whole ensemble would shift it
+    * bodily and leave its width alone, which is the opposite of the intention.
+    */
+  def widen[F[_]: Monad: Rng](forecast: IArray[Double], sigmaError: Double): F[IArray[Double]] =
+    if sigmaError.isNaN || sigmaError < 0.0 then
+      Monad[F].pure(IArray.fill(forecast.length)(Double.NaN))
+    else if sigmaError == 0.0 then Monad[F].pure(forecast)
+    else
+      Monad[F]
+        .replicateA(forecast.length, Rng[F].normal)
+        .map(noise =>
+          IArray.tabulate(forecast.length)(i => applied(forecast(i), noise(i) * sigmaError))
+        )
+
+  /** What the grid search found: the best scale, and every candidate's score. */
+  final case class Calibration(sigmaError: Double, scores: IArray[(Double, Double)])
+
+  /** The error scale that scores best on dates already past.
+    *
+    * Each candidate widens every past forecast, the widened ensembles are scored against what
+    * actually happened, and the candidate with the best mean score wins. The scoring rule is the
+    * caller's — `Crps.ensemble` is the one to pass — because a scale calibrated under one rule is
+    * not calibrated under another, and because `predictive` does not depend on `scoring`.
+    *
+    * **Lower is better**: the rule is read as a loss, which is what CRPS, the interval score and
+    * the log score all are. A rule where higher is better must be negated by the caller.
+    *
+    * A function of its seed and nothing else, like `Ar1.project` and `Simulator.run`: the
+    * randomness is interpreted by `State` inside, because a grid search is one answer rather than
+    * a program the caller composes with.
+    *
+    * This is honest only on dates the model did not see when it was fitted. Calibrating an error
+    * term on the data the fit already used will find that almost no error is needed, which is the
+    * same mistake as scoring in-sample predictions (chapter 8).
+    */
+  def calibrate(
+      forecasts: List[(IArray[Double], Double)],
+      grid: IArray[Double],
+      score: (IArray[Double], Double) => Double,
+      seed: Seed
+  ): Either[BayesError, Calibration] =
+    if forecasts.isEmpty then
+      Left(
+        BayesError.InvalidArgument("ModelError.calibrate", "forecasts", 0.0, "at least one date")
+      )
+    else if grid.length == 0 then
+      Left(
+        BayesError.InvalidArgument("ModelError.calibrate", "grid", 0.0, "at least one candidate")
+      )
+    else
+      val scored = IArray.tabulate(grid.length) { g =>
+        val candidate = grid(g)
+        // Each candidate is scored on the same widening seeds, so the comparison between them is
+        // not a comparison of two draws of noise.
+        val program = forecasts.zipWithIndex.traverse { case ((ensemble, observed), i) =>
+          widen[Rand](ensemble, candidate).map(widened => score(widened, observed))
+        }
+        val perDate = program.runA(seed.fold(g.toLong)).value
+        (candidate, perDate.sum / perDate.length)
+      }
+      val best = (0 until scored.length).foldLeft(0) { (bestSoFar, g) =>
+        val (_, here) = scored(g)
+        val (_, there) = scored(bestSoFar)
+        if here.isNaN then bestSoFar else if there.isNaN || here < there then g else bestSoFar
+      }
+      Right(Calibration(scored(best)._1, scored))

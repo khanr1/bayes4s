@@ -84,40 +84,72 @@ object Forecast:
       settings: ForecastSettings,
       seed: Seed
   ): Ensemble[K] =
+    byGroup(rate, delay, parameters, futureT, periods, pool, size, 1, _ => rule, settings, seed)
+
+  /** The same, for a model with several groups: one rule per group.
+    *
+    * Every group is simulated inside the **same** future, from the same sample from the posterior,
+    * so what the groups share — the AR(1) wobble, the delay's shape, the hyperparameters — is
+    * shared in the simulation too. Forecasting the groups separately and adding the results
+    * afterwards would break exactly that, and the correlation between groups would come out as
+    * zero when the model says it is not.
+    *
+    * The rule is a function of the group so that contributions can be keyed by it: pass
+    * `g => (payload, scaled) => List(Contribution(label(g), 0, scaled))` to get an ensemble per
+    * group, whose `total` is the forecast of the whole — summed sample by sample, never by adding
+    * quantiles.
+    */
+  def byGroup[R[_], D[_], P, K](
+      rate: RateComponent[R],
+      delay: DelayComponent[D],
+      parameters: List[DelayCountParams[R, D, Double]],
+      futureT: IArray[Double],
+      periods: Periods,
+      pool: TemplatePool[P],
+      size: SizeModel[P],
+      groups: Int,
+      rule: Int => ContributionRule[P, K],
+      settings: ForecastSettings,
+      seed: Seed
+  ): Ensemble[K] =
     val repeated = parameters.flatMap(p => List.fill(math.max(settings.perDraw, 1))(p))
-    if repeated.isEmpty || futureT.length == 0 then Ensemble.empty[K]
+    if repeated.isEmpty || futureT.length == 0 || groups < 1 then Ensemble.empty[K]
     else
       val simulator = new Simulator[DelayCountParams[R, D, Double], K]:
         def simulate(draw: DelayCountParams[R, D, Double], futureSeed: Seed): Ensemble[K] =
-          val logRate = rate.project(draw.rate, 0, futureT, futureSeed)
-          val program = (0 until futureT.length).toList
-            .traverse { h =>
-              // The first period of a forecast is usually partial: a month that has already
-              // started contributes only the share of itself that is left.
-              val factor = if h == 0 then settings.firstPeriodFactor else 1.0
-              val expected = math.exp(logRate(h)) * factor
-              val pmf = delay.logPmf[Double](draw.delay, 0, futureT(h))
-              for
-                count <- Sampling.poisson[Rand](expected)
-                events <- (0 until count).toList.traverse { _ =>
+          val program = (0 until groups).toList
+            .traverse { g =>
+              val logRate = rate.project(draw.rate, g, futureT, futureSeed.fold(g.toLong))
+              (0 until futureT.length).toList
+                .traverse { h =>
+                  // The first period of a forecast is usually partial: a month that has already
+                  // started contributes only the share of itself that is left.
+                  val factor = if h == 0 then settings.firstPeriodFactor else 1.0
+                  val expected = math.exp(logRate(h)) * factor
+                  val pmf = delay.logPmf[Double](draw.delay, g, futureT(h))
                   for
-                    payload <- pool.draw[Rand]
-                    lag <- Sampling.categorical[Rand](cumulative(pmf))
-                    amount <- size.draw[Rand](payload, futureT(h), lag)
-                  yield (h, lag, payload, amount)
+                    count <- Sampling.poisson[Rand](expected)
+                    events <- (0 until count).toList.traverse { _ =>
+                      for
+                        payload <- pool.draw[Rand]
+                        lag <- Sampling.categorical[Rand](cumulative(pmf))
+                        amount <- size.draw[Rand](payload, futureT(h), lag)
+                      yield (g, h, lag, payload, amount)
+                    }
+                  yield events
                 }
-              yield events
+                .map(_.flatten)
             }
             .map(_.flatten)
           val events = program.runA(futureSeed.fold(7919L)).value
           events
             .foldLeft(SimulatedFuture.empty[K](periods)) { (future, event) =>
-              val (h, lag, payload, amount) = event
+              val (g, h, lag, payload, amount) = event
               // The event closes in period `h` and is reported `lag` later: the rule says what it
               // contributes and where, relative to the close.
               future.add(
                 h,
-                rule
+                rule(g)
                   .contributions(payload, amount)
                   .map(c => c.copy(periodOffset = c.periodOffset + lag))
               )

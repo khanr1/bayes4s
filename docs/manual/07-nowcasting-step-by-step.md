@@ -109,6 +109,86 @@ val truthRate = rate.logRate[Double](truth.rate, 0, t)
 (months - 2 until months).map(m => (m + 1, (math.exp(truthRate(m)) * 10).round / 10.0)).toList
 ```
 
+## Several groups at once
+
+Counts usually arrive in groups — sites, regions, categories — and the question is what a quiet
+group falls back on. Three answers, all of them a component rather than a rewrite:
+
+```scala mdoc:silent
+val groupCount = 3
+// Independent: every group has its own level and trend, connected to nothing.
+val independent = Ar1Trend()
+// Partially pooled: each group's level and trend are drawn around a common one, so a quiet group
+// is pulled towards the average of the others.
+val pooled = Ar1TrendHierarchical(IArray.fill(groupCount)(0))
+// Two populations: each has its own level and trend, and what they share is the spread of their
+// groups and the wobble — the common level above them.
+val populations = Ar1TrendHierarchical(IArray(0, 0, 1))
+```
+
+`centred` is a flag on the pooled component, not a second model. Both parameterisations describe
+the same posterior and differ only in which coordinates the sampler walks in — which decides
+whether it can walk at all when the group spread approaches zero. Start non-centred, which is the
+default; switch to centred only if the groups are well separated and the non-centred fit mixes
+badly. Chapter 4's divergent transitions and the spread's own R-hat are how you tell.
+
+The delay can vary by group too, around a common one:
+
+```scala mdoc:silent
+val delayByGroup = OrderedLogitDriftByGroup()
+```
+
+One offset per group shifts every cut point together, which is a group reporting faster or slower
+overall. What it cannot express is a group that is quick at first and slow in the tail — that needs
+its own increments, and the library does not offer it.
+
+Forecasting several groups is one call, with one rule per group so the contributions can be keyed:
+
+```scala mdoc:silent
+val groupBlank = DelayCountData
+  .of(
+    t,
+    IArray.tabulate(groupCount)(_ => IArray.tabulate(months)(_ => IArray.fill(maxLag + 1)(0))),
+    visible
+  )
+  .toOption
+  .get
+val groupTruth = DelayCountParams[HierarchicalAr1Params, OrderedLogitDriftParams, Double](
+  HierarchicalAr1Params(
+    muA = IArray(3.2), muB = IArray(0.4), sigmaA = 0.4, sigmaB = 0.15,
+    aRaw = IArray(1.0, -0.5, 0.3), bRaw = IArray(-0.5, 1.0, 0.0),
+    phi = 0.5, tau = 0.15, eps = IArray.tabulate(months)(m => math.sin(m * 0.8))
+  ),
+  OrderedLogitDriftParams(0.5, IArray(0.8, 0.6, 0.5, 0.4), 0.3)
+)
+val futureGroupT = IArray.tabulate(4)(h => (months + h - (months - 1) / 2.0) / months)
+val groupPeriods = Periods.monthly(YearMonth.of(2027, 7), 4 + maxLag).toOption.get
+```
+
+```scala mdoc
+val perGroup = Forecast.byGroup(
+  pooled, OrderedLogitDrift(), List.fill(200)(groupTruth), futureGroupT, groupPeriods,
+  TemplatePool.of(IArray("one"), IArray(1.0)).toOption.get, SizeModel.unit, groupCount,
+  g => (_, scaled) => List(Contribution(s"site-$g", 0, scaled)),
+  ForecastSettings(), Seed(77L)
+)
+val perGroupMedian = perGroup.quantiles(List(0.5))
+val totalMedian = perGroup.total.quantiles(List(0.5))(())(0)
+(
+  perGroup.values.keySet.toList.sorted,
+  perGroupMedian("site-0")(0).take(4).map(_.round).mkString(", "),
+  totalMedian.take(4).map(_.round).mkString(", ")
+)
+```
+
+All three groups are simulated **inside the same future**, from the same sample from the posterior,
+so what they share — the wobble, the delay, the hyperparameters — is shared in the simulation too.
+Forecasting them separately and adding the results afterwards would make their correlation zero
+when the model says it is not, and the total's interval would come out too narrow.
+
+`total` then sums them sample by sample. Never add the groups' own percentiles: chapter 6 measures
+what that costs.
+
 ## Forecasting further out
 
 Beyond the data, the rate has to be projected and the events have to be placed. `Forecast.run`
