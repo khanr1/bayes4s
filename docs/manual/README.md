@@ -8,6 +8,11 @@ Every code block below is compiled by mdoc against the current build and every f
 the manual is built, so an example that stops compiling fails CI and a figure can never be a stale
 picture of an older library. The outputs you see are the outputs the code produced.
 
+If the statistics feel assumed rather than explained — what a posterior is, what a sampler is doing,
+why a count series can be wrong at its right-hand edge — **[read the ideas page
+first](the-ideas.md)**. It has no code in it and takes ten minutes. If the *code* is what feels
+assumed, chapter 1 opens with the seven words every example uses.
+
 Two conventions worth knowing before you start. The prose uses the vocabulary of *Statistical
 Rethinking* — samples from the posterior, compatibility interval, multilevel model — while the API
 keeps the names of Stan, and the [glossary](glossary.md) is the bridge between them. And there is no
@@ -18,6 +23,7 @@ reads its result through `map`, which is also what you will write.
 
 | Chapter | What it is for |
 |---|---|
+| [The ideas, in plain words](the-ideas.md) | no code: posteriors, samplers, priors, pooling, reporting delays, scoring |
 | [0. Quick start](00-quick-start.md) | one page: a model, a fit, a summary table, a trace |
 | [1. Concepts](01-concepts.md) | the pure core and the effectful edge, seeds, errors as values, `Real[A]` and its three interpreters |
 | [2. Writing a model](02-writing-a-model.md) | `ParamSpec`, constraints, prior and likelihood apart, derived quantities, the generative part |
@@ -34,18 +40,30 @@ reads its result through `map`, which is also what you will write.
 | [Appendix A. Coming from Stan](appendix-a-from-stan.md) | every Stan name and its equivalent here, checked in CI |
 | [Appendix B. Errors and contracts](appendix-b-errors.md) | every `BayesError`, when it appears, what to do |
 | [Appendix C. Classic worked examples](appendix-c-worked-examples.md) | the grid, the conjugate update, intervals, the predictive, Metropolis |
+| [Appendix E. Every knob](appendix-e-every-knob.md) | every constructor, constraint, setting and figure, with its default |
 | [Glossary](glossary.md) | the book's term, the name in the API, and the term to avoid |
 
 ## Reading it in order
 
-Chapters 0 to 4 are the loop everything else sits inside, and they are worth reading in order.
-After that: 5 if you want to know whether your model is any good, 6 to 8 if you are forecasting
-something, 11 if your data arrives in groups, 12 when you want to look at any of it, and 9 if you
-have a fit from CmdStan already.
+**New to Bayesian modelling:** the ideas page, then chapters 0 to 4 in order. That is the loop
+everything else sits inside — write, fit, diagnose — and nothing after it will make sense without
+it.
 
-The three appendices are references rather than chapters. Appendix A is the one to start from if
-you know Stan or NumPyro: it maps the names and the structures rather than explaining the ideas
-again.
+**You know Stan or NumPyro:** [appendix A](appendix-a-from-stan.md) first. It maps every name and
+every structure to what you already know, and a model translated line by line, rather than
+explaining the ideas again. Then chapter 0, and chapter 1 for the two concepts that have no
+equivalent where you are coming from.
+
+**You know the statistics and want the API:** chapter 0, chapter 1's first section, then
+[appendix E](appendix-e-every-knob.md), which lists everything there is.
+
+After the loop: chapter 5 to find out whether your model is any good, 6 to 8 if you are forecasting
+something, 11 if your data arrives in groups, 12 when you want to look at any of it, 10 when it is
+too slow or you suspect you have made one of the five usual mistakes, and 9 if you have a fit from
+CmdStan already.
+
+The appendices are references rather than chapters, and appendix D is deliberately absent: it is
+reserved for the optional `rethinking` module, which is not built yet.
 
 ## What this manual is not
 

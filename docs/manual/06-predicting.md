@@ -1,9 +1,10 @@
 # 6. Predicting
 
 A fit tells you about parameters. A forecast is about things that have not happened, and getting
-from one to the other means simulating: take a sample from the posterior, play the future forward
-under it, and do that for every sample you have. What comes back is an **ensemble** — one complete
-story per sample — and every number anyone wants is a summary of it, computed at the very end.
+from one to the other means simulating: take a **[sample from the posterior](glossary.md)**, play
+the future forward under it, and do that for every sample you have. What comes back is an
+**ensemble** — one complete story per sample — and every number anyone wants is a summary of it,
+computed at the very end.
 
 The order matters more than anything else in this chapter. Summarise first and you will add
 percentiles together, which is wrong by an amount nobody can estimate afterwards.
@@ -150,8 +151,14 @@ once per future, not once per period, for the same reason.
 ## Drawing events from what you have seen
 
 When the events themselves come from history rather than from a parametric model, the question is
-which of the observed ones are representative. The Bayesian bootstrap answers it: Dirichlet(1, ...,
-1) weights over the pool are one opinion about its composition, and each future gets one.
+which of the observed ones are representative.
+
+The **Bayesian bootstrap** answers it. Instead of assuming the pool of past events is exactly
+representative, it treats the pool's *composition* as unknown and samples an opinion about it: a
+of weights over the observed events, one weight each, summing to one. Drawing those weights from a
+Dirichlet(1, …, 1) is the uninformative choice — it says every composition consistent with having
+seen these events is equally plausible — and each simulated future gets one such opinion, which is
+how the uncertainty about "were these events typical?" ends up in the forecast.
 
 ```scala mdoc
 val pool = for

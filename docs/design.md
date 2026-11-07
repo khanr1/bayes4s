@@ -2102,3 +2102,64 @@ The second is the interesting one, because it contradicts the plan's own shortha
 comparison. The honest statement is not "full Bayes is wider with few groups" but "empirical Bayes
 replaces a distribution by one point, and when that distribution is wide and skewed the point is
 not representative — in either direction".
+
+### D-157. The manual teaches its own vocabulary before it uses it
+
+The complaint that prompted this was that the manual reads as though you already know both the API
+and the statistics. Two different gaps, and they wanted different answers.
+
+**The statistics** are now `docs/manual/the-ideas.md`, a page with no code in it: what a posterior
+is, what a sampler does and why warmup exists, what a divergent transition means and what
+non-centred fixes, why a prior cannot say nothing, what shrinkage is, what a reporting delay does
+to a count series, why percentiles are added last, and what a proper score is. It is linked first
+from the index and from the chapters that lean on it hardest. A reader who knows all of it loses
+nothing by skipping it, which is why it is a page rather than a chapter.
+
+**The API** was the worse gap, because the manual was using vocabulary it never introduced:
+`.lift[A]` appears forty-eight times and was explained once, in appendix A, which is the last place
+anyone looks. Chapter 0 now ends its model with six glosses — one per unfamiliar token, each
+pointing at where it is taught — and chapter 1 opens with the seven words every example uses, with
+`Real[A]` and `.lift[A]` demonstrated on their own before either appears inside a model.
+
+The principle: a reader meets each piece of vocabulary in a two-line example before meeting it in a
+twenty-line one.
+
+### D-158. The reference appendix is checked against the code, name by name
+
+"Exhaustive" is a claim that decays. `docs/manual/appendix-e-every-knob.md` lists every parameter
+block, constraint, settings field, `Init`, rate and delay component, figure, scoring function and
+effectful entry point — and `scripts/check-manual.py` extracts those names from the sources and
+fails if one is missing from the page. Adding a twelfth constraint without documenting it is a red
+build, which is the only way a reference page stays true.
+
+Two details of that check are worth recording, because both were wrong first.
+
+A substring match accepted `ParamSpec.pureX` as evidence for `ParamSpec.pure`, so a match that ends
+on a word character now has to end at a word boundary — while a template that already ends in
+punctuation, such as `` `sbcPlot( ``, needs no guard.
+
+And a regex for "the class that extends `RateComponent`" matched whatever class happened to sit
+above the component's closing paren, because a component's parameter list contains `(Double,
+Double)` pairs and a non-greedy match ran past them. Each `extends …Component` is now paired with
+the declaration immediately above it.
+
+Appendix **D** is deliberately absent: §9.3 reserves it for the optional `rethinking` module, which
+is not built. The page says so, so that a reader does not go looking.
+
+### D-159. Every numbered chapter links the glossary, and the width rule ignores a comment
+
+§9.6 asks a chapter that uses the book's vocabulary to name the glossary at the first occurrence.
+Where that occurrence is, is a judgement; that there is one is not, so the check is that every
+numbered chapter links `glossary.md` somewhere. All thirteen now do, at the place where the term
+first needs it rather than in a boilerplate line at the end.
+
+That had one consequence worth noting. The sentences that do this work — "this manual's word for
+what you may have met as a credible interval" — *use* the term the glossary forbids, which is
+exactly what `<!-- term-ok -->` exists for and what the glossary page itself does. The escape has to
+sit at the end of the line it excuses, which made three lines exceed a hundred columns, so the
+width check now measures the line with any trailing HTML comment removed: a comment is not text a
+reader sees.
+
+The six other terms the vocabulary check flagged in the new pages were genuine slips and were
+reworded rather than excused — "draws an opinion" became "samples an opinion", "a million draws"
+became "a million values". The escape is meant to be rare enough to read as a list.

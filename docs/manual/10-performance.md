@@ -95,6 +95,9 @@ for a loop that should have been a vectorised primitive. The ones that exist are
 
 ## Pitfalls
 
+Every one of these is a mistake you can make while every diagnostic stays green, which is what makes
+them worth a list. The vocabulary is the [glossary](glossary.md)'s.
+
 The pitfall of measuring a gradient at all comes first: a model whose density is wrong has a
 perfectly fast gradient, so measure after the checks of [chapter 5](05-checking-a-model.md) pass
 and not before.

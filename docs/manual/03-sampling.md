@@ -52,7 +52,9 @@ the `effect` module — which chapter 9 covers. Bit for bit, in both cases.
 
 ## What the warmup does
 
-The warmup is two things learnt at once, and both are reported.
+**[Warmup](glossary.md)** is the iterations the sampler spends settling and tuning itself, which
+are then discarded; it is what other traditions call burn-in. Two things are learnt at once, and  <!-- term-ok --><!-- naming the term the glossary replaces -->
+both are reported.
 
 The **step size** is learnt by dual averaging towards an acceptance statistic of 0.8. The number
 that comes out is deliberately conservative, so the acceptance you see afterwards is usually a

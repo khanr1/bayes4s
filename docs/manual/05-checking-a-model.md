@@ -1,7 +1,11 @@
 # 5. Checking a model
 
 A fit that converged is not a fit that is right. This chapter is the three checks that find
-different kinds of wrong, in the order they cost least to run.
+different kinds of wrong, in the order they cost least to run. [The ideas page](the-ideas.md) says
+what each one is for in plain words; this is how to run them.
+
+The data a check simulates is **[fake data](glossary.md)** throughout — simulated on purpose, from a
+known answer, which is what makes it possible to tell whether the check works.
 
 ```scala mdoc:silent
 import bayes4s.*

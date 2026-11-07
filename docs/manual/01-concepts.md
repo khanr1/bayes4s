@@ -6,6 +6,63 @@ functions are total. None of them is a matter of taste: each one buys something 
 A fourth idea — that a log density is written once against an abstract arithmetic and read by
 several interpreters — is the subject of the last section.
 
+Before any of that, the vocabulary. Every example in this manual is built from the same seven
+words, and a reader who knows them can read any chapter in any order.
+
+## The seven words every example uses
+
+| You will see | It is | Explained in |
+|---|---|---|
+| `Seed(42L)` | an immutable seed: a value you pass, not a generator you call | below |
+| `Rand[A]`, `runA(seed).value` | a program that consumes randomness, and the line that runs it | below |
+| `Either[BayesError, A]`, `.map` | a result that might be an error, handled as a value | below |
+| `Real[A]`, `[A: Real]` | "any kind of number that can do arithmetic" — the whole point of this library | below, and the last section |
+| `0.0.lift[A]` | a plain `Double` lifted into that kind of number | below |
+| `ParamSpec`, `.mapN` | what a model's parameters are called and how they become your case class | [chapter 2](02-writing-a-model.md) |
+| `Model.constrain`, `Model.values` | one [sample from the posterior](glossary.md), as your parameters or as a named map | [chapter 4](04-diagnosing.md) |
+
+The fourth and fifth are the two that have no equivalent in Stan or in a Python library, so they
+are the two worth seeing on their own before meeting them inside a model.
+
+**`Real[A]` is arithmetic as a capability.** A function written `def f[A: Real](x: A): A` can add,
+multiply, take logarithms and exponentials — and nothing else. It cannot look at the value, branch
+on it, or print it. That restriction is what lets the same function be read by three different
+kinds of number:
+
+```scala mdoc:silent
+import bayes4s.*
+import bayes4s.syntax.*
+
+/** The log density of a Gaussian at `x`, written once. */
+def gaussianAt[A: Real](x: A, mu: A, sigma: A): A = LogDensity.normal(x, mu, sigma)
+```
+
+Read at `Double`, it is a number:
+
+```scala mdoc
+gaussianAt(1.5, 0.0, 1.0)
+```
+
+Read by the reverse-mode tape, the same text is a gradient. Nothing was written twice and no
+derivative was worked out by hand — that is the section at the end of this chapter, and it is why a
+sampler that needs gradients is affordable at all.
+
+**`.lift[A]` is how a constant joins in.** Inside `[A: Real]`, the parameters are already of type
+`A`, but a literal you write is a `Double` and the two cannot be added. `lift` converts it:
+
+```scala mdoc:silent
+/** A standard Gaussian prior, with the location and scale written as literals. */
+def standardPrior[A: Real](x: A): A = LogDensity.normal(x, 0.0.lift[A], 1.0.lift[A])
+```
+
+```scala mdoc
+standardPrior(0.5)
+```
+
+That is all `lift` ever does, and `import bayes4s.syntax.*` is what makes it available. If you
+forget it the compiler says so immediately, which is the only error message in this library that
+every new reader meets.
+
 ## A seed is a value
 
 A seed is not a generator you call; it is a state you pass in and get back.

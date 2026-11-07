@@ -181,11 +181,11 @@ walk.runA(Seed(77L)).value.map { chain =>
 }
 ```
 
-The law's own mean is `shape / rate` = 7.976 and its standard deviation is
-`sqrt(shape) / rate` = 1.378. Twenty thousand samples from a random walk are worth far fewer
-independent ones, so compare the answers against the Monte Carlo error rather than against the
-third decimal: at an effective number of samples in the hundreds, the mean is good to about a
-hundredth of its standard deviation and no better.
+The law's own mean is `shape / rate` = 7.976 and its standard deviation is `sqrt(shape) / rate` =
+1.378. Twenty thousand samples from a random walk are worth far fewer independent ones, so compare
+the answers against the Monte Carlo error rather than against the third decimal: at an effective
+number of samples in the hundreds, the mean is good to about a hundredth of its standard deviation
+and no better.
 
 Two things this example is here to show. The **parameter is positive and the walk is not**: the
 model declares `ParamSpec.positive` and the sampler moves in an unconstrained coordinate, so

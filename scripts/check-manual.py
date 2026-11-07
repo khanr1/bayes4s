@@ -11,18 +11,20 @@ not, and a person would stop checking them by the third chapter.
    table of promised capabilities to the chapter that shows it and a literal marker that must
    appear there. A capability whose example is deleted or whose API is renamed fails here.
 
-2. **Every error is documented.** Each `BayesError` case in `modules/core` must appear in
+2. **Every error is documented, and the reference appendix is exhaustive.** Each `BayesError` case in `modules/core` must appear in
    `docs/manual/appendix-b-errors.md`. A seventh error added without a line in the appendix fails.
 
 3. **The examples obey the functional rules, and every line fits in 100 columns.** No `throw`, no `var`, no `while`, no `.get` on an
    `Option` or an `Either`, no `asInstanceOf` in any code block of the manual: the examples are
    read as the house style, so a shortcut in one of them is worse than a shortcut in the library.
 
-4. **Every chapter that talks about a diagnostic, a check or a forecast shows the figure.** Not a
+4. **Every numbered chapter points at the glossary**, where the vocabulary it uses is defined.
+
+5. **Every chapter that talks about a diagnostic, a check or a forecast shows the figure.** Not a
    description of one: a figure, drawn by `Html.embed` when the manual is built. That the figures
    actually render is `scripts/smoke-plots.mjs`, which a browser runs in CI.
 
-5. **The manual is navigable, and the README does not drift.** Every chapter file is listed in the
+6. **The manual is navigable, and the README does not drift.** Every chapter file is listed in the
    manual's own index, every link in the index points at a file that exists, and the repository's
    README points at the manual. Its quick start is not compiled by mdoc — the README is not a
    manual page — so instead every line of it must appear in chapter 0, which is: the README shows
@@ -43,6 +45,61 @@ CAPABILITIES = MANUAL / "capabilities.csv"
 APPENDIX_B = MANUAL / "appendix-b-errors.md"
 ERRORS = ROOT / "modules" / "core" / "src" / "main" / "scala" / "bayes4s" / "BayesError.scala"
 README = ROOT / "README.md"
+REFERENCE = MANUAL / "appendix-e-every-knob.md"
+
+# The files whose public vocabulary the reference appendix claims to list in full, and the pattern
+# that finds each name in them. A name that exists in the code and is not in the appendix means the
+# appendix's "every" is a lie, which is the only thing that makes a reference page worth having.
+EXHAUSTIVE = [
+    (
+        "Constraint",
+        ROOT / "modules/transforms/src/main/scala/bayes4s/Constraint.scala",
+        re.compile(r"^  case (\w+)", re.M),
+        "Constraint.{}",
+    ),
+    (
+        "Init",
+        ROOT / "modules/inference/src/main/scala/bayes4s/Mcmc.scala",
+        re.compile(r"^  case (\w+)\(", re.M),
+        "Init.{}",
+    ),
+    (
+        "RunSettings",
+        ROOT / "modules/inference/src/main/scala/bayes4s/Mcmc.scala",
+        re.compile(r"final case class RunSettings\(([^)]*)\)", re.S),
+        "`{}`",
+    ),
+    (
+        "AdaptationSettings",
+        ROOT / "modules/inference/src/main/scala/bayes4s/Adaptation.scala",
+        re.compile(r"final case class AdaptationSettings\(([^)]*)\)", re.S),
+        "`{}`",
+    ),
+    (
+        "NutsSettings",
+        ROOT / "modules/inference/src/main/scala/bayes4s/Nuts.scala",
+        re.compile(r"final case class NutsSettings\(([^)]*)\)", re.S),
+        "`{}`",
+    ),
+    (
+        "component",
+        ROOT / "modules/nowcast/src/main/scala/bayes4s",
+        None,
+        "`{}(",
+    ),
+    (
+        "Catalogue",
+        ROOT / "modules/plot/src/main/scala/bayes4s/Catalogue.scala",
+        re.compile(r"^  def (\w+)\(", re.M),
+        "`{}(",
+    ),
+    (
+        "ParamSpec",
+        ROOT / "modules/transforms/src/main/scala/bayes4s/ParamSpec.scala",
+        None,
+        "ParamSpec.{}",
+    ),
+]
 
 # `.get` on a Map is legitimate and returns an Option; `.get` on an Option or an Either is the
 # shortcut the rules forbid. Only the forms that actually appear in Scala are matched, so that a
@@ -92,6 +149,57 @@ def check_capabilities() -> list[str]:
     return problems
 
 
+def check_reference() -> list[str]:
+    """Every name the reference appendix claims to list, actually listed."""
+    problems = []
+    text = REFERENCE.read_text()
+    for label, source, pattern, template in EXHAUSTIVE:
+        if not source.exists():
+            problems.append(f"{label}: {source.name} has moved")
+            continue
+        code = (
+            "\n".join(f.read_text() for f in sorted(source.glob("*.scala")))
+            if source.is_dir()
+            else source.read_text()
+        )
+        if label == "component":
+            # A regex across the file picks up whatever class happens to sit before a component's
+            # closing paren, so each `extends …Component` is matched to the declaration above it.
+            names = []
+            for line in code.splitlines():
+                if line.startswith("final case class "):
+                    pending = line[len("final case class ") :].split("(")[0]
+                elif line.startswith(") extends RateComponent") or line.startswith(
+                    ") extends DelayComponent"
+                ):
+                    names.append(pending)
+        elif label == "ParamSpec":
+            # The public constructors of the companion, which is where a model's blocks come from.
+            body = code[code.index("object ParamSpec") :]
+            names = re.findall(r"^  def (\w+)[\[(]", body, re.M)
+            names = [n for n in names if n not in {"apply", "readAt"}]
+        elif pattern is None:
+            names = []
+        elif label.endswith("Settings"):
+            found = pattern.search(code)
+            names = (
+                re.findall(r"(\w+):", found.group(1)) if found else []
+            )
+        else:
+            names = pattern.findall(code)
+        for name in sorted(set(names)):
+            # A plain substring would accept `ParamSpec.pureX` as evidence for `ParamSpec.pure`,
+            # so a match that ends on a word character has to end at a word boundary. A template
+            # that already ends in punctuation — a backtick, an opening bracket — needs no guard.
+            wanted = template.format(name)
+            needle = re.escape(wanted)
+            if wanted[-1].isalnum() or wanted[-1] == "_":
+                needle += r"(?![A-Za-z0-9_])"
+            if re.search(needle, text) is None:
+                problems.append(f"{label}.{name} is in no row of the reference appendix")
+    return problems
+
+
 def check_errors() -> list[str]:
     cases = re.findall(r"final case class (\w+)\(", ERRORS.read_text())
     documented = APPENDIX_B.read_text()
@@ -125,6 +233,19 @@ MUST_DRAW = [
 ]
 
 
+def check_glossary_links() -> list[str]:
+    """Every numbered chapter points at the glossary where it first needs one of its terms.
+
+    §9.6's rule is that a chapter naming both the book's term and the API's names the glossary at
+    the first occurrence. Where that occurrence is, is a judgement; that there is one is not.
+    """
+    problems = []
+    for chapter in sorted(MANUAL.glob("[0-9][0-9]-*.md")):
+        if "glossary.md" not in chapter.read_text():
+            problems.append(f"{chapter.name} never points at the glossary")
+    return problems
+
+
 def check_figures() -> list[str]:
     problems = []
     for name in MUST_DRAW:
@@ -145,20 +266,29 @@ def check_figures() -> list[str]:
 def check_width() -> list[str]:
     """The manual is read in a terminal as often as in a browser: 100 columns, like the code.
 
-    Tables are exempt, because a markdown table cannot be wrapped.
+    Tables are exempt, because a markdown table cannot be wrapped, and so is a trailing HTML
+    comment: the vocabulary check's escape has to sit at the end of the line it excuses, and a
+    comment is not text a reader sees.
     """
     problems = []
+    trailing = re.compile(r"(\s*<!--.*?-->)+\s*$")
     for chapter in sorted(MANUAL.glob("*.md")):
         for number, line in enumerate(chapter.read_text().splitlines(), start=1):
-            if len(line) > 100 and not line.strip().startswith("|"):
-                problems.append(f"{chapter.name}:{number}: {len(line)} columns")
+            visible = trailing.sub("", line)
+            if len(visible) > 100 and not visible.strip().startswith("|"):
+                problems.append(f"{chapter.name}:{number}: {len(visible)} columns")
     return problems
 
 
 def check_navigation() -> list[str]:
     problems = []
     index = INDEX.read_text()
-    linked = set(re.findall(r"\]\((\d\d-[a-z0-9-]+\.md|appendix-[a-z]-[a-z-]+\.md|glossary\.md)\)", index))
+    linked = set(
+        re.findall(
+            r"\]\((\d\d-[a-z0-9-]+\.md|appendix-[a-z]-[a-z-]+\.md|glossary\.md|the-ideas\.md)\)",
+            index,
+        )
+    )
     for chapter in sorted(MANUAL.glob("*.md")):
         if chapter.name == INDEX.name:
             continue
@@ -188,9 +318,11 @@ def main() -> int:
     sections = [
         ("capabilities without an example", check_capabilities()),
         ("errors missing from appendix B", check_errors()),
+        ("names missing from the reference appendix", check_reference()),
         ("examples that break the functional rules", check_examples()),
         ("lines wider than 100 columns", check_width()),
         ("chapters that should show a figure", check_figures()),
+        ("chapters that never point at the glossary", check_glossary_links()),
         ("navigation", check_navigation()),
     ]
     failed = False

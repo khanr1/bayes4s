@@ -39,6 +39,31 @@ Two blocks of parameters, a prior for each, and a likelihood. `sigma` is declare
 model never mentions a logarithm: the transform and its log Jacobian are the library's business,
 not yours.
 
+### What you are looking at
+
+That block has six pieces of this library's vocabulary in it, and you do not need to understand any
+of them to run it. Here is what each one is, so that nothing above is a mystery:
+
+- **`Params[A]`** — your parameters, as a case class with a type parameter. The `A` is the kind of
+  number: plain `Double` when you want a value, and something else when the sampler wants a
+  gradient. That is why it is `Params[A]` and not `Params`.
+- **`Model[Params]`** — three methods and nothing else: `params` says what the parameters are
+  called and what shape they have, `logPrior` is what you believed before the data, `logLikelihood`
+  is what the data says. Separate, because the prior on its own is a model you can simulate from.
+- **`ParamSpec.real` and `ParamSpec.positive`** — one parameter block each. `.mapN` glues them into
+  your case class, in the order they are written.
+- **`[A: Real]`** — "for any kind of number that can do arithmetic". You write the density once and
+  the library reads it three ways: as a value, as a gradient, and as an exact check in its own
+  tests.
+- **`0.0.lift[A]`** — a plain `Double` turned into that kind of number. Constants need it;
+  parameters already are one.
+- **`runA(Seed(…)).value`** — the sampler is a *description* of a computation until you give it a
+  seed. This is the line that runs it, and the same seed always gives the same chains.
+
+[Chapter 1](01-concepts.md) takes all six slowly, and [appendix E](appendix-e-every-knob.md) lists
+every constructor, constraint and setting there is. If the *statistics* rather than the code is what
+feels assumed, [the ideas page](the-ideas.md) is the one to read first.
+
 ## The fit
 
 ```scala mdoc:silent
@@ -59,11 +84,13 @@ fitted.map(chains => Summary.table(model, chains))
 ```
 
 Six columns are the answer and three are whether to believe it. `mean` and `sd` are the posterior's
-location and spread; `5%`, `50%` and `95%` are the **compatibility interval** and the median.
-`Rhat` compares the chains with each other and must be below about 1.01; `ESS_bulk` and `ESS_tail`
-are how many independent samples these correlated ones are worth, in the middle of the
-distribution and in its tails; `MCSE` is the error of the reported mean that comes from having
-sampled rather than integrated. Chapter 4 is the whole story; this is enough to read a fit.
+location and spread; `5%`, `50%` and `95%` are the **[compatibility interval](glossary.md)** and the
+median — this manual's word for what you may have met as a credible interval, and the  <!-- term-ok --><!-- naming the term the glossary replaces -->
+[glossary](glossary.md) is the full list of such swaps. `Rhat` compares the chains with each other
+and must be below about 1.01; `ESS_bulk` and `ESS_tail` are how many independent samples these
+correlated ones are worth — the **effective number of samples** — in the middle of the distribution
+and in its tails; `MCSE` is the error of the reported mean that comes from having sampled rather
+than integrated. Chapter 4 is the whole story; this is enough to read a fit.
 
 `lp__` is the log density itself, which is not a parameter but is the single most useful column for
 spotting a chain that went somewhere else.

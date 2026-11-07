@@ -9,6 +9,12 @@ cities, whose membership applications arrive at a drifting rate, are processed a
 bring a member who borrows books and returns them later. Everything below is simulated, and the
 generator is a value with a fixed seed, so every number on this page is reproducible.
 
+This is the longest chapter in the manual and the one that leans on the most machinery. If the idea
+of a count series that is incomplete at its right-hand edge is new,
+[the ideas page](the-ideas.md) explains it without code; the cities are
+[clusters](glossary.md) in the sense of the [glossary](glossary.md), and every component named
+below is listed with its arguments in [appendix E](appendix-e-every-knob.md).
+
 ```scala mdoc:silent
 import bayes4s.*
 import bayes4s.examples.*
@@ -91,9 +97,26 @@ y[g, m, k] ~ Poisson(lambda[g, m] p[g, m](k))   for the reported cells only
 Trying a different story about the rate means passing a different component, not rewriting the
 model. The model itself does not know which one it has.
 
+Both of those words deserve a sentence before the code uses them.
+
+An **AR(1)** wobble is the simplest way to say "this month resembles last month": each month's
+deviation from the trend is `phi` times the previous one plus fresh noise, so a surprise fades at a
+rate the fit estimates rather than one you choose. At `phi` near zero the months are independent;
+near one the level wanders.
+
+An **ordered-logistic** delay is the simplest way to say "most things are reported quickly and a
+few take ages". It puts a cut point between each delay and the next, on a scale where "recorded
+within two months" implies "within three" — which is true of delays and is exactly what an
+unordered categorical would throw away. The **drift** lets the whole distribution slide earlier or
+later over time, which is what happens when a process speeds up.
+
 ```scala mdoc:silent
 // Partially pooled: each city's level and trend are drawn around a common one, so a quiet city is
 // pulled towards the average of the others rather than left to its own thin history.
+//
+// The argument says which *population* each group belongs to, group by group. Four zeros is "all
+// four cities are drawn around one common level"; `IArray(0, 0, 1, 1)` would be two pairs, each
+// around its own.
 val rate = Ar1TrendHierarchical(IArray(0, 0, 0, 0))
 val delay = OrderedLogitDrift()
 
@@ -101,7 +124,8 @@ val model = prepared.map(history => DelayCountModel(rate, delay, history.data))
 ```
 
 Two details in the components that are easy to get wrong. The AR(1) wobble starts from its
-**stationary** distribution rather than from zero — starting at zero claims the first month is
+**stationary** distribution — the spread it settles into after running for a long time — rather
+than from zero — starting at zero claims the first month is
 known exactly. And the persistence has a Beta(2, 2) prior on `(phi + 1)/2`, whose density vanishes
 at a unit root: that exactly cancels the stationary scale's blow-up there, and without it the same
 fit reported 173 divergent transitions in 32 000 instead of one.
@@ -213,11 +237,13 @@ val populations = Ar1TrendHierarchical(IArray(0, 0, 1, 1))
 val wandering = LocalLevel()
 ```
 
-`centred` is a flag on the pooled component, not a second model. Both parameterisations describe
-the same posterior and differ only in which coordinates the sampler walks in — which decides
-whether it can walk at all when the group spread approaches zero. Start non-centred, which is the
-default; switch to centred only if the groups are well separated and the non-centred fit mixes
-badly. Chapter 4's divergent transitions and the spread's own Rhat are how you tell.
+`centred` is a flag on the pooled component, not a second model. **Non-centred** — the default —
+means the model asks for each city's value as "how many population standard deviations from the
+common level", and multiplies back; **centred** asks for the value itself. Both parameterisations
+describe the same posterior and differ only in which coordinates the sampler walks in — which
+decides whether it can walk at all when the group spread approaches zero. Start non-centred, which
+is the default; switch to centred only if the groups are well separated and the non-centred fit
+mixes badly. Chapter 4's divergent transitions and the spread's own Rhat are how you tell.
 
 `LocalLevel` is the variant worth knowing about because of what it refuses to do: fitted to a
 series with no trend it finds no trend, since it has no trend parameter to find one with. A random

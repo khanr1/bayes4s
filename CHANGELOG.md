@@ -8,6 +8,28 @@ Versions follow git tags. Nothing is released yet.
 
 ## Unreleased
 
+### Phase 12b — the manual made teachable (7 November 2026)
+
+Added
+
+- **[The ideas, in plain words](docs/manual/the-ideas.md)**: a page with no code in it, for a reader
+  who does not already know what a posterior is, why a sampler needs warmup, what a divergent
+  transition means, why a prior cannot say nothing, what shrinkage is, what a reporting delay does
+  to a count series, or why percentiles are computed last.
+- **Appendix E, every knob**: every parameter block, constraint, density family, settings field,
+  `Init`, rate and delay component, figure, scoring function and effectful entry point — each with
+  one line saying what it is for, and **checked against the sources name by name**, so a twelfth
+  constraint cannot be added without documenting it.
+- Chapter 0 now glosses every unfamiliar token in its first model, and chapter 1 opens with the
+  seven words every example uses — `Real[A]` and `.lift[A]` demonstrated on their own before either
+  appears inside a model. `.lift[A]` was used 48 times and explained once, in an appendix.
+- Glosses where the manual previously assumed the reader: AR(1), ordered-logistic delays, the
+  stationary distribution, non-centred parameterisation, Cholesky factors, the LKJ prior, the
+  Bayesian bootstrap, and what `Ar1TrendHierarchical`'s argument actually means.
+- Every numbered chapter now links the glossary where it first needs it, and CI checks that it does.
+- Three reading paths in the manual's index: new to Bayesian modelling, coming from Stan, or here
+  for the API.
+
 ### Phase 12 — the manual finished, and the site generated (7 November 2026)
 
 Added

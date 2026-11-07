@@ -2362,3 +2362,67 @@ distribution by one point; when that distribution is wide and skewed, the error 
    `worked_examples.json` and are deliberately the textbook ones; appendix A's model is
    posteriordb's eight schools. Both are references rather than examples, and inventing a world for
    them would make them harder to check against their sources.
+
+## Phase 12b — the manual made teachable
+
+No library code and no new tests: 600 tests, 566 fast and 34 slow, unchanged. What changed is the
+manual, and what is recorded here is the enforcement added with it — because "the manual explains
+things" is not a claim a test can make, while "the manual names everything that exists" is.
+
+### What the diagnosis found
+
+The complaint was that the manual assumes both the API and the theory. Measured rather than
+assumed:
+
+| Claim | Measurement |
+|---|---|
+| `.lift[A]` is used without being explained | used **48 times** across 9 pages, explained once — in appendix A, line 196 |
+| `Real[A]` appears before it is introduced | in chapter 0's model, with no gloss at all |
+| the reference surface is not covered | `ParamSpec.scalar`, `ParamSpec.pure`, `Constraint.Unconstrained`, `UnitInterval`, `LowerBound`, `UpperBound` and `Interval` appeared **nowhere** in the manual |
+| chapters never point at the glossary | **0 of 13** numbered chapters linked it |
+| opaque constructor arguments | `Ar1TrendHierarchical(IArray(0, 0, 0, 0))` was used three times with no word about what the argument means |
+
+### What is now checked
+
+`scripts/check-manual.py` grew three checks, each mutated and caught.
+
+| Check | Mutation | What failed |
+|---|---|---|
+| every constraint, block, settings field, component and figure is in appendix E | a constraint's row deleted | `Constraint.SumToZero is in no row of the reference appendix` |
+| the same, for the count-model components | `LocalLevel` renamed in the page | `component.LocalLevel is in no row…` |
+| the same, for a settings field | `termBuffer` renamed in the page | `AdaptationSettings.termBuffer is in no row…` |
+| every numbered chapter links the glossary | one chapter's link removed | `06-predicting.md never points at the glossary` |
+
+The name extraction was wrong twice before it was right, and both are recorded in D-158: a
+substring match accepted `ParamSpec.pureX` for `ParamSpec.pure`, and a regex for the components
+matched the wrong class because a component's parameter list contains parentheses of its own. Both
+were found by mutating the check rather than by reading it.
+
+### The vocabulary check, on the new prose
+
+`check-terminology.py` flagged nine terms in the pages written here. Six were genuine slips and were
+reworded; three were the deliberate kind — a sentence that names the term the glossary replaces, so
+that a reader coming from another tradition recognises it — and carry `<!-- term-ok -->` with the
+reason, which is what the glossary page itself does.
+
+### Still green
+
+| Check | Result |
+|---|---|
+| `docs/mdoc` with fatal warnings | 0 errors, 19 pages |
+| `docs/tlSite` | 19 pages rendered, every internal link resolved |
+| Chromium, every page of the site | 14 figures across 8 chapters drawn, no Vega error |
+| `check-manual.py` | 19 chapters, 25 capabilities, every one with an example |
+| `check-terminology.py` | 19 pages against 25 terms, none to replace |
+| the fast and slow suites | 566 and 34, untouched |
+
+### Known limits
+
+1. **Whether an explanation explains is still a person's job.** The checks assert that every name is
+   listed, that every chapter links the glossary, and that every figure draws. None of them can tell
+   whether the ideas page helps a reader who was lost.
+2. **The manual now takes about two minutes to compile and two more to render.** Chapters 4, 5, 7, 8
+   and 11 fit models while mdoc runs, which is what keeps their outputs honest.
+3. **Appendix E lists the public surface a model-writer touches, not every public member.** The
+   Scaladoc is the complete reference; the appendix is the part a reader needs and is checked
+   against the sources for exactly the categories it claims.

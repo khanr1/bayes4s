@@ -43,8 +43,9 @@ samplers' opinions. This is the rank-normalised version — the larger of a stat
 and one on their distance from the median — so it still means something for a parameter whose
 posterior has no variance.
 
-**`ESS_bulk`** is the effective number of samples for the middle of the distribution: how many
-independent samples your correlated ones are worth. A thousand of them with an effective number of
+**`ESS_bulk`** is the **[effective number of samples](glossary.md)** for the middle of the
+distribution: how many independent samples your correlated ones are worth. A thousand of them with
+an effective number of
 two hundred give the precision of two hundred, and `MCSE` is that precision.
 
 **`ESS_tail`** is the same for the 5 % and 95 % ends. It is usually the smaller of the two and it
@@ -213,9 +214,8 @@ loo.map(result => (result.elpd, result.se, result.pLoo))
 ```
 
 `elpd` is the expected log predictive density, higher being better, and `se` is its standard error
-over the observations. `pLoo` is the effective number of parameters: the difference between the
-log likelihood at the fit and the cross-validated one, which is how much the model used its
-flexibility.
+over the observations. `pLoo` is the effective number of parameters: the difference between the log
+likelihood at the fit and the cross-validated one, which is how much the model used its flexibility.
 
 The shape parameter the smoothing fitted is the diagnostic that matters:
 

@@ -3,6 +3,10 @@
 CmdStan's CSV, read and written. Nothing here touches a file: `StanCsv` is two pure functions of
 lines, and the file handling is in the second half of this chapter.
 
+A fit from CmdStan and a fit from this library hold the same thing, so what is below is mostly a
+matter of names — [appendix A](appendix-a-from-stan.md) maps the API's, and the
+[glossary](glossary.md) maps the prose's.
+
 ## Reading a fit
 
 ```scala mdoc:silent

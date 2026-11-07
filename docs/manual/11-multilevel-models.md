@@ -1,7 +1,8 @@
 # 11. Multilevel models
 
-A multilevel model is the answer to a question that comes up as soon as data arrives in groups:
-does each cluster get its own parameter, or do they all share one? Neither extreme is usually
+A **[multilevel model](glossary.md)** — what other traditions call a hierarchical or mixed model —  <!-- term-ok --><!-- naming the terms the glossary replaces -->
+is the answer to a question that comes up as soon as data arrives in groups: does each
+[cluster](glossary.md) get its own parameter, or do they all share one? Neither extreme is usually
 right, and this chapter is about the middle — how to write it, how to predict a cluster you have
 never seen, and how to check that the middle is really where the data wants to be.
 
@@ -182,6 +183,15 @@ When each cluster has both an intercept and a slope, they are usually related �
 high may rise more slowly — and a model that gives each its own Gaussian throws that away. The
 arrangement that keeps it declares a vector of locations, a vector of scales, and the Cholesky
 factor of the correlation between them under an LKJ prior.
+
+Two unfamiliar words there, and both are machinery rather than ideas. A **Cholesky factor** is a
+correlation matrix in the form a sampler can walk: a lower triangular `L` with `L L'` equal to the
+correlation, which is cheaper and better conditioned than the matrix itself and is automatically a
+valid correlation matrix however the sampler moves. An **LKJ prior** is a prior on that correlation
+with one parameter: at 1 every correlation matrix is equally likely, and above 1 the prior leans
+towards the identity — that is, towards "probably not very correlated", which is the honest default
+when you do not know. `ParamSpec.choleskyCorr` declares it and `LogDensity.lkjCorrCholesky` is its
+density; neither asks you to think about triangles again.
 
 ```scala mdoc:silent
 final case class Both[A](

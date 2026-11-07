@@ -5,6 +5,12 @@ what the data says — and nothing else: no global registry, no side effect, no 
 to get wrong. This chapter writes one, the eight schools of Rubin (1981), and then writes it a
 second way to show what that buys.
 
+The second way is called the **non-centred** parameterisation, and the eight schools are eight
+**[clusters](glossary.md)** — this manual's word for the groups of a
+[multilevel model](glossary.md), and the [glossary](glossary.md) has the rest of the vocabulary. If
+"prior", "likelihood" and "posterior" are not yet familiar words,
+[the ideas page](the-ideas.md) is twenty minutes well spent before this chapter.
+
 ## The data
 
 Eight schools each ran a coaching programme and each reported an estimated effect and a standard

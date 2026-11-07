@@ -10,7 +10,7 @@ Vega-Lite's own schema. No image is ever compared.
 import bayes4s.*
 import cats.syntax.all.*
 
-/** Two chains of fake samples from the posterior, enough to draw something. */
+/** Two chains of fake [samples from the posterior](glossary.md), enough to draw something. */
 val chains: IArray[IArray[Double]] =
   IArray.tabulate(2)(c => IArray.tabulate(400)(i => 0.4 * math.sin(i * 0.07 + c) + 0.03 * (i % 7)))
 ```

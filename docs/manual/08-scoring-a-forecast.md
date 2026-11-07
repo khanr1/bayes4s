@@ -2,7 +2,9 @@
 
 A forecast that was never scored is an opinion. This chapter is the four numbers worth computing
 after the fact, what each of them can and cannot tell you, and the one place where the obvious
-standard error is wrong by a factor of several.
+standard error is wrong by a factor of several. [The ideas page](the-ideas.md) says why a forecast
+is scored as a distribution rather than as a line, and the [glossary](glossary.md) is this manual's
+vocabulary.
 
 ```scala mdoc:silent
 import bayes4s.*
