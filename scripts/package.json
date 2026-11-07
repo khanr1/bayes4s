@@ -1,0 +1,9 @@
+{
+  "name": "bayes4s-scripts",
+  "private": true,
+  "description": "The browser smoke test of the plot catalogue. Not published, not a dependency of the library.",
+  "type": "module",
+  "devDependencies": {
+    "playwright": "1.65.0"
+  }
+}

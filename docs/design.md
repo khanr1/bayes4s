@@ -1899,3 +1899,116 @@ broken.
 
 The rows are phase 8's `Scored[D]` rather than a new `BacktestRow`: §5.12 sketches the latter, and
 `Scored` already carries exactly those fields, having been built for exactly this.
+
+### D-142. The graphical statistics live in `diagnostics`, not in `plot`
+
+`Density`, `Ranks` and `Ecdf` are statistics that happen to be looked at as pictures. They are
+compared against ArviZ, they have nothing to do with Vega-Lite, and a reader who wants a kernel
+density estimate without a figure should not have to depend on a plotting module to get one. So
+they sit in `diagnostics` next to `Convergence` and `Summary`, and `plot` depends on them.
+
+That also keeps `plot`'s own suite honest about what it is testing: everything numerical is
+already covered against the reference file, and what is left for `plot` is whether the right
+numbers reach the right encodings.
+
+### D-143. Vega-Lite's schema is committed, and the validator is a test dependency
+
+`modules/testkit/src/main/resources/reference/plot/vega-lite-schema.json` is Vega-Lite v6's own
+schema, 1.9 MB of it, with its version in a file beside it. It is the independent reference the
+specifications are checked against — Vega-Lite's opinion of them, not this library's.
+
+`com.networknt:json-schema-validator` is therefore a **test** dependency of `plot` and of
+`examples`, never a dependency of the published library: nothing at run time validates a
+specification, because a specification that this library built is either right or a bug.
+
+Its 3.x API is not its 2.x one — `SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_7)`
+replaces `JsonSchemaFactory.getInstance(VersionFlag.V7)`, and `Error` replaces
+`ValidationMessage` — and it carries jackson 3 under `tools.jackson.databind`. The suites validate
+from a string with `InputFormat.JSON`, which needs none of that to be visible.
+
+### D-144. A faceted specification hoists its data, and each layer filters itself back out
+
+Found by the schema, which is the whole argument for having committed it. `VegaLite.spec` inlines
+each layer's own data, and wrapping such a specification in a `facet` is rejected: Vega-Lite's
+facet operator reads its data at the **top** level, so the object matched no branch of the schema
+and the error came back as "`facet` is not defined in the schema".
+
+A faceted plot therefore pools the rows of every layer into one dataset, tags each row with the
+layer it came from, and gives each layer a `filter` transform on that tag. Without the schema this
+would have shipped and shown a reader an empty panel.
+
+### D-145. `Html.report` and `Html.page` are one renderer
+
+A demonstration page needs a heading and a caption per figure; `PlotFile.writeHtml` needs neither.
+Two renderers would be two places that pin the vega versions, escape the titles and install the
+error hook, and they would drift. So `page` is `report` with nothing to say, and the suite asserts
+that the plain page carries no empty heading, caption or opening paragraph.
+
+### D-146. ArviZ's ranks are ordinal, and this library's are too
+
+`arviz.stats.stats_utils._float_rankdata` assumes no ties and ranks by position, where SciPy's
+`rankdata` averages them. On samples from a posterior ties are measure zero, so the two agree on
+anything real — but the reference file holds a matrix with three equal values in it, deliberately,
+and only the ordinal convention reproduces it. `Ranks.pooled` sorts stably, so equal values keep
+the order they arrived in and the ranks are a function of the data rather than of the sort.
+
+### D-147. The simultaneous ECDF band is estimated by simulation, and takes a seed
+
+Säilynoja, Bürkner and Vehtari (2022) adjust the pointwise level until the whole curve stays
+inside with the stated probability. There is no closed form, so the adjustment is estimated by
+drawing complete samples from the reference and taking a quantile of how extreme the most extreme
+point of each is. That makes the band a function of a `Seed`, which is a parameter rather than a
+hidden global, and makes the figure reproducible.
+
+The pointwise band stays public beside it, because the suite's job is to show that the pointwise
+one does **not** cover what a reader assumes it covers.
+
+### D-148. The fictional world's unit of time is the month
+
+§9.2 does not say what a period is. The month is the unit `Periods`, `ReportingTriangle` and
+`DelayCountData` are written in, so a history of this world can be handed to the count model of
+`nowcast` without rescaling anything — which is the point of having one invented world rather than
+one per chapter.
+
+`World` is a value with the views the examples read: `arrivals`, `counts` by city and month,
+`triangle` by delay, and `visible(maxLag, asOf)` for what an observer standing in a given month
+can see. A reporting delay longer than `maxLag` is in no cell, because the lag is the horizon of
+the model that reads the triangle.
+
+### D-149. The demonstration page is a pure function of its settings
+
+`CatalogueDemo.figures` returns the page's figures as values and the `IOApp` around it only writes
+them. Three things follow. The suite validates every figure of the **real** page against the
+committed schema, rather than hand-built data that happens to resemble it. The page is reproducible
+from a seed, which the suite asserts by building it twice. And CI can build the same page under
+reduced settings — `CatalogueDemo.quick`, the same code with fewer samples — in seconds.
+
+The two models on the page are small on purpose: a gamma-Poisson likelihood with a rate per city
+needs every figure in the catalogue — pooling to compare, dispersion to be sensitive to, a held-out
+year to forecast — and is cheap enough to fit twice and calibrate.
+
+Two claims about them are asserted beyond the figures, because a broken model would still draw:
+`pointwise` sums to `logLikelihood`, and a draw from the prior survives the round trip through the
+unconstrained space that calibration puts it through.
+
+### D-150. A browser's opinion of the page is a Node script, run in CI
+
+A specification can validate against the schema and still throw when Vega runs it — an encoding
+Vega-Lite accepts and Vega cannot execute, a transform that cannot find its field, a pinned version
+that no longer loads. Only a renderer can say, so `scripts/smoke-plots.mjs` opens the page in
+Chromium through playwright, waits for every figure to draw, and fails on anything written to the
+console, thrown, failed to load, or reported into the page's own error box.
+
+It is a **CI and development** dependency, pinned in `scripts/package.json`, with its own
+`node_modules` ignored; nothing in the build or the library depends on Node. And it never compares
+images: what it asserts is that each figure produced a drawing and that nothing complained. The
+mutation that proves it works is a mark renamed to something Vega-Lite's schema still accepts —
+the page then reports `TypeError: Cannot read properties of undefined`, and the step fails.
+
+### D-151. The page is built by a command, because there is no site job yet
+
+§8.2 asks for the demonstration page to be published with the site. Publishing is off (D-1): there
+is no site project, no release branch and no Pages job, so there is nowhere to publish it to. The
+page is therefore built by `sbt 'examples/runMain bayes4s.examples.CatalogueDemo <path>'`, chapter
+12 says so, and CI builds and renders it on every run. When the site is turned on, the page is one
+more file to copy and the command is already there.

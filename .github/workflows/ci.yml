@@ -95,3 +95,12 @@ jobs:
 
       - name: Compile the manual
         run: sbt '++ ${{ matrix.scala }}' docs/mdoc
+
+      - name: Build the demonstration page
+        run: sbt '++ ${{ matrix.scala }}' 'examples/runMain bayes4s.examples.CatalogueDemo target/catalogue.html --quick'
+
+      - name: Render the demonstration page in Chromium
+        run: |
+          npm ci --prefix scripts
+          npm --prefix scripts exec -- playwright install --with-deps chromium
+          node scripts/smoke-plots.mjs target/catalogue.html

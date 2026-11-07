@@ -2078,3 +2078,155 @@ row.
 4. **No `examples` module yet.** §9.2 puts the long programs there as `IOApp.Simple`, which this
    phase makes possible; writing them, and the named `FictionalWorld` generator, belongs with the
    manual's completion.
+
+## Phase 11b — the plots
+
+593 tests, 559 fast and 34 slow, up from 540 — 53 added by this phase, all of them fast: a figure
+is a value, so checking one costs no sampling. The 506 fast tests of phases 0 to 11 are untouched;
+no tolerance, seed or assertion was weakened, and the register of encapsulated local mutation stays
+at 27 sites.
+
+A plot here is a pure value compiled to a Vega-Lite specification, and that is what makes this
+phase testable at all. Three different kinds of claim are checked against three different
+references, and no image is ever compared.
+
+### The statistics, against ArviZ
+
+`reference/build_plot_fixtures.py` writes `plot/plot_statistics.json` from ArviZ 0.23 and numpy:
+the three bandwidth rules on three shapes of sample (a Gaussian one, a skewed one and a bimodal
+one, n = 200 under a fixed seed), the exact Gaussian-sum density on a grid, a case reflected at
+zero, `compute_ranks` on a matrix that deliberately holds three ties, and the empirical cumulative
+function with its exact binomial pointwise band from SciPy.
+
+| Check | Reference | Tolerance | Result |
+|---|---|---|---|
+| `bw_silverman`, `bw_scott` on three samples | ArviZ's formulas, population standard deviation | 1e-12 relative | green |
+| `bw_isj` on the same three | ArviZ's Botev diffusion estimator, 256 bins, DCT, fixed point at `l = 7` | 1e-10 relative | green |
+| the density on a grid | **exact** sum of Gaussians in numpy, not ArviZ's binned estimate | 1e-12 relative | green |
+| the density reflected at zero | the same sum with the mirrored sample added | 1e-12 relative | green |
+| pooled ranks of a 3 × 5 matrix with three ties | ArviZ `compute_ranks`, which is **ordinal** (D-146) | exact | green |
+| the rank histogram | every sample in exactly one bin, summing to the sample count | exact | green |
+| the empirical cumulative function and its pointwise band | SciPy's binomial quantiles | 1e-12 / exact | green |
+| the simultaneous band's coverage | 2000 simulated curves at n = 100: the whole curve inside | 93 % to 97 % for a nominal 95 % | green, and the pointwise band covers 83 % |
+
+That last row is two claims in one. The simultaneous band covers what it says; the pointwise band
+covers 83 % of **curves** while being a perfectly correct 95 % interval at each point, which is
+why the catalogue draws the simultaneous one and why the pointwise one stays public for the test to
+contrast with.
+
+### The specifications, against Vega-Lite's own schema
+
+Vega-Lite v6's schema is committed under `testkit` (D-143). Every figure the catalogue can draw is
+validated against it, and so is every figure of the demonstration page — the real one, built from
+real fits, not hand-built data that resembles it.
+
+| Check | Result |
+|---|---|
+| the 15 catalogue figures, each a valid specification | green |
+| a grid, an empty plot and a faceted plot | green — **after** the schema rejected the first faceted one |
+| every catalogue figure names both of its axes and has a title | green (§5.14 makes this mandatory) |
+| the 16 figures of the demonstration page | green |
+| none of the 16 is a figure with no data in it | green |
+
+The faceted row is the reason for committing a 1.9 MB schema. `VegaLite.spec` inlines each layer's
+data, and Vega-Lite's facet operator reads its data at the top level: the specification was
+rejected with "`facet` is not defined in the schema", and the fix is to hoist the rows and have
+each layer filter itself back out (D-144). Nothing else in this phase would have caught it before
+a reader saw an empty panel.
+
+### The contents, on cases built by hand
+
+Validity says a browser will render something. It does not say the figure draws the right numbers.
+
+| Check | Result |
+|---|---|
+| a line layer carries exactly the numbers it was given | green |
+| divergent transitions are marked on exactly the right points, and nowhere else | green |
+| the Pareto figure marks the observations above the threshold and draws both lines | green |
+| the fan chart draws its bands widest first, so the narrow one stays visible | green |
+| an interval layer carries the axis titles on every mark it is made of | green |
+| superposition keeps the layers of both plots and the left one's identity | green |
+| `Monoid[Plot]`, by `cats-laws` | green |
+| the escape hatch edits the specification and changes nothing else | green |
+| a page pins vega, vega-lite and vega-embed, and escapes its titles | green |
+
+### A browser's opinion
+
+`scripts/smoke-plots.mjs` opens the demonstration page in Chromium through playwright, waits for
+every figure to draw, and fails on anything written to the console, thrown, failed to load, or
+reported into the page's error box (D-150). On the full page: **16 figures drawn, no Vega error**.
+It never compares images.
+
+### The invented world
+
+`examples.FictionalWorld` is checked against the laws of the distributions it claims to draw from,
+which is the only independent reference a simulator has. Monte Carlo thresholds are four standard
+errors, and the ones about the arrival path carry the AR(1) inflation `sqrt((1 + phi) / (1 - phi))`
+— without it the bound would be three times too tight and the test would fail on a seed that is
+perfectly good.
+
+| Check | Reference | Threshold | Result |
+|---|---|---|---|
+| the lag-one correlation of the log rate | `phi` | `4 / sqrt(months)` | green |
+| the spread of the log rate | `tau^2 / (1 - phi^2)` | four standard errors of a sample variance of an AR(1) | green |
+| the mean count in a city | `exp(level + offset) * exp(sigma^2 / 2)` | four standard errors, AR(1) inflated | green |
+| the mean size, processing delay and months kept | the settings themselves | four standard errors | green |
+| the cities rank as their offsets do, and a shelf takes its share | the settings themselves | exact / four standard errors | green |
+| every application is well formed, every city and shelf appears | exact | exact | green |
+| the views agree with the applications they are made of | exact | exact | green |
+| what is visible as of a month is what was processed by then | exact | exact | green |
+| the same seed gives the same world, a different seed a different one | exact | exact | green |
+
+### The demonstration page's own models
+
+The figures would still be drawn if the models behind them were wrong, so two claims are asserted
+directly: `pointwise` sums to `logLikelihood` for both models, to 1e-12 relative, and a draw from
+the prior survives the round trip through the unconstrained space that calibration puts it through,
+to 1e-12. The page is also built twice and asserted identical, which is what "a pure function of
+its settings" means in practice (D-149).
+
+### Mutations (6.6)
+
+One per component, each applied, run, and reverted.
+
+| Component | Mutation | Test that failed |
+|---|---|---|
+| `Density.bandwidth` | the sample standard deviation instead of the population one | the three bandwidth rules against ArviZ |
+| `Density.gaussian` | the reflected term dropped | reflecting at a bound keeps the mass |
+| `Ranks.pooled` | ties ordered backwards | the pooled ranks against ArviZ |
+| `Ecdf.simultaneousBand` | the nominal level used unadjusted, which is the pointwise band | the simultaneous band's coverage |
+| `Plot.empty` | a layer in the identity | superposition keeps the layers |
+| `Monoid[Plot]` | the right plot's layers dropped | superposition keeps the layers |
+| `VegaLite.spec` | the faceted specification's hoisted data removed | the faceted plot's validity |
+| `VegaLite.withTitles` | the titles not pushed inside an `Interval`'s marks | an interval layer carries the axis titles — **and** the schema |
+| `Catalogue.tracePlot` | the divergent transitions negated | divergent transitions are marked on exactly the right points |
+| `Html.report` | escaping removed | the report's headings and captions |
+| `PlotFile.writeJson` | written without indentation | the readable-JSON test |
+| `FictionalWorld` | the AR(1) memory halved | the lag-one correlation of the path |
+| `CatalogueDemo` | one row left out of `pointwise` | the parts sum to the whole |
+| `scripts/smoke-plots.mjs` | a mark renamed to one Vega-Lite's schema still accepts | the smoke test, with `TypeError: Cannot read properties of undefined` |
+
+Two of these are worth a line. The `Monoid[Plot]` identity mutation is **not** caught by the
+`cats-laws` monoid laws: `combine` short-circuits on `Plot.empty`, so a mutated identity
+short-circuits too and the laws still hold. That is what the content test about superposition is
+for, and it was added because the mutation went through. And the `withTitles` mutation was caught
+twice over — by the content test and by the schema — because a layer array with an untitled mark
+is also not a thing Vega-Lite accepts in that position.
+
+### Known limits at the end of phase 11b
+
+1. **The page is built by a command, not published with a site.** §8.2 asks for it to be published
+   with the site; publishing is off (D-1), so there is no site to publish it to. CI builds the page
+   and renders it on every run, and chapter 12 gives the command (D-151).
+2. **The demonstration page's models have no month-to-month memory**, while the world it is drawn
+   on does. The posterior predictive check and the fan chart show exactly that, which is what those
+   figures are for, and the captions say so. A page whose model fitted perfectly would be a worse
+   demonstration and a dishonest one.
+3. **The full page takes about nine minutes to build**, almost all of it in the two fits and the
+   calibration run: a gamma-Poisson log mass costs a `lgamma` per observation per leapfrog step.
+   CI uses `CatalogueDemo.quick`, which is the same code in about seven seconds.
+4. **Chapters 7 and 11 still generate their data in place.** The fictional world now exists and
+   they do not use it yet; rewriting them onto it belongs with the manual's completion.
+5. **`Bandwidth.Isj` falls back to Silverman when the fixed point has no root in (0, 0.01)**, as
+   ArviZ does. The three reference samples all have one; a sample that does not would be silently
+   estimated by a different rule, and nothing reports that.

@@ -8,6 +8,7 @@ val catsEffectV = "3.7.1"
 val fs2V = "3.14.0"
 val fs2DataV = "1.14.1"
 val circeV = "0.14.17"
+val jsonSchemaV = "3.0.9"
 val commonsNumbersV = "1.3"
 val weaverV = "0.13.0"
 
@@ -86,6 +87,26 @@ ThisBuild / githubWorkflowBuildPostamble += WorkflowStep.Sbt(
   name = Some("Compile the manual")
 )
 
+// The demonstration page of the plot catalogue, and a browser's opinion of it. A specification
+// can validate against Vega-Lite's schema and still throw when Vega runs it, and only a renderer
+// can say — so CI builds the page under reduced settings and opens it in Chromium
+// (docs/design.md). Never an image comparison: what is asserted is that every figure drew
+// something and that nothing complained.
+ThisBuild / githubWorkflowBuildPostamble ++= Seq(
+  WorkflowStep.Sbt(
+    List("examples/runMain bayes4s.examples.CatalogueDemo target/catalogue.html --quick"),
+    name = Some("Build the demonstration page")
+  ),
+  WorkflowStep.Run(
+    commands = List(
+      "npm ci --prefix scripts",
+      "npm --prefix scripts exec -- playwright install --with-deps chromium",
+      "node scripts/smoke-plots.mjs target/catalogue.html"
+    ),
+    name = Some("Render the demonstration page in Chromium")
+  )
+)
+
 // The slow statistical suites (SBC, posteriordb) live in their own src/slow/scala, outside
 // `sbt test`. `sbt slow:test` runs them; `-Dbayes4s.stress=true` asks them for fresh seeds and
 // more draws.
@@ -123,6 +144,7 @@ lazy val root = project
     diagnostics,
     predictive,
     scoring,
+    plot,
     nowcast,
     stanIo,
     effect,
@@ -186,6 +208,18 @@ lazy val predictive =
 
 lazy val scoring = mod("scoring").dependsOn(distributions, testkit % Test)
 
+// A plot is a pure value compiled to a Vega-Lite specification (docs/design.md): the module needs
+// the types the plots are built from and circe to write JSON, and nothing that renders. The schema
+// validator is Test only — it checks the specifications this produces, and ships with nothing.
+lazy val plot = mod("plot")
+  .dependsOn(core, diagnostics, predictive, testkit % Test)
+  .settings(
+    libraryDependencies ++= Seq(
+      "io.circe" %% "circe-core" % circeV,
+      "com.networknt" % "json-schema-validator" % jsonSchemaV % Test
+    )
+  )
+
 // `ad % "test->test"` for the dual-number oracle: the count model's gradient is checked against it
 // the way the ported posteriors' are (docs/design.md).
 // `diagnostics` and `stan-io` in Test only: the slow suites compare against a reference summary,
@@ -211,7 +245,7 @@ lazy val stanIo = mod("stan-io")
 
 // `transforms % "test->test"` for the eight schools, the model every sampler test is driven with.
 lazy val effect = mod("effect")
-  .dependsOn(nowcast, diagnostics, scoring, stanIo, transforms % "test->test", testkit % Test)
+  .dependsOn(nowcast, diagnostics, scoring, stanIo, plot, transforms % "test->test", testkit % Test)
   .settings(
     libraryDependencies ++= Seq(
       "org.typelevel" %% "cats-effect" % catsEffectV,
@@ -242,9 +276,14 @@ lazy val benchmarks = mod("benchmarks")
   .enablePlugins(JmhPlugin, NoPublishPlugin)
   .dependsOn(nowcast, distributions % "compile->test")
 
+// The demonstration page's figures are validated against the committed Vega-Lite schema, the
+// same way `plot`'s own suite does it (docs/design.md).
 lazy val examples = mod("examples")
   .enablePlugins(NoPublishPlugin)
-  .dependsOn(effect)
+  .dependsOn(effect, testkit % Test)
+  .settings(
+    libraryDependencies += "com.networknt" % "json-schema-validator" % jsonSchemaV % Test
+  )
 
 lazy val docs = project
   .in(file("docs"))

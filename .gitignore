@@ -31,3 +31,4 @@ venv/
 # generated mdoc site
 docs/target/
 site/
+scripts/node_modules/

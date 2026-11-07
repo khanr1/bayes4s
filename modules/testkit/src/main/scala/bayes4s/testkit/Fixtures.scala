@@ -904,6 +904,13 @@ object Fixtures:
       summary <- at[Json](s"$name/reference_summary.json", Nil)
     yield (data, ReferenceLike(summary))
 
+  /** The statistics the plots need, with ArviZ's bandwidths and exact kernel sums. */
+  def plotStatistics: Either[String, Json] = at[Json]("plot/plot_statistics.json", Nil)
+
+  /** The official Vega-Lite schema every produced specification is validated against. */
+  def vegaLiteSchema: Either[String, String] =
+    Reference.text("plot/vega-lite-schema.json").left.map(_.message)
+
   /** The delay-count reference: fictional data, and a NumPyro posterior for the same model. */
   def delayCount: Either[String, (Json, ReferenceLike)] =
     val name = "posteriordb-like/fictional-delay_count_ar1_ordered_logit"

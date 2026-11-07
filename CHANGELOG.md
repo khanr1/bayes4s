@@ -8,6 +8,39 @@ Versions follow git tags. Nothing is released yet.
 
 ## Unreleased
 
+### Phase 11b — the plots (7 November 2026)
+
+Added
+
+- Module `plot`: `Plot`, a small algebra of layers with a `Monoid`, compiled to a Vega-Lite
+  specification by `VegaLite.spec`. A figure is a **value** — comparable, testable, and rendered by
+  nothing in this library.
+- `Catalogue`: the fifteen figures a Bayesian workflow needs — trace, trank, autocorrelation,
+  energy, pairs, density, interval, model comparison, Pareto shape, posterior predictive, PIT,
+  simulation-based calibration, prior sensitivity, fan chart, shrinkage. Finite on purpose: when one
+  is nearly right, `VegaLite.raw` hands over the JSON rather than growing an option.
+- `VegaLite.concat` for a grid and `Plot.facet` for panels, the latter hoisting its data so that
+  Vega-Lite's facet operator can read it — a bug the committed schema caught before a reader saw an
+  empty panel.
+- `Html.page` and `Html.report`: a page of figures with pinned vega, vega-lite and vega-embed
+  versions and an error box a smoke test can read.
+- `Density`, `Ranks` and `Ecdf` in `diagnostics`: kernel densities with Silverman, Scott and
+  Botev's ISJ bandwidths and reflection at a boundary, ArviZ's ordinal pooled ranks, and the
+  **simultaneous** ECDF band of Säilynoja, Bürkner and Vehtari — which covers 95 % of curves where
+  the pointwise band covers 83 %.
+- `PlotFile` in `effect`: `writeHtml`, `writeReport` and `writeJson`. The only part of drawing a
+  figure that is an effect.
+- Module `examples` with `FictionalWorld`: an invented lending library in four invented cities whose
+  membership applications arrive at an AR(1) rate, are processed after a delay, bring a member who
+  borrows books, each returned after a while. Its unit of time is the month, so a history can be
+  handed to `nowcast`'s count model unchanged.
+- `CatalogueDemo`: the whole catalogue on that world, as a **pure function of its settings** —
+  which is why the suite validates all sixteen figures of the real page against Vega-Lite's schema,
+  and why CI can build the same page in seconds.
+- `scripts/smoke-plots.mjs`: Chromium's opinion of the page, in CI. Sixteen figures drawn, no Vega
+  error. Never an image comparison.
+- Manual chapter 12, *Plots*.
+
 ### Phase 11 — the effectful edge (7 November 2026)
 
 Added
