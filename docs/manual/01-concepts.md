@@ -93,7 +93,8 @@ Special.lgamma(0.0)
 Special.invPhi(1e-300)
 ```
 
-The last one matters later: the rank normalisation of the diagnostics needs the Gaussian quantile far
+The last one matters later: the rank normalisation of the diagnostics needs the Gaussian quantile
+far
 into the tail, where `erfinv(2p - 1)` has no digits left.
 
 A value outside a distribution's support is not an error either. It is `-Inf`, which is exactly

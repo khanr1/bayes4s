@@ -2230,3 +2230,135 @@ is also not a thing Vega-Lite accepts in that position.
 5. **`Bandwidth.Isj` falls back to Silverman when the fixed point has no root in (0, 0.01)**, as
    ArviZ does. The three reference samples all have one; a sample that does not would be silently
    estimated by a different rule, and nothing reports that.
+
+## Phase 12 — the manual finished, and the site generated
+
+600 tests, 566 fast and 34 slow, up from 593 — 7 added by this phase, all of them fast. The 559
+fast tests of phases 0 to 11b are untouched; no tolerance, seed or assertion was weakened, and the
+register of encapsulated local mutation stays at 27 sites.
+
+This phase adds almost no library code. What it adds is **enforcement**: the promises the plan
+makes about the manual are now checked by a script on every run, and the figures the manual shows
+are opened in a browser. Both found real defects, which is the only reason to write them.
+
+### The checklist, as a script
+
+`scripts/check-manual.py` checks the five mechanisable lines of §9.5.
+
+| Check | Result |
+|---|---|
+| every capability of §1.4 has an example, through `docs/manual/capabilities.csv` | green: **25 capabilities, 25 examples** |
+| every `BayesError` appears in appendix B | green: 6 of 6 |
+| no example uses `throw`, `var`, `while`, `asInstanceOf` or `.get` on an `Either` | green, **after ten violations were fixed** |
+| no line of the manual is wider than a hundred columns | green, after 18 were wrapped |
+| every chapter whose subject is a diagnostic, a check or a forecast draws a figure | green: 8 chapters, 14 figures |
+| the README points at the manual, and every line of its quick start is in chapter 0 | green |
+
+The third row is the one worth reading twice. §9.2 forbids `.toOption.get` in the manual's examples
+in so many words, and ten of them used it — in chapters 5, 6, 7 and 8, across four different
+constructions. They are now `getOrElse` with a neutral value where one exists, and `map` over the
+`Either` where none does.
+
+The eight capabilities that had no example at all when the check was first run — gamma-Poisson
+shrinkage, the hierarchical version of it, multilevel logistic regression, robust scale priors,
+corrected counts, aggregation by quarter, the local-level variant and the calibrated model-error
+term — now have one each.
+
+### A browser's opinion of the manual
+
+`scripts/smoke-plots.mjs` opens each generated page in Chromium, waits for every figure to draw,
+and fails on anything written to the console, thrown, failed to load, or reported into a figure's
+own container.
+
+| Page | Figures | Result |
+|---|---|---|
+| 0. Quick start | 1 | drawn, no Vega error |
+| 4. Diagnosing | 4 | drawn, no Vega error |
+| 5. Checking a model | 2 | drawn, no Vega error |
+| 6. Predicting | 1 | drawn, no Vega error |
+| 7. Nowcasting step by step | 3 | drawn, no Vega error |
+| 8. Scoring a forecast | 1 | drawn, no Vega error |
+| 11. Multilevel models | 1 | drawn, no Vega error |
+| 12. Plots | 1 | drawn, no Vega error |
+| the demonstration page | 16 | drawn, no Vega error |
+
+Two defects found here, neither visible any other way:
+
+1. **A figure that drew and then deleted itself.** `Html.embed` removed its own fallback text once
+   Vega reported success — but Vega *replaces* the container's contents when it draws, so the first
+   child by then was the figure. The specification was valid, the page was right, and the figure
+   appeared and vanished (D-153).
+2. **Chapter 11's figure never drew at all**: the chapter emitted `Html.embed` without
+   `Html.scripts`, so `vegaEmbed` was not defined. The page looked complete in the markdown and the
+   container stayed empty in the browser. `check-manual.py` now checks for that pair without
+   needing a browser, which is where it belongs.
+
+### The invented world, arranged for the models
+
+`examples.LibraryHistory` is checked against the world it rearranges, exactly and statistically.
+
+| Check | Reference | Threshold | Result |
+|---|---|---|---|
+| every application in the window is in exactly one cell | the world's own applications | exact | green |
+| the mask hides exactly what had not been processed | the world's own processing months | exact | green |
+| the delay shares are a Poisson truncated to the window | `Poisson(delayMean)` renormalised, analytically | four standard errors of a proportion | green |
+| the exposure falls towards the present, and the newest month is under half | the mask and the shares | exact | green |
+| the corrected counts refuse the months below the visibility threshold | the exposure | exact | green |
+| a loan's return lands in the month it came back in | the world's own loans | exact | green |
+
+### The site
+
+`sbt docs/tlSite` renders 18 pages and 692 KB under `docs/target/docs/site`. CI builds it on every
+run and deploys it nowhere (D-152). Laika validates every internal link while it renders, which
+found three links in chapters 2 and 10 that pointed at the manual's index instead of the chapter
+they named.
+
+### Three claims corrected against their own output
+
+The manual's outputs are produced by mdoc, so the prose beside them can be checked. Three claims
+were wrong and the prose was changed to match the measurement (D-156).
+
+| Claim | What the output says |
+|---|---|
+| a half-Student-t on the between-cluster spread widens its upper end | on twelve clusters the two priors agree to two decimals: 1.41 against 1.42 |
+| full Bayes is the wider of the two with four groups | over 36 months the spreads are equal to two decimals; over one month the **full** version is narrower, 0.43 against 0.91 |
+| the sum of two anti-correlated parts' 90th percentiles exceeds the total's by about a third | 60.5 against 40.0, which is half again as large |
+
+The second contradicts the plan's own shorthand for this comparison, and the chapter now says why:
+with one month of four cities the data is consistent with the cities being identical, the posterior
+of the dispersion has most of its mass far above its maximum-likelihood estimate, and rates drawn
+under a large dispersion are shrunk hard and come out tight. Empirical Bayes replaces a
+distribution by one point; when that distribution is wide and skewed, the error can go either way.
+
+### Mutations (6.6)
+
+| Component | Mutation | Check that failed |
+|---|---|---|
+| the capabilities map | a capability's example renamed out of its chapter | `check-manual.py`, naming the capability and the chapter |
+| appendix B's coverage | one error's entry removed | `check-manual.py`, naming `NumericalOverflow` |
+| the functional rules in examples | `getOrElse` turned back into `.toOption.get` | `check-manual.py`, naming the file and the line |
+| the figure requirement | a chapter's figure block deleted | `check-manual.py`: "06-predicting.md draws no figure" |
+| the scripts requirement | `Html.scripts` removed from a chapter that draws | `check-manual.py`: "draws a figure but never emits Html.scripts" |
+| the README's quick start | one line changed so it is no longer chapter 0's | `check-manual.py`, quoting the line |
+| the width rule | one line stretched past a hundred columns | `check-manual.py`, with the column count |
+| `Html.embed` | the attribute escaping removed | the embedded-figure test, on a hostile identifier and caption |
+| `LibraryHistory` | the visible window moved one month forward | the mask test, exactly |
+| `LibraryHistory` | a return placed at the month the application arrived rather than was processed | the returns test, exactly |
+| the site's raw content | `laikaConfig ... withRawContent` removed | `docs/tlSite`, with 120 errors |
+
+### Known limits at the end of phase 12
+
+1. **The site is generated and not published**, and the snapshot is not published either. Both were
+   the maintainer's decision for this phase (D-152, D-1); the switch is one setting and a
+   regeneration.
+2. **Five lines of §9.5 are still a person's job**: that the prose is readable, that a figure says
+   what the reader needs, that an example is the clearest one available, that the outputs shown are
+   worth showing, and that a glossary term is linked at its first occurrence. A script can check
+   that a figure exists and that it draws; it cannot check that it helps.
+3. **Chapters 7, 8 and 11 fit models when the manual is compiled**, which is what keeps their
+   outputs honest and costs about two minutes of CI. A manual that grew many more fits would want
+   the long ones moved into `examples` and included by extract.
+4. **The three appendices are not set in the invented world.** Appendix C's numbers come from
+   `worked_examples.json` and are deliberately the textbook ones; appendix A's model is
+   posteriordb's eight schools. Both are references rather than examples, and inventing a world for
+   them would make them harder to check against their sources.

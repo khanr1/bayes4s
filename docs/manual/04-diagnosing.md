@@ -75,6 +75,59 @@ such long trajectories.
 signature of a posterior with a funnel in it. Measured on a centred funnel it comes out near 0.1
 against near 1 for a Gaussian, so it separates the two cleanly.
 
+The funnel is visible, and so is where the divergent transitions are:
+
+```scala mdoc:passthrough
+println(Html.scripts)
+println(
+  fit
+    .map { chains =>
+      val draws = chains.flatMap(_.draws)
+      Html.embed(
+        "fig-04-pairs",
+        VegaLite.spec(
+          Catalogue.pairsPlot(
+            IArray.from(draws.map(q => Model.constrain(centred, q).mu)),
+            IArray.from(draws.map(q => math.log(Model.constrain(centred, q).tau))),
+            ("mu", "log tau"),
+            Some(IArray.from(chains.flatMap(_.transitions.map(_.divergent))))
+          )
+        ),
+        "The common mean against the log of the between-school spread. The cloud narrows sharply " +
+          "as the spread falls — the funnel — and the divergent transitions, in orange, are " +
+          "concentrated in its neck where the sampler could not follow the trajectory."
+      )
+    }
+    .getOrElse("<p>the fit failed, so there is no figure</p>")
+)
+```
+
+Plot the spread on the **log** scale to see this. On its own scale the funnel is squashed against
+zero and looks like a cloud with a hard edge; on the log scale it is the triangle that gives the
+geometry its name, and the divergent transitions sit where the triangle narrows.
+
+```scala mdoc:passthrough
+println(
+  fit
+    .map { chains =>
+      val report = SamplerReport.of(chains, maxTreeDepth = 10)
+      Html.embed(
+        "fig-04-energy",
+        VegaLite.spec(
+          Catalogue.energyPlot(
+            IArray.from(chains.headOption.toList.flatMap(_.transitions.map(_.energy))),
+            report.eBfmi.headOption.getOrElse(Double.NaN)
+          )
+        ),
+        "The energy of the first chain over its iterations, with its E-BFMI. A chain that is " +
+          "exploring the energy distribution moves across the whole band; one that is stuck in " +
+          "the funnel's neck shows long flat stretches."
+      )
+    }
+    .getOrElse("<p>the fit failed, so there is no figure</p>")
+)
+```
+
 ## A `NaN` is a diagnosis
 
 Every statistic here returns a `NaN` rather than an error when it cannot say anything, and the
@@ -113,8 +166,9 @@ fit.map { chains =>
 
 The **percentile** interval cuts 5 % from each end. The **shortest** interval — the empirical
 highest posterior density one — is the narrowest window holding 90 % of the samples, and for a
-skewed posterior such as a scale it sits lower and is narrower. Neither is better; they answer different questions,
-and the shortest one is the honest choice when a posterior is pushed against a boundary.
+skewed posterior such as a scale it sits lower and is narrower. Neither is better; they answer
+different questions, and the shortest one is the honest choice when a posterior is pushed against a
+boundary.
 
 One rule about both: compute them at the end, from the samples, and never add them up. The 90th
 percentile of a sum is not the sum of the 90th percentiles.
@@ -149,7 +203,8 @@ generalised Pareto distribution.
 
 ```scala mdoc
 val loo = fit.map { chains =>
-  val samples = chains.flatMap(_.draws).map(q => criticised.pointwise(Model.constrain(criticised, q)))
+  val samples =
+    chains.flatMap(_.draws).map(q => criticised.pointwise(Model.constrain(criticised, q)))
   // One row per observation, one column per sample from the posterior.
   val logLik = IArray.tabulate(8)(j => IArray.from(samples.map(_(j))))
   Loo.psis(logLik, 1.0)
@@ -172,6 +227,22 @@ Above the threshold — `min(1 - 1/log10(S), 0.7)`, so 0.7 at any realistic numb
 estimate for that observation is not to be trusted, and the honest fix is to refit without the
 observation rather than to quote the number anyway. `problematic` names the observations to look
 at, and here it names three of the eight.
+
+```scala mdoc:passthrough
+println(
+  loo
+    .map { result =>
+      Html.embed(
+        "fig-04-pareto",
+        VegaLite.spec(Catalogue.paretoKPlot(result)),
+        "The Pareto shape of each school's importance weights, with the 0.5 and 0.7 lines. " +
+          "Three of the eight sit above 0.7, in orange: for those schools the leave-one-out " +
+          "estimate is not to be trusted."
+      )
+    }
+    .getOrElse("<p>the fit failed, so there is no figure</p>")
+)
+```
 
 That is not a bug in the smoothing, and it is worth understanding before you reach for a different
 tool. Each school contributes exactly one observation, and its own `theta[j]` is informed by that
@@ -197,7 +268,9 @@ measures how far the posterior moved per unit of change, as a cumulative Jensen-
 The same is done for the likelihood.
 
 ```scala mdoc
-fit.map(chains => PowerScaling.analyse(centred, chains).filter(s => s.name == "mu" || s.name == "tau"))
+fit.map { chains =>
+  PowerScaling.analyse(centred, chains).filter(s => s.name == "mu" || s.name == "tau")
+}
 ```
 
 Reading the two numbers together gives four cases, and `diagnosis` says which one you are in:
@@ -210,6 +283,22 @@ the between-cluster spread is what decides its posterior, and the eight observat
 nothing to say about it. That is the eight schools' oldest lesson arriving as a number rather than
 as folklore — with eight clusters of one observation each, the spread between clusters is a
 question the data cannot answer, and whatever prior you put on it is the answer you will get.
+
+```scala mdoc:passthrough
+println(
+  fit
+    .map { chains =>
+      Html.embed(
+        "fig-04-sensitivity",
+        VegaLite.spec(Catalogue.sensitivityPlot(PowerScaling.analyse(centred, chains))),
+        "Prior sensitivity against likelihood sensitivity, one point per parameter, with the " +
+          "0.05 thresholds. The between-school spread sits far along the prior axis and at zero " +
+          "on the likelihood axis: its posterior is its prior."
+      )
+    }
+    .getOrElse("<p>the fit failed, so there is no figure</p>")
+)
+```
 
 Two cautions. The reading is a sensitivity, not a verdict: a narrow prior is sensitive whether or
 not it conflicts with the data, so a prior placed exactly where the data already is still reads as

@@ -18,17 +18,23 @@ val months = 8
 val maxLag = 3
 val t = IArray.tabulate(months)(m => (m - 3.5) / 8.0)
 val visible = ReportingTriangle.rightCensored(months, maxLag + 1, current = months)
-val blank = DelayCountData.blank(months, maxLag, t, visible).toOption.get
-val model = DelayCountModel(Ar1Trend(), OrderedLogitDrift(), blank)
+
+// An empty grid of the right shape: `blank` refuses a mask that disagrees with it, so it returns
+// an `Either` and everything below reads it through `map`. There is no `get` anywhere in this
+// manual, which is the same rule the library holds itself to.
+val blank = DelayCountData.blank(months, maxLag, t, visible)
+val model = blank.map(data => DelayCountModel(Ar1Trend(), OrderedLogitDrift(), data))
 ```
 
 ```scala mdoc
-val prior = Checks.priorPredictive(model, draws = 200, Seed(1L))
-val totals = IArray.tabulate(prior.replications)(r =>
-  (0 until prior.periods).foldLeft(0.0)((sum, p) => sum + prior.replicated(r)(p))
-)
-val sorted = IArray.from(totals.toList.sorted)
-(sorted.head, Quantile.quantile(sorted, 0.5), sorted(sorted.length - 1))
+val priorTotals = model.map { m =>
+  val prior = Checks.priorPredictive(m, draws = 200, Seed(1L))
+  val totals = IArray.tabulate(prior.replications)(r =>
+    (0 until prior.periods).foldLeft(0.0)((sum, p) => sum + prior.replicated(r)(p))
+  )
+  val sorted = IArray.from(totals.toList.sorted)
+  (sorted.head, Quantile.quantile(sorted, 0.5), sorted(sorted.length - 1))
+}
 ```
 
 Those run over orders of magnitude, which is what a barely regularizing prior on a log rate
@@ -44,22 +50,52 @@ total, because a model can get the total right while being wrong about every per
 
 ```scala mdoc:silent
 val truth = DelayCountParams[Ar1TrendParams, OrderedLogitDriftParams, Double](
-  Ar1TrendParams(IArray(3.2), IArray(0.4), 0.5, 0.15, IArray.tabulate(months)(m => math.sin(m.toDouble))),
+  Ar1TrendParams(
+    IArray(3.2), IArray(0.4), 0.5, 0.15, IArray.tabulate(months)(m => math.sin(m.toDouble))
+  ),
   OrderedLogitDriftParams(0.6, IArray(0.7, 0.5), 0.3)
 )
-val generative = DelayCountModel.generative(Ar1Trend(), OrderedLogitDrift(), blank)
-val observed = generative.generative.simulateData[Rand](truth).runA(Seed(20261106L)).value
-val fitted = DelayCountModel(Ar1Trend(), OrderedLogitDrift(), observed)
+val generative =
+  blank.map(data => DelayCountModel.generative(Ar1Trend(), OrderedLogitDrift(), data))
+val fitted = generative.map { g =>
+  val observed = g.generative.simulateData[Rand](truth).runA(Seed(20261106L)).value
+  DelayCountModel(Ar1Trend(), OrderedLogitDrift(), observed)
+}
 ```
 
 ```scala mdoc
 val check = for
-  chains <- Mcmc.runNuts(fitted, RunSettings(chains = 2, warmup = 600, samples = 1000))
+  f <- fitted
+  chains <- Mcmc.runNuts(f, RunSettings(chains = 2, warmup = 600, samples = 1000))
     .runA(Seed(4711L))
     .value
-  draws <- Mcmc.draws(fitted, chains)
-  sample <- Checks.posteriorPredictive(fitted, draws, Seed(99L))
-yield (sample.periods, sample.outsideBand(0.9))
+  draws <- Mcmc.draws(f, chains)
+  sample <- Checks.posteriorPredictive(f, draws, Seed(99L))
+yield (sample.periods, sample.outsideBand(0.9), sample)
+```
+
+```scala mdoc:passthrough
+println(Html.scripts)
+println(
+  check
+    .map { (_, _, sample) =>
+      Html.embed(
+        "fig-05-ppc",
+        VegaLite.spec(
+          Catalogue.predictivePlot(
+            sample.observed,
+            sample.replicated,
+            0.9,
+            "Reports arriving, observed against replicated"
+          )
+        ),
+        "Reports arriving in each period: the observed series as points against the 90 per cent " +
+          "band of series replicated from the posterior. The observed series stays inside the " +
+          "band except in one period."
+      )
+    }
+    .getOrElse("<p>the check failed, so there is no figure</p>")
+)
 ```
 
 The statistic is the number of reports that **arrived** in each period — the diagonal of the grid,
@@ -77,12 +113,29 @@ The two above compare a model with data. Simulation-based calibration compares a
 itself**: draw parameters from the prior, simulate data from them, fit, and ask where the true
 value falls among the posterior samples. Over many replications those ranks must be uniform.
 
-```scala mdoc:silent
-val calibration = Sbc.run(generative, RunSettings(chains = 2, warmup = 400, samples = 500), 16, 63)
+```scala mdoc
+val calibration = generative.flatMap { g =>
+  Sbc.run(g, RunSettings(chains = 2, warmup = 400, samples = 500), 16, 63).runA(Seed(7L)).value
+}
+calibration.map(result => result.uniformityChiSquared(4))
 ```
 
-```scala mdoc
-calibration.runA(Seed(7L)).value.map(result => result.uniformityChiSquared(4))
+```scala mdoc:passthrough
+println(
+  calibration
+    .map { result =>
+      Html.embed(
+        "fig-05-sbc",
+        VegaLite.spec(
+          Catalogue.sbcPlot(result.ranks.getOrElse("phi", IArray.empty), result.thinnedDraws)
+        ),
+        "The rank histogram of the persistence over sixteen replications, with the cumulative " +
+          "difference from a flat histogram and its simultaneous 95 per cent band. Sixteen " +
+          "replications is too few to conclude anything, and the band is correspondingly wide."
+      )
+    }
+    .getOrElse("<p>the calibration failed, so there is no figure</p>")
+)
 ```
 
 Sixteen replications is far too few to conclude anything — the library's own suite uses 40 to 256 —

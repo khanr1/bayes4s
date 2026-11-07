@@ -45,6 +45,21 @@ trace.title
 | `fanChart` | the forecast, with compatibility bands and what actually happened |
 | `shrinkagePlot` | what partial pooling did to each cluster |
 
+Here is that trace, drawn by this page rather than described by it. Every figure in this manual is
+produced when the manual is compiled — `Html.scripts` once per page, then `Html.embed` per figure,
+inside an `mdoc:passthrough` block — so a figure can never be a stale image of an older library.
+
+```scala mdoc:passthrough
+println(Html.scripts)
+println(
+  Html.embed(
+    "fig-12-trace",
+    VegaLite.spec(trace),
+    "Two chains of mu over 400 iterations, overlapping, with no divergent transition marked."
+  )
+)
+```
+
 ## Layers add up
 
 `Plot` is a monoid: adding two figures concatenates their layers and keeps the first one's titles
@@ -126,7 +141,11 @@ import fs2.io.file.Path
 def publish(directory: Path): IO[Unit] =
   val figures = List(
     Figure("A trace", "Two chains over 400 iterations.", VegaLite.spec(trace)),
-    Figure("A density", "The same samples, pooled.", VegaLite.spec(Catalogue.densityPlot(chains, "mu")))
+    Figure(
+      "A density",
+      "The same samples, pooled.",
+      VegaLite.spec(Catalogue.densityPlot(chains, "mu"))
+    )
   )
   PlotFile[IO].writeReport(directory / "report.html", figures, "A short report", "") *>
     PlotFile[IO].writeJson(directory / "trace.vl.json", trace)

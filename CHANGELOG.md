@@ -8,6 +8,40 @@ Versions follow git tags. Nothing is released yet.
 
 ## Unreleased
 
+### Phase 12 — the manual finished, and the site generated (7 November 2026)
+
+Added
+
+- **The manual as a site.** `sbt docs/tlSite` renders all eighteen pages with `sbt-typelevel-site`;
+  CI builds it on every run and deploys it nowhere — publishing stays off, by decision.
+- **Figures in the manual, drawn when it is compiled.** `Html.scripts` and `Html.embed` put a
+  Vega-Lite figure into an mdoc page with required alternative text, so a chapter about a diagnostic
+  shows the diagnostic: fourteen figures across eight chapters, all of them opened in Chromium in CI.
+- `scripts/check-manual.py`: the mechanisable half of the manual's own checklist — every capability
+  the library promises has an example, every `BayesError` is in appendix B, no example reaches for
+  `.get`, no line is wider than a hundred columns, every chapter that should draw a figure does, and
+  the README's quick start is a subset of chapter 0's compiled code.
+- `examples.LibraryHistory`: the invented world arranged as a count model reads it — a censored
+  grid, the delay shares, the exposure, the corrected counts, the book returns — with a suite of its
+  own. Chapters 7, 8 and 11 are all set in it.
+- Chapter 7 rewritten end to end on the invented world, with corrected counts, a forecast, a report
+  by quarter and books returned later; chapter 10's pitfalls completed; chapter 11 extended with
+  robust scale priors, multilevel logistic regression and empirical against full Bayes; appendix C
+  given its Metropolis example; chapter 0 finished with a real summary table and a trace.
+- A rewritten README and manual index.
+
+Fixed
+
+- **Ten examples used `.toOption.get`**, which the manual's own rules forbid. They now handle the
+  `Either`.
+- **A figure that drew and then deleted itself**: Vega replaces its container's contents, so
+  removing the fallback text afterwards removed the figure. Found by the browser, nothing else.
+- Three claims in the prose that disagreed with the output beside them, including one that
+  contradicted the plan's shorthand: with four groups, full Bayes is not always the wider of the
+  two, and the manual now says why.
+- Three links in chapters 2 and 10 that pointed at the manual's index instead of the chapter they
+  named, found by laika's link validation.
+
 ### Phase 11b — the plots (7 November 2026)
 
 Added

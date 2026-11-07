@@ -55,27 +55,50 @@ seed gives the same chains, on any machine, in any order. Nothing is run until y
 ## The answer
 
 ```scala mdoc
-val summary = fitted.map { chains =>
-  val all = chains.flatMap(_.draws).map(q => Model.constrain(model, q))
-  val mus = all.map(_.mu)
-  val sigmas = all.map(_.sigma)
-  def moments(xs: List[Double]) =
-    val mean = xs.sum / xs.length
-    val sd = math.sqrt(xs.map(x => (x - mean) * (x - mean)).sum / (xs.length - 1))
-    (mean, sd)
-  (moments(mus), moments(sigmas))
-}
+fitted.map(chains => Summary.table(model, chains))
 ```
 
-`Model.constrain` turns a point the sampler moved in into the parameters you wrote, and
-`Model.values` does the same by name when you want a table:
+Six columns are the answer and three are whether to believe it. `mean` and `sd` are the posterior's
+location and spread; `5%`, `50%` and `95%` are the **compatibility interval** and the median.
+`Rhat` compares the chains with each other and must be below about 1.01; `ESS_bulk` and `ESS_tail`
+are how many independent samples these correlated ones are worth, in the middle of the
+distribution and in its tails; `MCSE` is the error of the reported mean that comes from having
+sampled rather than integrated. Chapter 4 is the whole story; this is enough to read a fit.
+
+`lp__` is the log density itself, which is not a parameter but is the single most useful column for
+spotting a chain that went somewhere else.
+
+If you want the numbers rather than the table, `Model.constrain` turns a point the sampler moved in
+into the parameters you wrote, and `Model.values` does the same by name:
 
 ```scala mdoc
 fitted.map(chains => Model.values(model, chains.head.draws.head))
 ```
 
-A real summary — the effective number of samples, Rhat, the compatibility intervals — arrives with
-the diagnostics in chapter 4. What is worth checking even here is that nothing went wrong:
+A picture of the same thing, which is the first look a fit deserves:
+
+```scala mdoc:passthrough
+println(Html.scripts)
+println(
+  fitted
+    .map { chains =>
+      val mu = IArray.from(
+        chains.map(c => IArray.from(c.draws.map(q => Model.constrain(model, q).mu)))
+      )
+      Html.embed(
+        "fig-00-trace",
+        VegaLite.spec(Catalogue.tracePlot(mu, "mu")),
+        "Four chains of mu over a thousand iterations each. They overlap completely and show no " +
+          "trend, which is what a converged fit looks like."
+      )
+    }
+    .getOrElse("<p>the fit failed, so there is no figure</p>")
+)
+```
+
+Four chains drawn on top of each other with no trend and no chain sitting apart from the others:
+that is convergence, and it is visible before any statistic is computed. What is worth checking
+even here is that nothing went wrong:
 
 ```scala mdoc
 fitted.map { chains =>
@@ -91,8 +114,14 @@ fitted.map { chains =>
 No divergent transitions, a tree depth well under the maximum of ten, and four step sizes that
 each chain found for itself. If the first number were not zero, chapter 4 is where to go.
 
+That is the whole loop: write the model, fit it, read the table, look at the trace, check the
+transitions. Everything else in this manual is a better model, a better check, or a better
+picture.
+
 ## Where next
 
 [Chapter 1](01-concepts.md) is why any of this is values rather than objects;
 [chapter 2](02-writing-a-model.md) writes a real model, with a multilevel structure and two
-parameterisations; [chapter 3](03-sampling.md) is about the sampler itself.
+parameterisations; [chapter 3](03-sampling.md) is about the sampler itself, including the four
+chains in parallel in `IO`; [chapter 4](04-diagnosing.md) is the table above, column by column, and
+what to do when one of them is bad; [chapter 12](12-plots.md) is every figure in this manual.

@@ -71,6 +71,9 @@ jobs:
       - name: Check the table of Stan names
         run: python3 scripts/check-stan-names.py
 
+      - name: Check the manual's checklist
+        run: python3 scripts/check-manual.py
+
       - name: Check that workflows are up to date
         run: sbt githubWorkflowCheck
 
@@ -104,3 +107,41 @@ jobs:
           npm ci --prefix scripts
           npm --prefix scripts exec -- playwright install --with-deps chromium
           node scripts/smoke-plots.mjs target/catalogue.html
+
+  site:
+    name: Generate Site
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        java: [temurin@25]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout current branch (full)
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup sbt
+        uses: sbt/setup-sbt@v1
+
+      - name: Setup Java (temurin@25)
+        id: setup-java-temurin-25
+        if: matrix.java == 'temurin@25'
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: sbt
+
+      - name: sbt update
+        if: matrix.java == 'temurin@25' && steps.setup-java-temurin-25.outputs.cache-hit == 'false'
+        run: sbt +update
+
+      - name: Generate site
+        run: sbt docs/tlSite
+
+      - name: Render the manual's figures in Chromium
+        run: |
+          npm ci --prefix scripts
+          npm --prefix scripts exec -- playwright install --with-deps chromium
+          node scripts/smoke-plots.mjs docs/target/docs/site/*.html

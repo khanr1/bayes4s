@@ -157,7 +157,8 @@ nonCentred.logDensity(Standardised(mu, tau, z))
 ```
 
 Which of the two to fit is a question about the sampler, not about the model, and
-[chapter 4](index.md) answers it with diagnostics rather than taste. What matters here is that
+[chapter 4](04-diagnosing.md) answers it with diagnostics rather than taste. What matters here is
+that
 writing the second cost no new density and no new derivative.
 
 ## The prior on its own
@@ -176,7 +177,7 @@ A model can also carry a program that **generates** data — draw parameters fro
 data from the parameters — which is what parameter recovery and simulation-based calibration are
 built on. It is optional: a posterior needs only what is above. `Generative` and
 `GenerativeModel` are in the API now and the chapter that uses them in earnest is
-[chapter 5](index.md), with the sampler.
+[chapter 5](05-checking-a-model.md), with the sampler.
 
 One warning that belongs here. A generative model says the same thing twice — a density and a
 simulation — and nothing in the types makes them the same prior. A disagreement would invalidate

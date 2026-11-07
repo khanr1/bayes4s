@@ -1,0 +1,31 @@
+# Every capability the library promises (plan §1.4) has a worked example in the manual.
+# scripts/check-manual.py reads this file and fails if a chapter is missing or no longer shows the
+# marker, so a capability cannot quietly lose its example.
+# capability: the promise, in the plan's words.  chapter: the file that keeps it.
+# marker: a literal string that must appear in that chapter.
+capability,chapter,marker
+"grid posterior, and the Gamma-Poisson conjugate with exposure",appendix-c-worked-examples.md,GammaPoisson.update
+"mean, percentile and highest posterior density intervals, exceedance probabilities",appendix-c-worked-examples.md,Intervals.hpd
+"the gamma-Poisson predictive against a plug-in Poisson",appendix-c-worked-examples.md,GammaPoisson.predictive
+"Metropolis, NUTS, Rhat, the effective number of samples, divergent transitions",04-diagnosing.md,Convergence.rhat
+"gamma-Poisson shrinkage, the dispersion by maximum likelihood",11-multilevel-models.md,GammaPoissonShrinkage.fit
+"CRPS, coverage, bias, a leave-future-out backtest",08-scoring-a-forecast.md,Crps.ensemble
+"an AR(1) rate with a trend, an ordered-logit delay with drift, a censored likelihood",07-nowcasting-step-by-step.md,DelayCountModel
+"event sizes: log-normal with a cap, the Bayesian bootstrap, the bootstrap with a trend",07-nowcasting-step-by-step.md,SizeModel
+"priors, and a prior predictive simulation",05-checking-a-model.md,priorPredictive
+"the fit, its diagnostics, its summaries, and counts corrected for censoring",07-nowcasting-step-by-step.md,correctedCounts
+"a posterior predictive check of the visible counts",05-checking-a-model.md,posteriorPredictive
+"a forecast by simulation, a partial first period, aggregation by quarter",07-nowcasting-step-by-step.md,quarterOf
+"a calibrated model-error term",08-scoring-a-forecast.md,ModelError.calibrate
+"a model per group, and templates partly pooled across groups",07-nowcasting-step-by-step.md,TemplatePool
+"derived quantities of each event, spread over time",06-predicting.md,ContributionRule
+"variants: a local-level rate, delays per group around a common delay",07-nowcasting-step-by-step.md,LocalLevel
+"varying intercepts and slopes, centred or not, nested or crossed groups",11-multilevel-models.md,gather
+"correlated varying effects",11-multilevel-models.md,lkjCorrCholesky
+"multilevel logistic and binomial regression",11-multilevel-models.md,bernoulliLogitSum
+"robust scale priors",11-multilevel-models.md,halfStudentT
+"no pooling, partial pooling and complete pooling, compared",11-multilevel-models.md,Loo.compare
+"a check that a hyperparameter's prior does not decide the answer",11-multilevel-models.md,PowerScaling.analyse
+"a prediction for a group that is not in the data",11-multilevel-models.md,Hierarchy.newGroup
+"empirical Bayes against full Bayes on the same gamma-Poisson model",11-multilevel-models.md,GammaPoissonHierarchical
+"the chains, the posterior, the predictive checks, the calibration, the Pareto shapes, a fan chart, the effect of pooling",12-plots.md,Catalogue.

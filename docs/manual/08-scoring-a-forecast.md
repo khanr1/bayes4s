@@ -135,7 +135,9 @@ val replicates = result.blockBootstrap[Rand](_.crps, blockSize = 6, replications
   .runA(Seed(20261106L))
   .value
 val mean = replicates.toList.sum / replicates.length
-val spread = math.sqrt(replicates.toList.map(r => (r - mean) * (r - mean)).sum / (replicates.length - 1))
+val spread = math.sqrt(
+  replicates.toList.map(r => (r - mean) * (r - mean)).sum / (replicates.length - 1)
+)
 (mean, spread)
 ```
 
@@ -158,19 +160,22 @@ val months = 16
 val maxLag = 3
 val t = IArray.tabulate(months)(m => (m - (months - 1) / 2.0) / months)
 val visible = ReportingTriangle.rightCensored(months, maxLag + 1, current = months)
-val blank = DelayCountData.blank(months, maxLag, t, visible).toOption.get
 
 /** The data really does trend: a level of 3.3 rising at 0.6 a year. */
 val truth = DelayCountParams[Ar1TrendParams, OrderedLogitDriftParams, Double](
-  Ar1TrendParams(IArray(3.3), IArray(0.6), 0.4, 0.12, IArray.tabulate(months)(m => math.sin(m * 0.9))),
+  Ar1TrendParams(
+    IArray(3.3), IArray(0.6), 0.4, 0.12, IArray.tabulate(months)(m => math.sin(m * 0.9))
+  ),
   OrderedLogitDriftParams(0.5, IArray(0.8, 0.6, 0.4), 0.2)
 )
-val data = DelayCountModel
-  .generative(Ar1Trend(), OrderedLogitDrift(), blank)
-  .generative
-  .simulateData[Rand](truth)
-  .runA(Seed(20261107L))
-  .value
+val data = DelayCountData.blank(months, maxLag, t, visible).map { blank =>
+  DelayCountModel
+    .generative(Ar1Trend(), OrderedLogitDrift(), blank)
+    .generative
+    .simulateData[Rand](truth)
+    .runA(Seed(20261107L))
+    .value
+}
 
 val quick = RunSettings(chains = 2, warmup = 400, samples = 600)
 ```
@@ -192,16 +197,27 @@ val outcomes =
   val program = (0 until 10).toList.traverse(h => Sampling.poisson[Rand](math.exp(future(h))))
   program.runA(Seed(515L)).value.map(_.toDouble)
 
-def scoreOf[R[_]](component: RateComponent[R], seed: Long): Either[BayesError, Double] =
-  val model = DelayCountModel(component, OrderedLogitDrift(), data)
-  Mcmc.runNuts(model, quick).runA(Seed(seed)).value.map { chains =>
-    val parameters = chains.flatMap(_.draws.map(q => Model.constrain(model, q)))
-    val projected = parameters.take(400).map(p => component.project(p.rate, 0, futureT, Seed(seed + 1)))
-    // One ensemble per future period: the projected rate turned into counts.
-    val scores = (0 until 10).map { h =>
-      val ensemble = IArray.from(projected.map(row => math.exp(row(h))))
-      Crps.ensemble(ensemble, outcomes(h))
+/** The predictive ensembles of a component, one per future period, and what happened. */
+def forecastOf[R[_]](
+    component: RateComponent[R],
+    seed: Long
+): Either[BayesError, List[(IArray[Double], Double)]] =
+  data.flatMap { observed =>
+    val model = DelayCountModel(component, OrderedLogitDrift(), observed)
+    Mcmc.runNuts(model, quick).runA(Seed(seed)).value.map { chains =>
+      val parameters = chains.flatMap(_.draws.map(q => Model.constrain(model, q)))
+      val projected =
+        parameters.take(400).map(p => component.project(p.rate, 0, futureT, Seed(seed + 1)))
+      // One ensemble per future period: the projected rate turned into counts.
+      (0 until 10).toList.map { h =>
+        (IArray.from(projected.map(row => math.exp(row(h)))), outcomes(h))
+      }
     }
+  }
+
+def scoreOf[R[_]](component: RateComponent[R], seed: Long): Either[BayesError, Double] =
+  forecastOf(component, seed).map { forecasts =>
+    val scores = forecasts.map((ensemble, observed) => Crps.ensemble(ensemble, observed))
     scores.sum / scores.length
   }
 ```
@@ -241,6 +257,62 @@ not two point scores. The two models' errors are correlated, because they are sc
 outcomes, so that error comes from the per-period differences — the same point chapter 4 makes
 about `Loo.compare`. And a comparison on one realisation of the future is a comparison of one draw
 of luck; repeat it over several, as the measurement above did.
+
+## The error the model does not know it has
+
+Every model is wrong in ways it cannot represent, and a predictive distribution drawn from it is
+therefore too narrow. A **model-error term** widens it by a scale chosen on dates already past —
+and the honest way to choose that scale is to score it, not to guess it.
+
+```scala mdoc
+val calibrated = forecastOf(Ar1Trend(), 11L).flatMap { forecasts =>
+  ModelError.calibrate(
+    forecasts,
+    grid = IArray(0.0, 0.05, 0.1, 0.2, 0.3, 0.5),
+    score = (ensemble, observed) => Crps.ensemble(ensemble, observed),
+    seed = Seed(808L)
+  )
+}
+calibrated.map(c => (c.sigmaError, c.scores.map((s, v) => (s, (v * 100).round / 100.0)).toList))
+```
+
+Read that output before reading the method. The winner is the **largest candidate on the grid**,
+and the six scores differ by five hundredths out of forty-two — about one part in a thousand. Both
+facts say the same thing: this run cannot tell these candidates apart. The forecast is already
+dominated by the rate's own uncertainty over ten periods, so widening it changes the score barely
+at all, and the search slides to the end of the grid for no better reason than that. A hit on the
+boundary is a question — widen the grid, lengthen the history, or accept that the data has nothing
+to say about the error term — and never a measurement.
+
+The grid is searched under the rule you pass, because a scale calibrated under one rule is not
+calibrated under another, and lower is better: CRPS, the interval score and the log score are all
+losses. Every candidate is widened with the same seeds, so comparing two of them is not comparing
+two different accidents — which is exactly why the five hundredths above can be read as "nothing"
+rather than as "noise".
+
+Two warnings. **Calibrating on the dates the fit already saw will find that almost no error is
+needed**, for exactly the reason in-sample forecasts flatter a model — the term absorbs nothing
+because nothing was missed. And a term calibrated on ten periods is itself an estimate with a wide
+interval; it is a correction, not a cure for a model that is wrong in a way you could have fixed.
+
+```scala mdoc:passthrough
+println(Html.scripts)
+println(
+  forecastOf(Ar1Trend(), 11L)
+    .map { forecasts =>
+      val pits =
+        IArray.from(forecasts.map((ensemble, observed) => Calibration.pit(ensemble, observed)))
+      Html.embed(
+        "fig-08-pit",
+        VegaLite.spec(Catalogue.pitPlot(pits)),
+        "The probability integral transform of ten out-of-sample forecasts, as a cumulative " +
+          "function with a simultaneous 95 per cent band. Ten periods is far too few to read " +
+          "anything but a gross failure, and the band says so by being almost as wide as the plot."
+      )
+    }
+    .getOrElse("<p>the forecast failed, so there is no figure</p>")
+)
+```
 
 ## What to report
 

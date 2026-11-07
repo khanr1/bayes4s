@@ -342,6 +342,43 @@ object VegaLiteSuite extends SimpleIOSuite with Discipline with Checkers with Ap
       }
   }
 
+  pureTest("an embedded figure carries its alternative text, and nothing can break out of it") {
+    val spec = VegaLite.spec(catalogue.head._2)
+    val fragment =
+      Html.embed("figure-trace", spec, "Two chains of mu, overlapping, no divergent transition.")
+    check(fragment.contains("id=\"figure-trace\""), "the container has no identifier")
+      .and(
+        check(
+          fragment.contains("aria-label=\"Two chains of mu"),
+          "there is no label for a screen reader"
+        )
+      )
+      // The text is *in* the container, so it is what a reader sees until the figure draws — and
+      // for ever if the script never runs.
+      .and(
+        check(
+          fragment.contains(">Two chains of mu, overlapping, no divergent transition.<"),
+          "no visible fallback"
+        )
+      )
+      .and(check(fragment.contains("vegaEmbed('#figure-trace'"), "nothing draws the figure"))
+      .and {
+        val hostile =
+          Html.embed("x\" onload=\"evil()", spec, "a <script>alert(1)</script> caption & more")
+        check(
+          !hostile.contains("onload=\"evil()") && !hostile.contains("<script>alert(1)"),
+          "an identifier or a caption can break out of the markup"
+        )
+      }
+      // The scripts are separate, because mdoc writes the page and laika renders it.
+      .and(
+        check(
+          Html.scripts.contains("vega-lite@6") && !fragment.contains("<script src"),
+          "the scripts are not separate"
+        )
+      )
+  }
+
   pureTest("superposition keeps the layers of both plots and the left one's identity") {
     // The laws say `empty` is an identity; they cannot say what superposition *is*, because the
     // implementation short-circuits on `empty` and a mutated identity would short-circuit too.

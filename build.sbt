@@ -78,6 +78,12 @@ ThisBuild / githubWorkflowBuildPreamble ++= Seq(
   WorkflowStep.Run(
     commands = List("python3 scripts/check-stan-names.py"),
     name = Some("Check the table of Stan names")
+  ),
+  // The manual's own checklist: a capability with no example, an error missing from appendix B, a
+  // `get` in an example, a chapter that should draw a figure and does not (§9.5).
+  WorkflowStep.Run(
+    commands = List("python3 scripts/check-manual.py"),
+    name = Some("Check the manual's checklist")
   )
 )
 
@@ -285,12 +291,54 @@ lazy val examples = mod("examples")
     libraryDependencies += "com.networknt" % "json-schema-validator" % jsonSchemaV % Test
   )
 
+// The manual: mdoc compiles every code block against the current build, laika renders the result
+// as a site. The site is **generated**, never deployed: publishing is off (docs/design.md, D-1),
+// so `tlSitePublishBranch := None` keeps the CI job that builds it and removes the one that would
+// push it to Pages.
 lazy val docs = project
   .in(file("docs"))
-  .enablePlugins(MdocPlugin, NoPublishPlugin)
-  .dependsOn(effect)
+  .enablePlugins(TypelevelSitePlugin, NoPublishPlugin)
+  // `examples` so that the manual's long examples are compiled **and tested** code it includes by
+  // reference rather than prose it repeats (§9.2): the invented world the chapters are set in, and
+  // the arrangement of it the count model reads, both have suites of their own.
+  .dependsOn(effect, examples)
   .settings(
     name := "bayes4s-docs",
     mdocIn := file("docs/manual"),
-    mdocOut := file("docs/target/manual")
+    mdocOut := file("docs/target/manual"),
+    tlSitePublishBranch := None,
+    tlSitePublishTags := false,
+    // The manual's figures are HTML fragments written by mdoc (`Html.embed`), so laika has to
+    // pass raw content through instead of parsing it as markdown — without this a colour array
+    // inside a Vega-Lite specification is read as a link reference and the build fails.
+    laikaConfig := laika.sbt.LaikaConfig.defaults.withRawContent,
+    // Two changes to the job the plugin adds, both of which have to live in the project's own
+    // settings — after the plugin's, or the mapping runs before the job is added and silently
+    // does nothing.
+    //
+    // The first is the OS: the plugin pins `ubuntu-22.04`, the image D-15 is about, and a
+    // workflow that names a retired image does not fail a step, it fails to find a runner.
+    //
+    // The second is Chromium's opinion of the manual. Every figure in it is drawn by a script
+    // when the page loads, so a figure can validate against Vega-Lite's schema, be in the page,
+    // and still never appear — a missing `Html.scripts` does exactly that, and only a browser
+    // notices (docs/design.md).
+    ThisBuild / githubWorkflowAddedJobs ~= {
+      _.map { job =>
+        if (job.id != "site") job
+        else
+          job
+            .withOses(List("ubuntu-latest"))
+            .withSteps(
+              job.steps :+ WorkflowStep.Run(
+                commands = List(
+                  "npm ci --prefix scripts",
+                  "npm --prefix scripts exec -- playwright install --with-deps chromium",
+                  "node scripts/smoke-plots.mjs docs/target/docs/site/*.html"
+                ),
+                name = Some("Render the manual's figures in Chromium")
+              )
+            )
+      }
+    }
   )

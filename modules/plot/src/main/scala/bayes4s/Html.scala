@@ -33,6 +33,40 @@ object Html:
   val vegaLiteVersion: String = "6"
   val vegaEmbedVersion: String = "6"
 
+  /** The script tags a page needs before any figure of it will draw.
+    *
+    * A manual page is rendered by something else — mdoc writes the markdown, laika renders the
+    * HTML — so the scripts cannot come from [[page]]. This is them on their own, to be emitted
+    * once near the top of such a page.
+    */
+  def scripts: String =
+    s"""<script src="https://cdn.jsdelivr.net/npm/vega@$vegaVersion"></script>
+<script src="https://cdn.jsdelivr.net/npm/vega-lite@$vegaLiteVersion"></script>
+<script src="https://cdn.jsdelivr.net/npm/vega-embed@$vegaEmbedVersion"></script>"""
+
+  /** One figure, as a fragment for a page somebody else is building.
+    *
+    * `alt` is not decoration: a figure drawn by a script is invisible to a reader who cannot see
+    * it, and until it draws it is invisible to everyone. The text is what stands in for it — it is
+    * rendered in the container, so it is also what a reader sees if the script never runs. Vega
+    * replaces the container's contents when it draws, which is what clears it; removing the text
+    * here as well deletes the figure, and the browser smoke test is what found that.
+    *
+    * The identifier has to be unique within the page, and the caller owns it: this knows nothing
+    * about what else is on the page.
+    */
+  def embed(id: String, spec: Json, alt: String): String =
+    s"""<div class="bayes4s-figure" id="${escapeAttribute(
+        id
+      )}" role="img" aria-label="${escapeAttribute(
+        alt
+      )}">${escape(alt)}</div>
+<script>
+  vegaEmbed('#${escapeAttribute(id)}', ${spec.noSpaces}, {actions: false}).catch(function (error) {
+    document.getElementById('${escapeAttribute(id)}').textContent = 'figure failed: ' + error;
+  });
+</script>"""
+
   /** One page, one figure per specification, each with its own container. */
   def page(specs: List[Json], title: String): String =
     report(specs.map(spec => Figure("", "", spec)), title, "")
@@ -97,3 +131,7 @@ $embeds
 
   private def escape(text: String): String =
     text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+  /** The same, plus the quote that would end an attribute. */
+  private def escapeAttribute(text: String): String =
+    escape(text).replace("\"", "&quot;")

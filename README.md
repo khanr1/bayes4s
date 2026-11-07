@@ -12,9 +12,49 @@ capability interpreted by `State` — so four chains run in parallel give bit-fo
 as four chains run in sequence. Errors are values. `cats-effect`, `fs2` and the file system exist
 only in the `effect` module, at the edge.
 
-**Status: phase 0.** The skeleton, the lint rules, the test kit and the reference data are in
-place; there is no numerics yet. Nothing is published, and the library is built phase by phase (see
-`docs/design.md` for the decisions and `docs/validation.md` for what has actually been verified).
+**Status: the library works and nothing is published.** Everything described above is implemented
+and tested: 559 fast tests and 34 slow statistical ones, compared against Stan Math, Stan's own
+sampler cases, posteriordb posteriors, mpmath, ArviZ and properscoring. It is built phase by phase
+— see `docs/design.md` for every decision and `docs/validation.md` for what has actually been
+verified, mutation by mutation. There is no release, no snapshot and no Maven coordinate yet.
+
+## The manual
+
+**[docs/manual/README.md](docs/manual/README.md)** is the manual: a quick start, the concepts, how
+to write a model, sample it, diagnose it, check it, predict with it, score the prediction, pool
+across groups, and draw any of it. Every code block in it is compiled against the current build by
+mdoc, and every figure is drawn when the manual is built, so neither can go stale. `sbt
+docs/tlSite` renders the whole thing as a browsable site under `docs/target/docs/site`.
+
+## Quick start
+
+```scala
+import bayes4s.*
+import bayes4s.syntax.*
+
+val observed = IArray(4.1, 5.2, 3.8, 4.9, 5.5, 4.4, 4.7, 5.1)
+
+final case class Params[A](mu: A, sigma: A)
+
+val model: Model[Params] = new Model[Params]:
+  def params: ParamSpec[Params] =
+    (ParamSpec.real("mu"), ParamSpec.positive("sigma"))
+      .mapN[Params]([A] => (mu: A, sigma: A) => Params(mu, sigma))
+
+  def logPrior[A: Real](p: Params[A]): A =
+    LogDensity.normal(p.mu, 0.0.lift[A], 10.0.lift[A]) +
+      LogDensity.halfNormal(p.sigma, 5.0.lift[A])
+
+  def logLikelihood[A: Real](p: Params[A]): A =
+    Real[A].normalSum(observed, Real[A].filled(observed.length)(p.mu), p.sigma)
+
+val fitted = Mcmc.runNuts(model, RunSettings()).runA(Seed(20261105L)).value
+
+fitted.map(chains => Summary.table(model, chains))
+```
+
+No exceptions, no global randomness, no `IO` until you ask for it. Chapter 0 of the manual walks
+through the same example and what to read in its output.
 
 ## Building
 
@@ -30,6 +70,7 @@ sbt test                         # fast suites
 sbt slow:test                    # slow statistical suites: SBC, posteriordb, recovery
 sbt -Dbayes4s.stress=true slow:test   # same, with fresh seeds and more draws
 sbt docs/mdoc                    # compile every code block of the manual
+sbt docs/tlSite                  # ...and render the manual as a site
 ```
 
 Before a commit:
@@ -37,6 +78,10 @@ Before a commit:
 ```
 sbt headerCheckAll scalafmtCheckAll "scalafixAll --check" test
 python3 scripts/check-private-terms.py
+python3 scripts/check-mutation-register.py
+python3 scripts/check-terminology.py
+python3 scripts/check-stan-names.py
+python3 scripts/check-manual.py
 ```
 
 `scalafixAll --check` needs the quotes: it takes an argument.

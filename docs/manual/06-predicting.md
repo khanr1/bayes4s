@@ -12,7 +12,11 @@ percentiles together, which is wrong by an amount nobody can estimate afterwards
 import bayes4s.*
 import java.time.YearMonth
 
-val horizon = Periods.monthly(YearMonth.of(2026, 1), 6).toOption.get
+// `monthly` refuses a negative count, so it returns an `Either`. There is no `get` in this manual:
+// where a neutral value exists — and an empty run of months is one — `getOrElse` is how a value
+// comes out of an `Either`. If this ever took the fallback, every output below would be visibly
+// empty rather than quietly wrong.
+val horizon = Periods.monthly(YearMonth.of(2026, 1), 6).getOrElse(Periods.empty)
 ```
 
 ## An ensemble is aligned by sample
@@ -25,7 +29,7 @@ them may not.
 ```scala mdoc
 val byKey = Ensemble.of(
   draws = 4,
-  periods = Periods.monthly(YearMonth.of(2026, 1), 2).toOption.get,
+  periods = Periods.monthly(YearMonth.of(2026, 1), 2).getOrElse(Periods.empty),
   values = Map(
     "x" -> IArray(IArray(10.0, 12.0), IArray(30.0, 33.0), IArray(20.0, 21.0), IArray(5.0, 6.0)),
     "y" -> IArray(IArray(30.0, 28.0), IArray(10.0, 7.0), IArray(20.0, 19.0), IArray(35.0, 34.0))
@@ -122,6 +126,20 @@ val simulator: Simulator[Parameters, String] =
 val samples = IArray.tabulate(500)(s => Parameters(100.0 + s % 20, 0.05 + 0.001 * (s % 10)))
 val ensemble = Simulator.run(simulator, samples, Seed(20261106L))
 ensemble.total.quantiles(List(0.05, 0.5, 0.95))(()).map(row => row.map(_.round).mkString(", "))
+```
+
+```scala mdoc:passthrough
+println(Html.scripts)
+println(
+  Html.embed(
+    "fig-06-fan",
+    VegaLite.spec(
+      Catalogue.fanChart(ensemble.total, List(0.5, 0.9), None, "The simulated total, by month")
+    ),
+    "A fan chart of the simulated total over six months: a median that rises with the trend, " +
+      "inside 50 and 90 per cent bands that widen as the horizon lengthens."
+  )
+)
 ```
 
 Two things to notice in that simulator. The size and the parts come from the **same** drawn

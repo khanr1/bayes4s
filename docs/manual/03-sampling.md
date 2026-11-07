@@ -266,7 +266,9 @@ Sampler[IO]
   .run(
     located,
     RunSettings(chains = 1, warmup = 5, samples = 5,
-      init = Init.Given(Map("mu" -> IArray(Double.NaN), "tau" -> IArray(1.0), "unused" -> IArray(0.0)))),
+      init = Init.Given(
+        Map("mu" -> IArray(Double.NaN), "tau" -> IArray(1.0), "unused" -> IArray(0.0))
+      )),
     Seed(1L)
   )
   .attempt

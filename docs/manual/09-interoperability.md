@@ -1,7 +1,7 @@
 # 9. Interoperability
 
 CmdStan's CSV, read and written. Nothing here touches a file: `StanCsv` is two pure functions of
-lines, and the file handling arrives with the `effect` module in chapter 11.
+lines, and the file handling is in the second half of this chapter.
 
 ## Reading a fit
 
@@ -48,7 +48,8 @@ rendered.map(_.length)
 The round trip is exact, to the last bit, for any double including the awkward ones. What comes out
 is a file CmdStan's own reader accepts, which is more demanding than it looks: `cmdstanpy` finds
 the sampled rows by locating four blocks in order — a header beginning with `lp__`, a comment block
-after it, the rows, and a comment block after those — and refuses a file missing any of them. The first
+after it, the rows, and a comment block after those — and refuses a file missing any of them. The
+first
 version of this renderer left out the trailing block and was rejected outright.
 
 ```scala mdoc
@@ -131,11 +132,13 @@ val located: Model[Location] = new Model[Location]:
 chains is four files, and `readAll` puts them back together.
 
 ```scala mdoc
+val threeChains = RunSettings(chains = 3, warmup = 200, samples = 100)
+
 val roundTrip = Files[IO]
   .tempDirectory
   .use { directory =>
     for
-      fitted <- Sampler[IO].run(located, RunSettings(chains = 3, warmup = 200, samples = 100), Seed(7L))
+      fitted <- Sampler[IO].run(located, threeChains, Seed(7L))
       written <- PosteriorCsv[IO].writeAll(fitted, directory, "fit")
       back <- PosteriorCsv[IO].readAll(written)
     yield (
@@ -152,15 +155,19 @@ The last field is the claim worth making: a fit that went to disk and came back 
 value for value. The files are CmdStan's format, so what comes back out can equally be read by
 `cmdstanpy` and handed to ArviZ, as the first half of this chapter describes.
 
-Asking to write a whole fit into a single file is refused rather than quietly truncated to its first
-chain:
+Asking to write a whole fit into a single file is refused rather than quietly truncated to its
+first chain:
+
+```scala mdoc:silent
+val twoChains = RunSettings(chains = 2, warmup = 100, samples = 50)
+```
 
 ```scala mdoc
 Files[IO]
   .tempDirectory
   .use { directory =>
     for
-      fitted <- Sampler[IO].run(located, RunSettings(chains = 2, warmup = 100, samples = 50), Seed(8L))
+      fitted <- Sampler[IO].run(located, twoChains, Seed(8L))
       attempted <- PosteriorCsv[IO].write(fitted, directory / "everything.csv").attempt
     yield attempted.left.map(_.getMessage)
   }
