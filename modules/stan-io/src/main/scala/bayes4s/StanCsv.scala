@@ -38,6 +38,17 @@ object StanCsv:
         val names = header.split(",", -1).toList.map(_.trim)
         if names.exists(_.isEmpty) then
           Left(BayesError.Malformed("stan.csv", s"the header has an empty name: '$header'"))
+        else if body.isEmpty then
+          // A header and nothing else is not an empty fit, it is a truncated file or a mistyped
+          // path. Accepting it returns a posterior of no draws, from which every statistic comes
+          // back `NaN` with nothing to say why — found while writing the effectful reader
+          // (docs/design.md).
+          Left(
+            BayesError.Malformed(
+              "stan.csv",
+              s"a header and no draws: '${header.take(60)}'"
+            )
+          )
         else
           body.zipWithIndex
             .foldLeft[Either[BayesError.Malformed, Vector[IArray[Double]]]](Right(Vector.empty)) {

@@ -1803,3 +1803,99 @@ zero, which is what `MultiGroupFitSlowSuite` asserts.
 Writing a rigged example that made the trend win was the alternative. Reporting the measurement is
 more useful, and it demonstrates the chapter's own cautions about short horizons and single
 realisations instead of merely stating them.
+
+### D-135. `Mcmc.run` is a fold over `Mcmc.step`, so a stream and a batch cannot drift apart
+
+A pure program wants a whole chain in one call; a stream wants one iteration, a state, and the
+chance to stop in between — because an effectful sampler must be cancellable **between**
+iterations and never half way through a transition (§5.12).
+
+Those could have been two loops. They are one: `Progress` carries the point, the adaptation and the
+frozen tuning, `step` does one iteration, and `run` is a `tailRecM` over `step`. There is therefore
+one implementation of the warmup schedule, of the step-size restart when the metric changes, and of
+the freezing of the tuning at the warmup boundary — and "the streamed chain equals the folded
+chain" is true by construction rather than by two implementations agreeing.
+
+Rewriting phase 4's loop is the kind of change that needs evidence rather than argument. The whole
+suite passed unchanged afterwards — the eleven leapfrog and `build_tree` fixtures, the nine
+posteriordb reference posteriors, every SBC suite, all on fixed seeds — which is what says the
+observable behaviour did not move.
+
+`step` takes no `AdaptationSettings`: the adaptation state carries everything it needs, and the
+parameter it was first written with was dead. The compiler's unused-parameter warning found that
+under CI's fatal-warning settings, which is the third phase running where those settings caught
+something a plain local build does not.
+
+### D-136. `RefRng` runs the pure programs through a `Ref`, rather than reimplementing them
+
+`RefRng.normal` is `ref.modify(seed => Rng[Rand].normal.run(seed).value)`. It does not implement a
+Gaussian: it interprets the **same program** the `State` interpreter does, and only changes how the
+seed is carried.
+
+That is the hinge of the module. The library's claim is that a fit is a function of its seed, and
+every test of a model is pure; if the effectful interpreter drew even slightly different numbers,
+nothing run in `IO` could be reproduced by a pure test and the test suite would stop covering the
+code anyone actually runs. Reimplementing the generators would make that claim rest on two
+implementations agreeing — this way they cannot differ, and the suite asserts it holds for
+interleaved longs, uniforms and normals, in that order, because a generator that drew the right
+numbers in the wrong order would pass a test of each method alone.
+
+### D-137. One generator per chain, seeded `seed.fold(chain)`
+
+A `Ref` is safe to share between fibres, and sharing one would be wrong: what each chain drew would
+then depend on the order the scheduler happened to run them in, and a parallel fit would not equal
+a sequential one.
+
+So `Sampler.chain` makes its own `RefRng` at `seed.fold(chainId)` — the same derivation
+`Mcmc.runNuts` uses for its chains. That is what makes "parallel equals sequential, bit for bit"
+hold, and the suite asserts the four-chain `IO` fit equals `Mcmc.runNuts` on the same seed value for
+value, not in distribution.
+
+The shared-`Ref` case is tested anyway, for what it is worth: eight fibres drawing from one
+generator get 200 distinct values which are exactly the multiset the pure interpreter would have
+produced. Which fibre got which is not asserted, because it is not knowable — and that is the
+reason the sampler does not share one.
+
+### D-138. `Mcmc.row` is public, so there is one place that knows how a point becomes a row
+
+A `Chain` holds unconstrained points; a CSV line, an ArviZ array and a streamed `Draw` all want the
+named constrained values in `params.names` order. `Mcmc.draws` had that walk inside it; the
+streaming sampler needs it per iteration, and copying it into `effect` would have been two
+implementations of the same layout traversal.
+
+### D-139. One CmdStan file holds one chain, and asking otherwise is refused
+
+`PosteriorCsv.write` takes draws of **one** chain and raises a named error for more, rather than
+writing the first and dropping the rest. `writeAll` is the one to use after a fit: it writes
+`<stem>-1.csv`, `<stem>-2.csv` and so on, numbered from one as CmdStan numbers them, and returns the
+paths it wrote.
+
+Silently truncating a four-chain fit to its first chain is the failure worth preventing: the file
+would look right, parse fine, and summarise a quarter of the posterior. The refusal says which
+method to use instead, because an error that only says no is half an error.
+
+### D-140. A CmdStan file with a header and no draws is malformed
+
+Found by writing the effectful reader. `StanCsv.parse` accepted a file whose only line was a
+header, returning a posterior of zero draws — from which every summary comes back `NaN` with
+nothing to say why. A truncated file and a mistyped path that happens to exist both look like that.
+
+It now returns `Malformed`, which is a behaviour change to phase 5's codec: the stan-io suite
+passed unchanged, since a real CmdStan file always has at least one draw. What is deliberately
+**not** detected is a file whose header is not a plausible CmdStan header — any comma-separated
+line is one, so claiming to catch that would be claiming more than can be done.
+
+### D-141. `BacktestRunner` streams, and the no-peeking contract stays the caller's
+
+The loop phase 8 left out (D-111) lives here, and it is a `Stream` because a backtest refits once
+per origin — the most expensive thing the library does. A stream lets the rows be watched as they
+arrive, written out one at a time, and stopped after any of them; the suite asserts that taking two
+rows costs **two** refits, which is the only property that distinguishes this from a list.
+
+The forecast is a function from an origin to an ensemble in `F`, so the refit is the caller's and
+the runner knows nothing about models. That also means the runner cannot enforce the contract that
+matters — no fit may see its own target — so chapter 8 states it and says what happens when it is
+broken.
+
+The rows are phase 8's `Scored[D]` rather than a new `BacktestRow`: §5.12 sketches the latter, and
+`Scored` already carries exactly those fields, having been built for exactly this.

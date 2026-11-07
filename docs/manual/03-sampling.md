@@ -167,3 +167,110 @@ Mcmc
 A starting point where the density is not a number is refused rather than sampled. The other is a
 step-size search that reaches its bounds, which says the target is improper where the chain
 started — a model to look at, not a setting to change.
+
+## The same sampler in `IO`
+
+Everything above is pure: a function of a seed, interpreted by `State`, single-threaded. The
+`effect` module interprets the same algebra in `IO`, which buys three things — chains on separate
+fibres, chains as streams, and cancellation.
+
+```scala mdoc:silent
+import cats.effect.IO
+import cats.effect.unsafe.implicits.global
+```
+
+```scala mdoc:silent
+/** A location with a known scale: four observations and one parameter, so the chapter stays about
+  * the sampler rather than about the model.
+  */
+final case class Location[A](mu: A)
+
+val located: Model[Location] = new Model[Location]:
+  def params: ParamSpec[Location] =
+    ParamSpec.real("mu").map[Location]([A] => (m: A) => Location(m))
+  def logPrior[A: Real](p: Location[A]): A =
+    LogDensity.normal(p.mu, 0.0.lift[A], 5.0.lift[A])
+  def logLikelihood[A: Real](p: Location[A]): A =
+    val y = IArray(1.2, 0.8, 1.5, 1.1, 0.9, 1.4)
+    Real[A].normalSum(y, Real[A].filled(y.length)(p.mu), 1.0.lift[A])
+```
+
+```scala mdoc
+val fitted = Sampler[IO]
+  .run(located, RunSettings(chains = 4, warmup = 300, samples = 200), Seed(20261107L))
+  .unsafeRunSync()
+(fitted.chainCount, fitted.iterations, fitted.names.take(3).toList)
+```
+
+**The parallel run gives the same numbers as the pure one.** Not the same distribution — the same
+doubles:
+
+```scala mdoc
+val pure = for
+  chains <- Mcmc.runNuts(located, RunSettings(chains = 4, warmup = 300, samples = 200))
+    .runA(Seed(20261107L))
+    .value
+  draws <- Mcmc.draws(located, chains)
+yield draws
+pure.map(expected => expected.flatten.zip(fitted.flatten).forall((a, b) => a.toList == b.toList))
+```
+
+That is not a coincidence of this model. Chain `c` is driven by a generator seeded `seed.fold(c)`,
+so the numbers it generates cannot depend on the order the scheduler happened to run the fibres
+in, and
+`RefRng` runs the *same* pure programs the `State` interpreter does rather than reimplementing
+them. A fit in `IO` is therefore reproducible from a pure test, which is what lets every other
+chapter in this manual stay pure.
+
+## A chain as a stream
+
+`chain` yields one `Draw` per iteration, warmup included, so a long fit can be watched, written
+out as it goes, or stopped:
+
+```scala mdoc
+Sampler[IO]
+  .chain(located, RunSettings(chains = 1, warmup = 50, samples = 50), chainId = 0, Seed(5L))
+  .filter(!_.warmup)
+  .map(_.values.head)
+  .take(5)
+  .compile
+  .toList
+  .unsafeRunSync()
+```
+
+Each `Draw` carries its own transition, so the divergent transitions and tree depths of the
+**warmup** are
+visible too — which the batched interface throws away, and which is exactly what you want when a
+fit is behaving badly.
+
+Cancellation lands between iterations, never inside a transition. A run cancelled after a tenth of
+a second stops within a tenth of a second, whatever its horizon:
+
+```scala mdoc
+import scala.concurrent.duration.*
+Sampler[IO]
+  .run(located, RunSettings(chains = 4, warmup = 1000, samples = 100000), Seed(5L))
+  .map(d => s"finished with ${d.iterations} iterations")
+  .timeoutTo(100.millis, IO.pure("cancelled"))
+  .unsafeRunSync()
+```
+
+## Errors at the edge
+
+The core returns `Either[BayesError, _]` and never throws. The edge raises those in `F`:
+`BayesError` extends `NoStackTrace` for exactly that, so nothing is wrapped, renamed, or caught and
+ignored.
+
+```scala mdoc
+Sampler[IO]
+  .run(
+    located,
+    RunSettings(chains = 1, warmup = 5, samples = 5,
+      init = Init.Given(Map("mu" -> IArray(Double.NaN), "tau" -> IArray(1.0), "unused" -> IArray(0.0)))),
+    Seed(1L)
+  )
+  .attempt
+  .unsafeRunSync()
+  .left
+  .map(_.getMessage)
+```

@@ -209,8 +209,9 @@ lazy val stanIo = mod("stan-io")
 
 // --- the effectful edge -------------------------------------------------------------------
 
+// `transforms % "test->test"` for the eight schools, the model every sampler test is driven with.
 lazy val effect = mod("effect")
-  .dependsOn(nowcast, diagnostics, scoring, stanIo, testkit % Test)
+  .dependsOn(nowcast, diagnostics, scoring, stanIo, transforms % "test->test", testkit % Test)
   .settings(
     libraryDependencies ++= Seq(
       "org.typelevel" %% "cats-effect" % catsEffectV,

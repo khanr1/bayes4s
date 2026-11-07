@@ -8,6 +8,43 @@ Versions follow git tags. Nothing is released yet.
 
 ## Unreleased
 
+### Phase 11 — the effectful edge (7 November 2026)
+
+Added
+
+- `RefRng`: the randomness algebra over a `Ref`, running the **same pure programs** the `State`
+  interpreter does rather than reimplementing the generators — so the two cannot drift, and the
+  suite proves it over interleaved longs, uniforms and normals.
+- `Sampler`: chains as `fs2` streams and chains on separate fibres. **A four-chain fit in `IO`
+  equals `Mcmc.runNuts` on the same seed, value for value**, because chain `c` is driven by its own
+  generator at `seed.fold(c)` and cannot depend on the scheduler. Cancellation lands between
+  iterations; a hundred thousand samples cancelled after 100 ms stops in under two seconds.
+- `PosteriorCsv`: CmdStan's CSV on and off the disk through `fs2.io.file`, one file per chain as
+  CmdStan writes them. Asking to write a whole fit to one file is refused rather than truncated to
+  its first chain.
+- `BacktestRunner`: the loop phase 8 left out, as a stream — taking two rows costs two refits, not
+  twenty, which is the only property that distinguishes it from a list.
+- `Mcmc.begin`, `Mcmc.step` and `Progress` in `inference`, with **`run` rewritten as a fold over
+  them**: one implementation of the warmup schedule, so a streamed chain and a folded one cannot
+  disagree. The whole existing suite passed unchanged, fixed seeds and all.
+- `Mcmc.row`, so one place knows how an unconstrained point becomes a named row.
+- The `IO` half of chapter 3 and the file half of chapter 9.
+- 20 tests, for 540 in all. Eleven mutations, every one detected.
+
+Fixed
+
+- **A CmdStan file with a header and no rows parsed into an empty posterior.** A truncated file or a
+  mistyped path that happens to exist looks exactly like that, and every statistic from the result
+  came back `NaN` with nothing to say why. `StanCsv.parse` now refuses it; the stan-io suite passed
+  unchanged, since a real file always has at least one row.
+
+Found
+
+- **A mutation inside the shared loop is invisible to the test that the two interfaces agree.**
+  Since `run` is a fold over `step`, breaking `step` breaks both identically. What caught it was
+  phase 4's own assertion that the adapted step size brackets its target — the argument for keeping
+  external references and not only internal consistency checks.
+
 ### Phase 10 — the group structures (6 November 2026)
 
 Added

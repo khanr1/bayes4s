@@ -44,6 +44,34 @@ final case class Chain(
     tuning: Tuning
 )
 
+/** Where a chain has got to: enough to carry on, and nothing else.
+  *
+  * `Mcmc.run` folds a whole chain in one call, which is what a pure program wants. A stream wants
+  * one iteration at a time and the chance to stop in between — so that an effectful sampler can be
+  * cancelled between iterations and never in the middle of a transition (§5.12). Both go through
+  * `step`: `run` is a fold over it, so there is one implementation of the warmup schedule and the
+  * two interfaces cannot drift apart.
+  *
+  * The tuning is carried rather than recomputed, because after warmup it is **frozen**: the
+  * sampling phase uses the adaptation's completed tuning for every transition, and recomputing it
+  * per iteration would keep adapting.
+  */
+final case class Progress private[bayes4s] (
+    point: Point,
+    adaptation: Adaptation,
+    tuning: Tuning,
+    iteration: Int,
+    warmup: Int,
+    samples: Int
+):
+  def warmingUp: Boolean = iteration < warmup
+  def finished: Boolean = iteration >= warmup + samples
+
+/** One iteration's outcome: what the transition was, whether it was warmup, and where that left
+  * the chain.
+  */
+final case class Iteration(transition: Transition, warmup: Boolean, progress: Progress)
+
 final case class RunSettings(
     chains: Int = 4,
     warmup: Int = 1000,
@@ -65,6 +93,11 @@ object Mcmc:
     * function knows only a `DiffFn`. [[startingPoint]] turns one into the other, and `runNuts`
     * does it for you (docs/design.md).
     */
+  /** A whole chain, folded in one call: a fold over [[step]].
+    *
+    * The draws and transitions it returns are the **sampling** phase only, as they always were;
+    * the warmup's transitions are seen by the adaptation and then dropped.
+    */
   def run[F[_]: Monad: Rng](
       kernel: Kernel[F],
       target: DiffFn,
@@ -73,6 +106,46 @@ object Mcmc:
       samples: Int,
       settings: AdaptationSettings
   ): F[Either[BayesError, Chain]] =
+    begin[F](target, start, warmup, samples, settings).flatMap {
+      case Left(error) => Monad[F].pure(Left(error))
+      case Right(from) =>
+        Monad[F].tailRecM((from, Vector.empty[IArray[Double]], Vector.empty[Transition])) {
+          (progress, draws, transitions) =>
+            step[F](kernel, target, progress).map {
+              case Left(error) =>
+                Right(Left(error)): Either[
+                  (Progress, Vector[IArray[Double]], Vector[Transition]),
+                  Either[BayesError, Chain]
+                ]
+              case Right(None) =>
+                Right(Right(Chain(draws, transitions, progress.tuning)))
+              case Right(Some(iteration)) =>
+                if iteration.warmup then Left((iteration.progress, draws, transitions))
+                else
+                  Left(
+                    (
+                      iteration.progress,
+                      draws :+ iteration.transition.point.q,
+                      transitions :+ iteration.transition
+                    )
+                  )
+            }
+        }
+    }
+
+  /** The state a chain starts in: the starting point read, the metric chosen, the step size found.
+    *
+    * Everything that can go wrong before the first transition goes wrong here — a starting point
+    * the target cannot read, a metric that cannot be built, a step-size search that runs away —
+    * and each is a `Left` rather than an exception.
+    */
+  def begin[F[_]: Monad: Rng](
+      target: DiffFn,
+      start: IArray[Double],
+      warmup: Int,
+      samples: Int,
+      settings: AdaptationSettings
+  ): F[Either[BayesError, Progress]] =
     val at = Point.at(target, start)
     if !at.logDensity.isFinite then
       Monad[F].pure(
@@ -89,91 +162,75 @@ object Mcmc:
       Adaptation.initialMetric(settings, start.length) match
         case Left(error) => Monad[F].pure(Left(error))
         case Right(metric) =>
-          Adaptation.initialStepSize[F](target, at, metric).flatMap { stepSize =>
+          Adaptation.initialStepSize[F](target, at, metric).map { stepSize =>
             if !(stepSize > 0.0) || stepSize > 1e7 then
-              Monad[F].pure(
-                Left(
-                  BayesError.NumericalOverflow(
-                    s"Mcmc.run: no usable step size was found at the starting point " +
-                      s"(reached $stepSize)"
-                  )
+              Left(
+                BayesError.NumericalOverflow(
+                  s"Mcmc.run: no usable step size was found at the starting point " +
+                    s"(reached $stepSize)"
                 )
               )
             else
               val initial = Tuning(stepSize, metric)
-              warmupPhase(
-                kernel,
-                target,
-                at,
-                Adaptation.windowed(settings, warmup, initial),
-                warmup
-              ).flatMap {
-                case Left(error) => Monad[F].pure(Left(error))
-                case Right((point, adaptation)) =>
-                  samplePhase(kernel, point, adaptation.completed, samples).map(Right(_))
-              }
+              val adaptation = Adaptation.windowed(settings, warmup, initial)
+              Right(
+                Progress(
+                  at,
+                  adaptation,
+                  adaptation.tuning,
+                  0,
+                  math.max(warmup, 0),
+                  math.max(samples, 0)
+                )
+              )
           }
 
-  /** The warmup: the adaptation sees every transition, and the driver re-runs the step-size
-    * heuristic whenever the metric changed, which is what Stan's sampler does inside itself.
+  /** One iteration, or nothing when the chain is finished.
+    *
+    * During warmup the adaptation sees the transition and the step-size heuristic is re-run
+    * whenever the metric changed, which is what Stan's sampler does inside itself. At the warmup
+    * boundary the tuning is frozen at the adaptation's completed value and never moves again.
     */
-  private def warmupPhase[F[_]: Monad: Rng](
+  def step[F[_]: Monad: Rng](
       kernel: Kernel[F],
       target: DiffFn,
-      from: Point,
-      adaptation: Adaptation,
-      warmup: Int
-  ): F[Either[BayesError, (Point, Adaptation)]] =
-    Monad[F].tailRecM((from, adaptation, 0)) { (point, state, i) =>
-      if i >= warmup then
-        Monad[F].pure(
-          Right(Right((point, state))): Either[
-            (Point, Adaptation, Int),
-            Either[BayesError, (Point, Adaptation)]
-          ]
-        )
-      else
-        kernel.transition(point, state.tuning).flatMap { t =>
-          state.update(t) match
-            case Left(error) => Monad[F].pure(Right(Left(error)))
-            case Right(updated) =>
-              if !updated.metricChanged then Monad[F].pure(Left((t.point, updated, i + 1)))
-              else
-                Adaptation
-                  .initialStepSize[F](target, t.point, updated.tuning.metric)
-                  .map(found => Left((t.point, updated.restarted(found), i + 1)))
-        }
-    }
-
-  private def samplePhase[F[_]: Monad](
-      kernel: Kernel[F],
-      from: Point,
-      tuning: Tuning,
-      samples: Int
-  ): F[Chain] =
-    Monad[F]
-      .tailRecM((from, Vector.empty[IArray[Double]], Vector.empty[Transition])) {
-        (point, draws, transitions) =>
-          if draws.length >= samples then
-            Monad[F].pure(
-              Right(Chain(draws, transitions, tuning)): Either[
-                (Point, Vector[IArray[Double]], Vector[Transition]),
-                Chain
-              ]
+      progress: Progress
+  ): F[Either[BayesError, Option[Iteration]]] =
+    if progress.finished then Monad[F].pure(Right(None))
+    else if progress.warmingUp then
+      kernel.transition(progress.point, progress.tuning).flatMap { t =>
+        progress.adaptation.update(t) match
+          case Left(error) => Monad[F].pure(Left(error))
+          case Right(updated) =>
+            val advanced = progress.iteration + 1
+            // The last warmup iteration freezes the tuning: from here the sampler does not adapt.
+            def finish(state: Adaptation): Iteration =
+              val tuning = if advanced >= progress.warmup then state.completed else state.tuning
+              Iteration(
+                t,
+                warmup = true,
+                progress
+                  .copy(point = t.point, adaptation = state, tuning = tuning, iteration = advanced)
+              )
+            if !updated.metricChanged then Monad[F].pure(Right(Some(finish(updated))))
+            else
+              Adaptation
+                .initialStepSize[F](target, t.point, updated.tuning.metric)
+                .map(found => Right(Some(finish(updated.restarted(found)))))
+      }
+    else
+      kernel.transition(progress.point, progress.tuning).map { t =>
+        Right(
+          Some(
+            Iteration(
+              t,
+              warmup = false,
+              progress.copy(point = t.point, iteration = progress.iteration + 1)
             )
-          else
-            kernel
-              .transition(point, tuning)
-              .map(t => Left((t.point, draws :+ t.point.q, transitions :+ t)))
+          )
+        )
       }
 
-  /** The unconstrained point an [[Init]] asks for.
-    *
-    * `PriorMedian` takes the coordinate-wise median of draws from the prior **on the unconstrained
-    * space**, which is where the sampler lives and where a median is a sensible middle. The draws
-    * come from the generative part when there is one; without it, from a short run of the sampler
-    * on `Model.priorOnly`, which is what the specification asks for.
-    */
   def startingPoint[F[_]: Monad: Rng, T[_]](
       model: Model[T],
       init: Init,
@@ -249,19 +306,24 @@ object Mcmc:
     */
   def draws[T[_]](model: Model[T], chains: List[Chain]): Either[BayesError, Draws] =
     val names = IArray.from(model.params.names)
-    val rows = chains.map { chain =>
-      IArray.from(chain.draws.map { q =>
-        val values = Model.values(model, q)
-        IArray.from(
-          model.params.layout.flatMap(block =>
-            (0 until block.size).map(i =>
-              values.get(block.name).map(column => column(i)).getOrElse(Double.NaN)
-            )
-          )
-        )
-      })
-    }
+    val rows = chains.map(chain => IArray.from(chain.draws.map(q => row(model, q))))
     Draws.of(names, IArray.from(rows))
+
+  /** One unconstrained point as the named constrained values, in `params.names` order.
+    *
+    * The row a CSV line is, and what a streamed draw carries. Public so that the effectful sampler
+    * can build a row per iteration without reimplementing the layout walk — there is one place
+    * that knows how a point becomes a row.
+    */
+  def row[T[_]](model: Model[T], q: IArray[Double]): IArray[Double] =
+    val values = Model.values(model, q)
+    IArray.from(
+      model.params.layout.flatMap(block =>
+        (0 until block.size).map(i =>
+          values.get(block.name).map(column => column(i)).getOrElse(Double.NaN)
+        )
+      )
+    )
 
   def runNuts[T[_]](
       model: Model[T],

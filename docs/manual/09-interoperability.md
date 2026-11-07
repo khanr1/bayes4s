@@ -98,3 +98,75 @@ PosteriordbSummary.parse(summary).map(s => (s.posterior, s.rows.map(_.cmdStanNam
 
 Note the name: posteriordb writes `mu[1]` and CmdStan writes `mu.1`, so `cmdStanName` converts and
 a comparison can match them up. Phase 6 is where those comparisons happen.
+
+## Files, with the `effect` module
+
+Everything above is a pure codec: lines in, samples out. Reading and writing actual files is the
+`effect` module's job, through `fs2.io.file` and never `java.io`.
+
+```scala mdoc:silent
+import cats.effect.IO
+import cats.effect.unsafe.implicits.global
+import fs2.io.file.Files
+import bayes4s.syntax.*
+```
+
+```scala mdoc:silent
+/** A location with a known scale: four observations and one parameter, so the chapter stays about
+  * the sampler rather than about the model.
+  */
+final case class Location[A](mu: A)
+
+val located: Model[Location] = new Model[Location]:
+  def params: ParamSpec[Location] =
+    ParamSpec.real("mu").map[Location]([A] => (m: A) => Location(m))
+  def logPrior[A: Real](p: Location[A]): A =
+    LogDensity.normal(p.mu, 0.0.lift[A], 5.0.lift[A])
+  def logLikelihood[A: Real](p: Location[A]): A =
+    val y = IArray(1.2, 0.8, 1.5, 1.1, 0.9, 1.4)
+    Real[A].normalSum(y, Real[A].filled(y.length)(p.mu), 1.0.lift[A])
+```
+
+**One file holds one chain**, which is CmdStan's convention and this library's: a fit of four
+chains is four files, and `readAll` puts them back together.
+
+```scala mdoc
+val roundTrip = Files[IO]
+  .tempDirectory
+  .use { directory =>
+    for
+      fitted <- Sampler[IO].run(located, RunSettings(chains = 3, warmup = 200, samples = 100), Seed(7L))
+      written <- PosteriorCsv[IO].writeAll(fitted, directory, "fit")
+      back <- PosteriorCsv[IO].readAll(written)
+    yield (
+      written.map(_.fileName.toString),
+      back.chainCount,
+      back.iterations,
+      fitted.flatten.zip(back.flatten).forall((a, b) => a.toList == b.toList)
+    )
+  }
+  .unsafeRunSync()
+```
+
+The last field is the claim worth making: a fit that went to disk and came back is the **same** fit,
+value for value. The files are CmdStan's format, so what comes back out can equally be read by
+`cmdstanpy` and handed to ArviZ, as the first half of this chapter describes.
+
+Asking to write a whole fit into a single file is refused rather than quietly truncated to its first
+chain:
+
+```scala mdoc
+Files[IO]
+  .tempDirectory
+  .use { directory =>
+    for
+      fitted <- Sampler[IO].run(located, RunSettings(chains = 2, warmup = 100, samples = 50), Seed(8L))
+      attempted <- PosteriorCsv[IO].write(fitted, directory / "everything.csv").attempt
+    yield attempted.left.map(_.getMessage)
+  }
+  .unsafeRunSync()
+```
+
+And a file that is not a fit is an error, not an empty posterior. A header with no rows under it —
+a truncated file, or a mistyped path that happened to exist — would otherwise parse into a fit of
+nothing at all, from which every statistic comes back `NaN` with nothing to say why.

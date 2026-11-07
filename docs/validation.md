@@ -1955,3 +1955,126 @@ three components are now total in their time axis and in their group (D-133).
 4. **The fictional world has no named generator yet.** §9.2 puts `examples.FictionalWorld` in the
    `examples` module as whole programs (`IOApp.Simple`), which needs the `effect` module of phase
    11; the manual's chapters generate their invented data in place, as they have since phase 9.
+
+## Phase 11 — the effectful edge
+
+540 tests, 506 fast and 34 slow, up from 520 — 20 added by this phase, all of them fast: an
+effectful edge is checked by asserting it equals the pure core, which is quick, rather than by
+sampling for minutes. The 486 fast tests of phases 0 to 10 are untouched; no tolerance, seed or assertion was weakened, and the
+register of encapsulated local mutation stays at 27 sites.
+
+The only module with effects. It interprets the core's algebras in `F` and contains no statistical
+logic: the warmup schedule, the transitions and the scoring all come from the modules below it, and
+this one decides only when they run, on which fibre, and what happens to an error.
+
+### One loop, two interfaces
+
+`Mcmc.run` folds a whole chain; a stream wants one iteration and the chance to stop in between.
+Those are now the same loop — `Progress` carries the state, `step` does one iteration, and `run` is
+a fold over `step` (D-135).
+
+| Check | Result |
+|---|---|
+| the stepped chain is the folded chain, draw for draw | green, **bit for bit**, transitions and adapted step size included |
+| the progress says which phase it is in and stops when done | green: 5 warmup then 3 sampling, then nothing |
+| a starting point the target cannot read is an error | green, and so is one with no usable step size |
+| **the whole existing suite, unchanged** | green: 11 leapfrog fixtures, 9 posteriordb posteriors, every SBC suite |
+
+That last row is the evidence that rewriting phase 4's loop changed nothing observable. Every one of
+those tests runs on a fixed seed, so a single different random draw anywhere would have shown.
+
+### The randomness algebra at the edge
+
+| Check | Reference | Result |
+|---|---|---|
+| every method against the `State` interpreter | interleaved longs, uniforms and normals | green, **bit for bit** |
+| a split seed gives independent chains | `State` on the same split | green |
+| a `Ref` read twice carries on rather than restarting | one long pure program | green |
+| concurrent use is serialised and consumes each value once | the pure interpreter's multiset | green, 200 distinct values |
+
+The interleaving matters: a generator that drew the right numbers in the wrong order would pass a
+test of each method alone. It cannot drift, because `RefRng` runs the **same pure programs** rather
+than reimplementing the generators (D-136).
+
+### The sampler
+
+| Criterion | Result |
+|---|---|
+| **parallel equals sequential, bit for bit** | green: a four-chain `IO` fit equals `Mcmc.runNuts` on the same seed, value for value, 400 rows |
+| a streamed chain is the same chain | green, and it says which of its 50 iterations were warmup |
+| **cancellation lands quickly** | green: 100 000 samples cancelled after 100 ms stopped in under 2 s |
+| **no core error is lost** | green: an unreadable start raises the `BayesError` itself, in both `run` and `chain` |
+
+Bit-for-bit parallelism is not a property of the model used: chain `c` is driven by its own
+generator at `seed.fold(c)`, so what it draws cannot depend on the scheduler (D-137). A shared
+generator would have been easier and would have made the fit depend on timing.
+
+### Files
+
+| Check | Result |
+|---|---|
+| a chain written and read back | green, value for value |
+| a fit of three chains to one file each, and back as one fit | green, named `fit-1.csv` to `fit-3.csv` |
+| writing a fit to **one** file is refused | green, and the error says to use `writeAll` |
+| a malformed file is an error of `F` | green, and so is a file that does not exist |
+| sampler to disk and back, end to end | green: a two-chain fit survives the round trip exactly |
+
+### The backtest loop
+
+| Check | Result |
+|---|---|
+| one row per origin, in order, scored as phase 8 scores it | green, every field identical |
+| **taking two rows costs two refits, not six** | green |
+| an error in a refit stops the stream and is not swallowed | green, and the rows before it are still obtainable |
+| no origins is an empty stream, not an error | green |
+
+The second row is the only property that distinguishes a stream from a list, and it is the reason
+this is a stream: a backtest refits once per origin, which is the most expensive thing the library
+does.
+
+### Mutations tried
+
+Eleven, every one detected.
+
+| Component | Mutation | Test that failed |
+|---|---|---|
+| `RefRng.run` | the seed read but never advanced | the agreement and split-seed tests |
+| `RefRng.make` | a generator reimplemented instead of the pure program | the agreement test |
+| `Sampler.chain` | every chain given the same seed | the bit-for-bit and streamed tests |
+| `Sampler.run` | the warmup draws kept | the bit-for-bit test |
+| `Sampler.chain` | a failing start becomes an empty stream | the error test |
+| `Mcmc.step` | the tuning never frozen, so the sampler keeps adapting | **phase 4's step-size bracket test** |
+| `Mcmc.step` | every iteration reported as sampling | the bit-for-bit and phase tests |
+| `PosteriorCsv.write` | a fit silently truncated to its first chain | the refusal test |
+| `PosteriorCsv.writeAll` | the chains numbered from zero | the naming test |
+| `BacktestRunner.run` | every origin refitted before the first row | the laziness test |
+| `StanCsv.parse` | a header with no rows accepted again | the malformed-file test |
+
+The sixth is worth a line. Because `run` is now a fold over `step`, a mutation inside `step` changes
+**both** interfaces identically — so the test that they agree cannot see it. What caught it was
+phase 4's own assertion that the adapted step size brackets its target, which is the argument for
+keeping external references rather than only internal consistency checks.
+
+### A defect found in phase 5's codec
+
+`StanCsv.parse` accepted a file whose only line was a header, returning a posterior of zero draws
+(D-140). A truncated file and a mistyped path that happens to exist both look exactly like that, and
+every statistic computed from the result comes back `NaN` with nothing to say why. It now returns
+`Malformed`; the stan-io suite passed unchanged, since a real CmdStan file always has at least one
+row.
+
+### Known limits at the end of phase 11
+
+1. **`Sampler.run` holds every chain in memory.** It compiles each stream to a vector before
+   building `Draws`, because `Draws` is a rectangle. A fit too large for memory wants the streaming
+   interface and `PosteriorCsv` written draw by draw, which the module supports and `run` does not
+   do for you.
+2. **Cancellation is between iterations, not inside one.** A single NUTS transition at maximum tree
+   depth is a thousand leapfrog steps and will run to completion. That is the specification's
+   intention — never half a transition — and it means the worst-case cancellation latency is one
+   iteration, not one step.
+3. **`BacktestRunner` cannot enforce that no fit sees its own target** (D-141), since the forecast
+   function is opaque to it. The contract is the caller's and chapter 8 states it.
+4. **No `examples` module yet.** §9.2 puts the long programs there as `IOApp.Simple`, which this
+   phase makes possible; writing them, and the named `FictionalWorld` generator, belongs with the
+   manual's completion.
