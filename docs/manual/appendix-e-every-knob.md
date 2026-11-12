@@ -5,8 +5,8 @@ each with one line saying what it is for. Nothing here is explained from first p
 chapters do that — and nothing here is left out, which is the difference between this page and
 them.
 
-Appendix D is deliberately missing: it is reserved for the optional `rethinking` module, which is
-not built yet.
+[Appendix D](appendix-d-for-rethinking-readers.md) is the optional `rethinking` module's table of
+names; this page is the library's own.
 
 CI checks this page against the code. A constraint, a parameter block, a setting field or a figure
 that exists and is not named below fails `scripts/check-manual.py`, so "every" stays true.
@@ -75,9 +75,11 @@ Appendix A maps every one of these to its Stan name.
 **Over `(0, 1)`.** `beta`.
 
 **Over a vector or a matrix.** `multiNormalCholesky` (a Gaussian given the Cholesky factor of its
-covariance), `lkjCorrCholesky` (the LKJ prior on a correlation's Cholesky factor), `dirichlet`.
+covariance), `lkjCorrCholesky` (the LKJ prior on a correlation's Cholesky factor) and `lkjCorr`
+(the same on the correlation matrix itself, for evaluating rather than declaring), `dirichlet`.
 
-**Over the integers** — these live in `LogMass`, not `LogDensity`. `poisson` and `poissonLog`
+**Over the integers** — these live in `LogMass`, not `LogDensity`. `zeroInflatedPoisson` (a
+Poisson with an excess of zeros, as a mixture), `poisson` and `poissonLog`
 (the same law, parameterised by the rate or by its logarithm), `negativeBinomial` and
 `negativeBinomial2` (shape-and-rate, or mean-and-dispersion: the gamma-Poisson under two
 parameterisations), `binomial` and `binomialLogit`, `bernoulliLogit`, `betaBinomial`,
@@ -258,6 +260,19 @@ chapters.
 
 A `Left` from the core becomes an error of `F` — raised through `MonadThrow`, so nothing is
 swallowed. [Appendix B](appendix-b-errors.md) is the contract.
+
+## Optimisation
+
+| What | Where it comes from |
+|---|---|
+| a minimum on a bracket, without derivatives | `Optimize.brentMinimize(f, lower, upper)` |
+| a root on a bracket that changes sign | `Optimize.brentRoot(f, lower, upper)` |
+| a minimum in many dimensions, given a gradient | `Optimize.lbfgs(f, gradient, start)` — limited-memory BFGS, which never forms a Hessian |
+| the curvature at a point | `Optimize.hessian(gradient, at)` — central differences of the gradient, symmetrised |
+
+The last two are what a Laplace approximation is made of, and
+[appendix D](appendix-d-for-rethinking-readers.md)'s `quap` is that approximation under the book's
+name.
 
 ## Where the randomness comes from
 

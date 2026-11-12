@@ -294,13 +294,16 @@ object Intervals:
   def hpd(draws: IArray[Double], mass: Double): (Double, Double) =
     val n = draws.length
     if n == 0 || !(mass > 0.0) || !(mass < 1.0) then (Double.NaN, Double.NaN)
+    else if n == 1 then (draws(0), draws(0))
     else
       val sorted = IArray.from(draws.toList.sorted)
-      val width = math.max(1, math.ceil(mass * n).toInt)
-      if width >= n then (sorted(0), sorted(n - 1))
-      else
-        val best = (0 to n - width).minBy(i => sorted(i + width - 1) - sorted(i))
-        (sorted(best), sorted(best + width - 1))
+      // `coda::HPDinterval`'s rule, exactly: the interval spans `round(n * mass)` **gaps**
+      // between order statistics, and `rint` is R's `round` — half to even, which is not what
+      // `math.round` does and is the difference between reproducing the reference and nearly
+      // reproducing it (docs/design.md).
+      val gaps = math.max(1, math.min(n - 1, math.rint(mass * n).toInt))
+      val best = (0 until n - gaps).minBy(i => sorted(i + gaps) - sorted(i))
+      (sorted(best), sorted(best + gaps))
 
   /** The share of draws above a threshold: a posterior probability, estimated by counting. */
   def probabilityAbove(draws: IArray[Double], threshold: Double): Double =

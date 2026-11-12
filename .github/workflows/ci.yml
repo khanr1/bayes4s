@@ -77,6 +77,9 @@ jobs:
       - name: Check the Scaladoc's examples
         run: python3 scripts/check-scaladoc.py
 
+      - name: Check the rethinking module's provenance
+        run: python3 scripts/check-rethinking-origin.py
+
       - name: Check that workflows are up to date
         run: sbt githubWorkflowCheck
 

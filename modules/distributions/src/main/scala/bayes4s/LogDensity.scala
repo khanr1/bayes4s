@@ -225,6 +225,70 @@ object LogDensity:
       val weighted = r.vectorOf(n)(i => log(l(i)(i)) * ((eta - 1.0) * 2.0 + (n - i - 1).toDouble))
       lkjLogConstant(n, eta) + r.sum(weighted)
 
+  /** LKJ on a correlation **matrix**, Stan's `lkj_corr_lpdf`.
+    *
+    * `logConstant(K, eta) + (eta - 1) log det R`. The Cholesky form above is what a model should
+    * declare — it is cheaper and cannot leave the set of valid correlation matrices — and this is
+    * for evaluating the density at a matrix you already have, which is what the `rethinking`
+    * facade's `dlkjcorr` does.
+    *
+    * The determinant comes from a Cholesky factorisation written in `Real[A]` rather than from
+    * `core.linalg`, so that the density is differentiable like every other one here. A matrix that
+    * is not symmetric, has a diagonal other than one, or is not positive definite is `NaN`: those
+    * are invalid parameters, not impossible observations.
+    */
+  def lkjCorr[A: Real](r: IArray[IArray[A]], eta: A): A =
+    val n = r.length
+    if n < 2 || !isCorrelation(r, n) || !positive(eta) then nan
+    else
+      logDeterminant(r, n) match
+        case None => nan
+        case Some(logDet) => lkjLogConstant(n, eta) + (eta - 1.0.lift[A]) * logDet
+
+  /** Symmetric, unit diagonal, and every entry finite. Positive definiteness is the Cholesky's
+    * business, because a matrix can satisfy all three and still not be a correlation matrix.
+    */
+  private def isCorrelation[A: Real](r: IArray[IArray[A]], n: Int): Boolean =
+    r.length == n && (0 until n).forall { i =>
+      r(i).length == n && (0 until n).forall { j =>
+        if i == j then value(r(i)(j)) == 1.0
+        else finite(r(i)(j)) && math.abs(value(r(i)(j)) - value(r(j)(i))) <= 1e-12
+      }
+    }
+
+  /** `log det` by Cholesky, or nothing when the matrix is not positive definite.
+    *
+    * The loop is the textbook one, written as a fold over an immutable vector of rows: the factor
+    * is small — a correlation matrix in a model has a handful of dimensions — so the allocation
+    * costs less than the mutation would be worth, and nothing has to be annotated.
+    */
+  private def logDeterminant[A: Real](r: IArray[IArray[A]], n: Int): Option[A] =
+    val real = Real[A]
+    val built = (0 until n).foldLeft(Option(Vector.empty[IArray[A]])) { (sofar, i) =>
+      sofar.flatMap { rows =>
+        val row = (0 to i).foldLeft(Option(Vector.empty[A])) { (made, j) =>
+          made.flatMap { entries =>
+            if j < i then
+              // `L(i,j) = (A(i,j) - sum_k<j L(i,k) L(j,k)) / L(j,j)`, over the rows already built.
+              val inner =
+                (0 until j).foldLeft(real.const(0.0))((sum, k) => sum + entries(k) * rows(j)(k))
+              Some(entries :+ (r(i)(j) - inner) / rows(j)(j))
+            else
+              // `L(i,i) = sqrt(A(i,i) - sum_k<i L(i,k)^2)`, over this row — which is the one being
+              // built, so the sum is of `entries` against itself and not against a row that does
+              // not exist yet.
+              val inner =
+                (0 until i).foldLeft(real.const(0.0))((sum, k) => sum + entries(k) * entries(k))
+              val pivot = r(i)(i) - inner
+              if value(pivot) <= 0.0 || !finite(pivot) then None
+              else Some(entries :+ real.sqrt(pivot))
+          }
+        }
+        row.map(entries => rows :+ Real[A].vectorOf(entries.length)(k => entries(k)))
+      }
+    }
+    built.map(rows => real.sum(real.vectorOf(n)(i => log(rows(i)(i)))) * 2.0)
+
   /** The log normalising constant, by the product form of Theorem 5 of Lewandowski, Kurowicka and
     * Joe (2009), which needs no separate branch at `eta = 1`.
     */
@@ -346,6 +410,32 @@ object LogMass:
     if !Domain.finite(logRate) then Domain.nan
     else if k < 0 then Domain.negativeInfinite
     else k.toDouble.timesLifted(logRate) - exp(logRate) - Special.lgamma(k + 1.0)
+
+  /** Poisson with an excess of zeros: the package's `dzipois(x, p, lambda)`.
+    *
+    * A mixture of two stories. With probability `p` nothing happened at all and the count is zero
+    * for that reason; otherwise it is Poisson at `lambda`, which may also give zero. So
+    *
+    * {{{
+    * P(0) = p + (1 - p) exp(-lambda)
+    * P(k) = (1 - p) Poisson(k | lambda)        for k > 0
+    * }}}
+    *
+    * Written entirely on the log scale through `logSumExp`, so a tiny `p` and a tiny `lambda` are
+    * both exact where forming the probabilities and adding them would have lost the smaller one.
+    * `p = 0` collapses onto the Poisson **exactly**, which the suite asserts rather than hopes.
+    */
+  def zeroInflatedPoisson[A: Real](k: Int, p: A, rate: A): A =
+    if !Domain.unitInterval(p) || !Domain.nonNegative(rate) then Domain.nan
+    else if k < 0 then Domain.negativeInfinite
+    else
+      val r = Real[A]
+      // `log(1 - p)`, kept accurate for a `p` near zero where `log(1 - p)` would round to zero.
+      val notInflated = log1p(r.negate(p))
+      if k == 0 then
+        // `p` and `(1 - p) exp(-lambda)`, added where neither can round the other away.
+        r.logSumExp(r.vector(log(p), notInflated - rate))
+      else notInflated + poisson(k, rate)
 
   /** Mean and dispersion, Stan's `neg_binomial_2`. */
   def negativeBinomial2[A: Real](k: Int, mu: A, phi: A): A =

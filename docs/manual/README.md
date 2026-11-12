@@ -40,6 +40,7 @@ reads its result through `map`, which is also what you will write.
 | [Appendix A. Coming from Stan](appendix-a-from-stan.md) | every Stan name and its equivalent here, checked in CI |
 | [Appendix B. Errors and contracts](appendix-b-errors.md) | every `BayesError`, when it appears, what to do |
 | [Appendix C. Classic worked examples](appendix-c-worked-examples.md) | the grid, the conjugate update, intervals, the predictive, Metropolis |
+| [Appendix D. For readers of *Statistical Rethinking*](appendix-d-for-rethinking-readers.md) | the optional façade: every name of the R package, and where the two differ |
 | [Appendix E. Every knob](appendix-e-every-knob.md) | every constructor, constraint, setting and figure, with its default |
 | [Glossary](glossary.md) | the book's term, the name in the API, and the term to avoid |
 
@@ -62,8 +63,9 @@ something, 11 if your data arrives in groups, 12 when you want to look at any of
 too slow or you suspect you have made one of the five usual mistakes, and 9 if you have a fit from
 CmdStan already.
 
-The appendices are references rather than chapters, and appendix D is deliberately absent: it is
-reserved for the optional `rethinking` module, which is not built yet.
+The appendices are references rather than chapters. Appendix D is the optional `rethinking`
+module's own: the R package's names, what each one calls here, and the two places the vocabularies
+genuinely differ.
 
 ## What this manual is not
 

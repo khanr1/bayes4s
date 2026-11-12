@@ -2496,3 +2496,129 @@ examples were reported as missing. The parser now counts depth forwards.
    every case class's `copy` would be noise, and the Scaladoc already shows every signature.
 4. **Whether an example is a good one is still a person's job.** The checks assert that it exists,
    that it compiles, and that it calls what it claims to.
+
+## Phase 13 — the optional `rethinking` façade
+
+624 tests, 590 fast and 34 slow, up from 600 — 24 added by this phase, all of them fast. The 566
+fast tests of phases 0 to 12c are untouched **except one function whose rule changed on purpose**,
+recorded below; no tolerance or seed was weakened, and the register of encapsulated local mutation
+stays at 27 sites.
+
+### Where the numbers come from
+
+`rethinking/rethinking.json` was computed with NumPy and SciPy from the **documentation** of the R
+package — its published parameterisations — and never from its source, which is GPL. What the
+suites assert is therefore that this library's own laws, called with the package's arguments in the
+package's order, give the package's numbers.
+
+| Check | Reference | Tolerance | Result |
+|---|---|---|---|
+| `dgampois`, 4 cases | the documented `size = mu/scale`, `prob = 1/(1+scale)` | 1e-12 relative | green |
+| `dbetabinom`, 3 cases | `a = prob θ`, `b = (1-prob) θ` | 1e-12 relative | green |
+| `dordlogit`, 3 cases | the ordered categorical, categories from one | 1e-12 relative | green |
+| `dzipois`, 3 cases | the zero-inflated mixture | 1e-12 relative | green |
+| `dstudent`, 2 cases | `studentT` | 1e-12 relative | green |
+| `dmvnorm2`, 3 cases | `diag(σ) Rho diag(σ)` through its Cholesky factor | 1e-12 relative | green |
+| `dlkjcorr` | Stan's `lkj_corr_test.cpp`, through `multilevel.json` | 1e-12 relative | green |
+| `standardize`, `inv_logit`, `log_sum_exp` | the reference's own helper cases | 1e-12 relative | green |
+| `PI`, 9 cases | R's type-7 quantile at `(1±prob)/2` | 1e-12 relative | green |
+| `HPDI`, 9 cases | `coda::HPDinterval`'s rule | 1e-12 relative | green |
+| `WAIC` — the criterion, `lppd`, the penalty and the standard error | the deviance scale, 4000 × 20 log likelihoods | 1e-12 relative | green |
+| `quap` on a Gaussian posterior | exact: the quadratic approximation of a quadratic | 1e-8 on the mode | green |
+| `quap` on a Gamma kernel | analytic: mode `(a-1)/b`, sd `sqrt(a-1)/b` | 1e-6 on the mode, 1e-5 on the spread | green |
+| `lbfgs` on Rosenbrock | the minimum at (1, 1) | 1e-6 on the argument | green |
+| `lbfgs` on a quadratic conditioned at 1e4 | the minimum at the origin, in under 60 iterations | 1e-6 | green |
+| `hessian` against dual numbers | `Dual` applied to an **analytic gradient** | 1e-6 relative | green |
+| `precis` against `Summary` | equality | exact | green |
+| `compare` against `Loo.compare` | the same ranking, and the gap within its own error | exact / 2 standard errors | green |
+| `PSIS` against `Loo.psis` | `-2 elpd`, and the same shape diagnostics | 1e-12 / exact | green |
+
+### A rule that changed, deliberately
+
+**`Intervals.hpd` is now `coda::HPDinterval` exactly** (D-164). §5.13 asks for that algorithm, so
+the core's function became it rather than the façade carrying a second one. The rounding is the
+detail: R's `round` is half **to even**, and brute-forcing the four plausible rules against the
+nine reference cases settled it — floor 5 of 9, ceil 7 of 9, half-up 7 of 9, half-to-even 9 of 9.
+
+This is a behaviour change to a published function, by one order statistic. The whole diagnostics
+suite passes unchanged, including the `worked_examples.json` comparison `hpd` was originally
+written against: both rules are consistent estimators and that test's tolerance is a Monte Carlo
+standard error.
+
+### Pending: the two values marked `confirm_with_R`
+
+The reference marks two rules `confirm_with_R`, and **neither is confirmed**. They are asserted
+here against the independent Python computation, which is not the same thing as agreeing with the
+package:
+
+1. `HPDI`'s tie-breaking, when two windows of the same width are equally narrow. The reference's
+   rule and this implementation both take the first; `coda` may not.
+2. `WAIC`'s standard error, `sqrt(n var(pointwise))`. The book states it; whether the package
+   divides by `n` or `n - 1` inside the variance has not been checked against R.
+
+Running the two in R once and recording the answer here is the last item of this phase's
+definition of done, and it needs R rather than this library.
+
+### The licence review
+
+The phase requires that no line of code came from the R package, reviewed. The review: the module
+was written from the package's documented function list and parameterisations, which the plan's
+§5.13 reproduces, and from the papers the documentation cites; its source was not opened. The
+reference values were computed independently in Python. No text, example or dataset of the package
+appears anywhere in this repository.
+
+`scripts/check-rethinking-origin.py` is the mechanical floor under that, in CI: no R syntax and no
+R files in the module, none of the package's fifteen dataset names anywhere in the repository, and
+a stated provenance in the façade's own documentation. Both halves were mutated — an R function
+definition planted in the module, and a dataset name planted in a comment — and both were caught.
+
+### Mutations (6.6)
+
+| Component | Mutation | Test that failed |
+|---|---|---|
+| `Optimize.lbfgs` | the remembered curvature thrown away, leaving steepest descent | the ill-conditioned quadratic, on its iteration count |
+| `Optimize.hessian` | one-sided rather than central differences | the dual-number oracle |
+| `LogMass.zeroInflatedPoisson` | the mixture's weight left off the Poisson branch | the package's parameterisation |
+| `LogDensity.lkjCorr` | the determinant's exponent off by one | Stan's `lkj_corr_test.cpp` cases |
+| `Intervals.hpd` | R's half-to-even rounding replaced by half-up | the nine PI/HPDI cases |
+| `Rethinking.dgampois` | the scale read as a dispersion | the four `dgampois` cases |
+| `Rethinking.WAIC` | the deviance's sign | the deviance-scale assertion |
+| `Rethinking.quap` | the curvature not inverted | the Gaussian posterior's spread |
+| `Fits.precis` | a number of its own instead of the core's | `precis` equals `Summary.of` |
+| `Fits.compare` | the weights left unnormalised | the Akaike weights summing to one |
+| `check-rethinking-origin.py` | an R function definition planted in the module | the provenance check |
+| `check-rethinking-origin.py` | a dataset name planted in a comment | the provenance check |
+
+### Three defects the tests found in this phase's own work
+
+1. **`dmvnorm2` was `NaN` for every reference case** (D-168). `diag(σ) Rho diag(σ)` written the
+   obvious way is not bit-symmetric — the entry below the diagonal multiplies the same three
+   numbers in a different order — and `Linalg.cholesky` rightly refuses an asymmetric matrix. The
+   covariance is now built from the upper triangle and mirrored.
+2. **The `Real[A]` Cholesky indexed past the end of its own row.** The diagonal's inner sum is over
+   the row *being built*, not over a row that does not exist yet.
+3. **The Hessian oracle's test function was not a gradient field.** Its "Hessian" was asymmetric,
+   so the symmetrised differencing and the exact oracle disagreed for the test's own reason. A true
+   Hessian is symmetric, and the function was corrected to be the gradient of something.
+
+A fourth was in this phase's new code and found by the suite rather than by a reader: `precisText`
+formatted its columns with an interpolator, which follows the machine's locale, so the header came
+out `5,5%` on a French machine. It now formats under `Locale.ROOT`, as the core's own table always
+has.
+
+### Known limits at the end of phase 13
+
+1. **The two `confirm_with_R` values are pending**, as above. Everything else in this phase is
+   asserted against an independent computation.
+2. **`quap` differentiates numerically** (D-165), because there is no automatic-differentiation
+   path to a constrained-scale density: `Transform.unconstrain` is `Double`-only. For the handful
+   of parameters a quadratic approximation is honest for this costs nothing; `ulam` is the path for
+   anything larger, which is what the book says too.
+3. **`lbfgs`'s line search satisfies Armijo and not the curvature condition.** That is why a pair
+   with no positive curvature is skipped. A strong-Wolfe search would remember more and is the
+   obvious improvement if a real model ever needs it.
+4. **`ulam` does not accept the book's `cores` argument** as a number. `Fits.ulamParallel` runs the
+   chains on fibres and lets the runtime decide, which is what cats-effect is for.
+5. **`Fits.ensemble` mixes by taking each model's share of its own simulations**, in order, rather
+   than by resampling. For equal weights that is exactly the mixture; for very unequal ones a
+   resample would be smoother.

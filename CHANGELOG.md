@@ -8,6 +8,34 @@ Versions follow git tags. Nothing is released yet.
 
 ## Unreleased
 
+### Phase 13 — the optional `rethinking` façade (12 November 2026)
+
+Added
+
+- **Module `rethinking`**, its own artefact: the names McElreath's R package uses, over this
+  library's functions. `quap`, `ulam`, `precis`, `extractSamples`, `extractPrior`, `link`, `sim`,
+  `ensemble`, `PI`, `HPDI`, `WAIC`, `PSIS`, `compare`, `coeftab`, the helpers, the densities
+  `dgampois`, `dbetabinom`, `dordlogit`, `dzipois`, `dstudent`, `dmvnorm2`, `dlkjcorr`, and the
+  figures `dens`, `shade`, `postcheck`, `traceplot`, `trankplot` and the `precis` plot.
+- **It adds no statistics.** `precis` is asserted *equal* to `Summary.of`, `PSIS` to `Loo.psis`,
+  and `compare` to agree with `Loo.compare` about the ranking and the gap. The book's 89 % interval
+  default lives in this module only.
+- `Optimize.lbfgs` and `Optimize.hessian`: limited-memory BFGS, and the curvature by central
+  differences of the gradient, checked against dual numbers applied to an analytic gradient.
+- `LogMass.zeroInflatedPoisson` with its sampler, and `LogDensity.lkjCorr` — the LKJ density on a
+  correlation matrix, checked against Stan's own `lkj_corr_test.cpp`.
+- Manual appendix D, for readers of the book: every name, what it calls, and the two places the
+  vocabularies genuinely differ.
+- `scripts/check-rethinking-origin.py`: the module is written from the package's **documentation**,
+  never from its GPL source, and CI refuses the traces a translation would leave — no R in the
+  module, none of the package's dataset names anywhere in the repository, a stated provenance.
+
+Changed
+
+- **`Intervals.hpd` is now `coda::HPDinterval` exactly**, which §5.13 asks for: the interval spans
+  `round(n × mass)` gaps, with R's half-to-even rounding. A behaviour change of one order
+  statistic; the whole diagnostics suite passes unchanged.
+
 ### Phase 12c — the Scaladoc, with examples that compile (12 November 2026)
 
 Added

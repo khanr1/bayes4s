@@ -907,6 +907,17 @@ object Fixtures:
   /** The statistics the plots need, with ArviZ's bandwidths and exact kernel sums. */
   def plotStatistics: Either[String, Json] = at[Json]("plot/plot_statistics.json", Nil)
 
+  /** The `rethinking` facade's reference: densities at the package's documented parameterisations,
+    * its intervals, its WAIC and its quadratic approximation.
+    *
+    * Computed with NumPy and SciPy from the **documentation** of the R package, never from its
+    * source (docs/design.md): the parameterisations are published, the code is GPL.
+    */
+  def rethinking: Either[String, Json] = at[Json]("rethinking/rethinking.json", Nil)
+
+  /** The whole of `multilevel.json`, for the cases that have no accessor of their own. */
+  def multilevel: Either[String, Json] = at[Json](Multilevel, Nil)
+
   /** The official Vega-Lite schema every produced specification is validated against. */
   def vegaLiteSchema: Either[String, String] =
     Reference.text("plot/vega-lite-schema.json").left.map(_.message)

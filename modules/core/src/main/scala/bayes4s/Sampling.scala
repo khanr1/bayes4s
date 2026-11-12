@@ -82,6 +82,15 @@ object Sampling:
     else if mean < PtrsThreshold then inversion[F](mean)
     else transformedRejection[F](mean)
 
+  /** Poisson with an excess of zeros: with probability `p` the answer is zero outright.
+    *
+    * One uniform decides which story the draw comes from, and only then is the Poisson drawn — so
+    * a high inflation probability costs almost nothing, which is the point of the mixture.
+    */
+  def zeroInflatedPoisson[F[_]: Monad: Rng](p: Double, mean: Double): F[Int] =
+    if p.isNaN || mean.isNaN || p < 0.0 || p > 1.0 || mean < 0.0 then Monad[F].pure(-1)
+    else Rng[F].uniform.flatMap(u => if u < p then Monad[F].pure(0) else poisson[F](mean))
+
   def dirichlet[F[_]: Monad: Rng](alpha: IArray[Double]): F[IArray[Double]] =
     alpha.toList
       .traverse(a => gamma[F](a))

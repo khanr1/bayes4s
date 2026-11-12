@@ -53,3 +53,7 @@ PosteriorCsv,writeAll readAll,modules/effect/src/main/scala/bayes4s/PosteriorCsv
 PlotFile,writeHtml writeJson,modules/effect/src/main/scala/bayes4s/PlotFile.scala
 BacktestRunner,run,modules/effect/src/main/scala/bayes4s/BacktestRunner.scala
 RefRng,make,modules/effect/src/main/scala/bayes4s/RefRng.scala
+Optimize,brentMinimize lbfgs hessian,modules/core/src/main/scala/bayes4s/Optimize.scala
+Rethinking,standardize invLogit logit logSumExp PI HPDI,modules/rethinking/src/main/scala/bayes4s/rethinking/Rethinking.scala
+Fits,ulam precis extractSamples,modules/rethinking/src/main/scala/bayes4s/rethinking/Fits.scala
+Figures,dens shade traceplot trankplot,modules/rethinking/src/main/scala/bayes4s/rethinking/Figures.scala

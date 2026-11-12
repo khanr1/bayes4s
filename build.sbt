@@ -91,6 +91,12 @@ ThisBuild / githubWorkflowBuildPreamble ++= Seq(
   WorkflowStep.Run(
     commands = List("python3 scripts/check-scaladoc.py"),
     name = Some("Check the Scaladoc's examples")
+  ),
+  // The optional `rethinking` façade is written from the R package's **documentation**, never from
+  // its source, which is GPL (docs/design.md). This refuses the traces a translation would leave.
+  WorkflowStep.Run(
+    commands = List("python3 scripts/check-rethinking-origin.py"),
+    name = Some("Check the rethinking module's provenance")
   )
 )
 
@@ -170,6 +176,7 @@ lazy val root = project
     testkit,
     benchmarks,
     examples,
+    rethinking,
     docs
   )
 
@@ -274,6 +281,15 @@ lazy val effect = mod("effect")
     )
   )
 
+// The optional facade for readers of *Statistical Rethinking*: its own artefact, so that a user
+// who does not want the book's vocabulary never sees it. It adds no statistics — every function
+// calls the modules below it (docs/design.md).
+//
+// `effect` because `ulam` runs the sampler in `IO`, and `plot` because the book's figures are
+// exposed under the package's names.
+lazy val rethinking = mod("rethinking")
+  .dependsOn(effect, plot, ad % "test->test", testkit % Test)
+
 // --- modules that are never published -----------------------------------------------------
 
 // `testkit` depends on no bayes4s module, so every module including `core` can depend on it in
@@ -314,7 +330,9 @@ lazy val docs = project
   // `examples` so that the manual's long examples are compiled **and tested** code it includes by
   // reference rather than prose it repeats (§9.2): the invented world the chapters are set in, and
   // the arrangement of it the count model reads, both have suites of their own.
-  .dependsOn(effect, examples)
+  //
+  // `rethinking` for appendix D, which is the optional façade's own chapter.
+  .dependsOn(effect, examples, rethinking)
   .settings(
     name := "bayes4s-docs",
     mdocIn := file("docs/manual"),

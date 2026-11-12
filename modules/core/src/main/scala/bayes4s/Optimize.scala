@@ -20,6 +20,14 @@ import scala.annotation.tailrec
 
 final case class Optimum(argument: Double, value: Double, iterations: Int)
 
+/** Where a many-dimensional search stopped, and how hard it had to work to get there. */
+final case class MultiOptimum(
+    argument: IArray[Double],
+    value: Double,
+    gradient: IArray[Double],
+    iterations: Int
+)
+
 /** One-dimensional optimisation, pure and total.
   *
   * Both searches are the classical Brent algorithms, written as a tail recursion over an immutable
@@ -31,6 +39,37 @@ final case class Optimum(argument: Double, value: Double, iterations: Int)
   * changes by less than a double's resolution once the argument is within about sqrt(eps) of the
   * answer, so `brentMinimize` locates the **argument** to roughly 1e-8 and its **value** to full
   * precision. Roots are well conditioned and `brentRoot` reaches 1e-12 on the argument itself.
+  * **Example.** One dimension, without derivatives, on a bracket:
+  *
+  * ```scala
+  * // The minimum of a parabola, which Brent finds to about 1e-8 in the argument.
+  * val found: Either[BayesError, Optimum] =
+  *   Optimize.brentMinimize(x => (x - 2.0) * (x - 2.0) + 1.0, lower = -10.0, upper = 10.0)
+  *
+  * // And a root, which is better conditioned: 1e-12 on the argument itself. The bracket must change
+  * // sign, and a bracket that does not is an error rather than a guess.
+  * val root: Either[BayesError, Double] =
+  *   Optimize.brentRoot(x => x * x * x - 8.0, lower = 0.0, upper = 10.0)
+  * ```
+  *
+  * **Example.** Many dimensions, with a gradient, and the curvature at the answer — which together
+  * are a Laplace approximation:
+  *
+  * ```scala
+  * /** A log posterior, and its gradient. Reverse-mode automatic differentiation is where a real one
+  *   * would come from; this is written out so the example needs no model.
+  *   */
+  * def logPosterior(x: IArray[Double]): Double = -0.5 * (4.0 * x(0) * x(0) + x(1) * x(1))
+  * def gradient(x: IArray[Double]): IArray[Double] = IArray(4.0 * x(0), x(1))
+  *
+  * // `lbfgs` minimises, so a posterior is passed negated.
+  * val mode: Either[BayesError, MultiOptimum] =
+  *   Optimize.lbfgs(x => -logPosterior(x), gradient, IArray(1.0, 1.0))
+  *
+  * // The curvature there, by central differences of the same gradient. For a posterior this is the
+  * // **negative** Hessian, whose inverse is the approximation's covariance.
+  * val curvature: Either[BayesError, Matrix] = mode.flatMap(m => Optimize.hessian(gradient, m.argument))
+  * ```
   */
 object Optimize:
 
@@ -55,6 +94,93 @@ object Optimize:
           0
         )
     }
+
+  /** Limited-memory BFGS: a quasi-Newton minimiser for a handful to a few hundred parameters.
+    *
+    * It takes the gradient rather than computing one, because where a gradient comes from is the
+    * caller's business — reverse-mode automatic differentiation when there is a model to
+    * differentiate, central differences when there is not.
+    *
+    * The method's whole idea is that it never forms a Hessian. It keeps the last `memory` pairs of
+    * (step, change in gradient) and uses them to apply an approximate inverse Hessian in two
+    * passes, which is what lets it walk a stretched valley that steepest descent zig-zags across.
+    * The pairs are a small immutable list, oldest dropped, so nothing here mutates.
+    *
+    * The line search is a backtracking one on the Armijo condition: take the quasi-Newton step,
+    * halve it until the objective falls by enough, and give up rather than loop. That is the
+    * simple half of a textbook line search and it is enough for a well-behaved posterior; what it
+    * does not do is satisfy the curvature condition, so a pair that would make the approximation
+    * indefinite is **skipped** rather than applied, which is the standard guard.
+    *
+    * Returns `Left` rather than a wrong answer when the objective cannot be evaluated, when the
+    * start is empty, or when the iterations run out before the gradient is small.
+    */
+  def lbfgs(
+      f: IArray[Double] => Double,
+      gradient: IArray[Double] => IArray[Double],
+      start: IArray[Double],
+      tolerance: Double = 1e-8,
+      maxIterations: Int = 500,
+      memory: Int = 8
+  ): Either[BayesError, MultiOptimum] =
+    val n = start.length
+    if n == 0 then
+      Left(BayesError.InvalidArgument("Optimize.lbfgs", "start", 0.0, "at least one parameter"))
+    else if !(tolerance > 0.0) then
+      Left(BayesError.InvalidArgument("Optimize.lbfgs", "tolerance", tolerance, "above zero"))
+    else if maxIterations < 1 then
+      Left(
+        BayesError
+          .InvalidArgument("Optimize.lbfgs", "maxIterations", maxIterations.toDouble, "at least 1")
+      )
+    else
+      val value = f(start)
+      val slope = gradient(start)
+      if value.isNaN || value.isInfinite then Left(notEvaluable("Optimize.lbfgs", value))
+      else if slope.exists(g => g.isNaN || g.isInfinite) then
+        Left(notEvaluable("Optimize.lbfgs", Double.NaN))
+      else lbfgsLoop(f, gradient, start, value, slope, Nil, tolerance, maxIterations, memory, 0)
+
+  /** The Hessian of a function, by central differences of its **gradient**.
+    *
+    * Differencing the gradient rather than the value costs `2n` gradient evaluations instead of
+    * `4n²` function evaluations and loses far less precision: a second difference of the value
+    * divides by the square of the step, so at the step a first difference wants it has already
+    * lost most of its digits.
+    *
+    * The result is symmetrised — `(H + H')/2` — because the two one-sided estimates of a mixed
+    * partial differ by rounding, and a curvature matrix that is not symmetric is not a curvature
+    * matrix. `step` defaults to the cube root of the machine epsilon times a scale, which is the
+    * usual compromise between truncation and rounding for a central difference.
+    */
+  def hessian(
+      gradient: IArray[Double] => IArray[Double],
+      at: IArray[Double],
+      step: Double = 1e-5
+  ): Either[BayesError, Matrix] =
+    val n = at.length
+    if n == 0 then
+      Left(BayesError.InvalidArgument("Optimize.hessian", "at", 0.0, "at least one parameter"))
+    else if !(step > 0.0) then
+      Left(BayesError.InvalidArgument("Optimize.hessian", "step", step, "above zero"))
+    else
+      val columns = (0 until n).map { j =>
+        val h = step * math.max(1.0, math.abs(at(j)))
+        val forward = gradient(IArray.tabulate(n)(i => if i == j then at(i) + h else at(i)))
+        val backward = gradient(IArray.tabulate(n)(i => if i == j then at(i) - h else at(i)))
+        IArray.tabulate(n)(i => (forward(i) - backward(i)) / (2.0 * h))
+      }
+      if columns.exists(_.exists(x => x.isNaN || x.isInfinite)) then
+        Left(notEvaluable("Optimize.hessian", Double.NaN))
+      else
+        Matrix.of(
+          n,
+          n,
+          IArray.tabulate(n * n) { k =>
+            val (i, j) = (k / n, k % n)
+            0.5 * (columns(j)(i) + columns(i)(j))
+          }
+        )
 
   /** Brent-Dekker root finding. The bracket must change sign. */
   def brentRoot(
@@ -310,3 +436,122 @@ object Optimize:
           maxIterations,
           step + 1
         )
+
+  // --- the quasi-Newton loop ------------------------------------------------------------------
+
+  /** One remembered step: how far the argument moved, and how much the gradient changed. */
+  final private case class Pair(s: IArray[Double], y: IArray[Double], rho: Double)
+
+  private def dot(a: IArray[Double], b: IArray[Double]): Double =
+    (0 until a.length).foldLeft(0.0)((sum, i) => sum + a(i) * b(i))
+
+  /** The two-loop recursion: the remembered pairs applied as an approximate inverse Hessian.
+    *
+    * Written as two folds over the list of pairs rather than as a loop with a mutable array of
+    * coefficients. The list is at most `memory` long, so the allocation is bounded and small.
+    */
+  private def direction(slope: IArray[Double], pairs: List[Pair]): IArray[Double] =
+    val n = slope.length
+    val (afterFirst, alphas) =
+      pairs.foldLeft((IArray.tabulate(n)(i => -slope(i)), List.empty[Double])) {
+        case ((q, collected), pair) =>
+          val alpha = pair.rho * dot(pair.s, q)
+          (IArray.tabulate(n)(i => q(i) - alpha * pair.y(i)), alpha :: collected)
+      }
+    // Nocedal's scaling of the initial Hessian: the most recent pair's curvature.
+    val scaled = pairs.headOption.fold(afterFirst) { pair =>
+      val gamma = dot(pair.s, pair.y) / dot(pair.y, pair.y)
+      IArray.tabulate(n)(i => gamma * afterFirst(i))
+    }
+    pairs.reverse
+      .zip(alphas)
+      .foldLeft(scaled) { case (r, (pair, alpha)) =>
+        val beta = pair.rho * dot(pair.y, r)
+        IArray.tabulate(n)(i => r(i) + pair.s(i) * (alpha - beta))
+      }
+
+  @annotation.tailrec
+  private def lbfgsLoop(
+      f: IArray[Double] => Double,
+      gradient: IArray[Double] => IArray[Double],
+      x: IArray[Double],
+      value: Double,
+      slope: IArray[Double],
+      pairs: List[Pair],
+      tolerance: Double,
+      maxIterations: Int,
+      memory: Int,
+      step: Int
+  ): Either[BayesError, MultiOptimum] =
+    val n = x.length
+    val norm = math.sqrt(dot(slope, slope))
+    if norm <= tolerance then Right(MultiOptimum(x, value, slope, step))
+    else if step >= maxIterations then
+      Left(BayesError.NumericalOverflow(s"Optimize.lbfgs did not converge in $maxIterations"))
+    else
+      val d = direction(slope, pairs)
+      val descent = dot(d, slope)
+      // A direction that does not go downhill means the memory has gone bad; steepest descent is
+      // always a descent direction, so the search restarts from it rather than failing.
+      val downhill = if descent < 0.0 then d else IArray.tabulate(n)(i => -slope(i))
+      val initialSlope = dot(downhill, slope)
+      // After a quasi-Newton step the natural length is 1. On the **first** step there is no
+      // curvature remembered yet, the direction is steepest descent, and its length is the
+      // gradient's — which on a steep objective is enormous and costs thirty halvings before the
+      // first useful move. Scaling that one step by 1/|g| is the standard remedy.
+      val firstLength = if pairs.isEmpty then 1.0 / math.max(1.0, norm) else 1.0
+      lineSearch(f, x, value, downhill, initialSlope, firstLength, 0) match
+        case None =>
+          // No step of any length improved the objective: at a minimum to within the arithmetic
+          // available, which is an answer rather than a failure.
+          Right(MultiOptimum(x, value, slope, step))
+        case Some((moved, movedValue)) =>
+          val movedSlope = gradient(moved)
+          if movedValue.isNaN || movedSlope.exists(g => g.isNaN || g.isInfinite) then
+            Left(notEvaluable("Optimize.lbfgs", movedValue))
+          else if value - movedValue <= 1e-15 * (math.abs(value) + 1.0) then
+            // The objective has stopped changing to the resolution of a double. A gradient-norm
+            // test alone would keep walking a flat valley for ever, which is what Rosenbrock's
+            // does: this is the second stopping rule every real implementation carries.
+            Right(MultiOptimum(moved, movedValue, movedSlope, step + 1))
+          else
+            val sVector = IArray.tabulate(n)(i => moved(i) - x(i))
+            val yVector = IArray.tabulate(n)(i => movedSlope(i) - slope(i))
+            val curvature = dot(sVector, yVector)
+            // A pair with no positive curvature would make the approximation indefinite, so it is
+            // skipped rather than applied: the standard guard, and the reason a backtracking line
+            // search is enough here.
+            val kept =
+              if curvature > 1e-12 then
+                (Pair(sVector, yVector, 1.0 / curvature) :: pairs).take(memory)
+              else pairs
+            lbfgsLoop(
+              f,
+              gradient,
+              moved,
+              movedValue,
+              movedSlope,
+              kept,
+              tolerance,
+              maxIterations,
+              memory,
+              step + 1
+            )
+
+  /** Backtracking on the Armijo condition: halve until the objective falls by enough. */
+  @annotation.tailrec
+  private def lineSearch(
+      f: IArray[Double] => Double,
+      x: IArray[Double],
+      value: Double,
+      d: IArray[Double],
+      slope: Double,
+      length: Double,
+      tries: Int
+  ): Option[(IArray[Double], Double)] =
+    if tries > 60 then None
+    else
+      val candidate = IArray.tabulate(x.length)(i => x(i) + length * d(i))
+      val f1 = f(candidate)
+      if !f1.isNaN && f1 <= value + 1e-4 * length * slope then Some((candidate, f1))
+      else lineSearch(f, x, value, d, slope, length * 0.5, tries + 1)

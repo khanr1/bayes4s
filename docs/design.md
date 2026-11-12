@@ -2215,3 +2215,130 @@ were reported as missing. It now scans comment spans forward, counting depth.
 The list is curated rather than derived: it is the surface appendix E already claims to cover, so
 the two agree by construction. Deriving it from every public member would demand an example of
 every case class's `copy`.
+
+### D-162. The `rethinking` façade is written from the documentation, and a script says so
+
+The R package is GPL. Reproducing its function **names** and the **parameterisations its
+documentation states** does not copy code; translating its source would make this module a derived
+work under a licence incompatible with Apache 2.0. The rule, without exception: implemented from
+the published documentation and the papers it cites, never from the source, which has not been
+read; none of its text, examples or datasets reproduced.
+
+A script cannot verify that rule. `scripts/check-rethinking-origin.py` enforces the mechanical
+floor under it, in CI: no R syntax and no R files in the module, none of the package's fifteen
+dataset names anywhere in the repository, and a stated provenance in the façade's own
+documentation. Its one deliberate omission is a rule for R's `df$column`, because in Scala `$` is
+string interpolation and the pattern fires on every interpolated name — a check that cries wolf
+gets switched off.
+
+The module is its own artefact (`bayes4s-rethinking`), so a user who does not want the book's
+vocabulary never sees it, and it carries its own README saying all of the above. This is not legal
+advice, and the plan says to confirm it with a lawyer before any public release.
+
+### D-163. The façade returns the core's types, and the 89 % default lives only here
+
+`precis` returns `List[Summary]`, `PSIS` returns the core's `LooResult`, `extractSamples` returns
+`Draws`. No parallel types, because a reader who learns the façade should be learning this library.
+The suite holds that claim to account directly: `precis` is asserted **equal** to `Summary.of`, and
+`PSIS`'s estimate equal to `Loo.psis`'s.
+
+One consequence worth stating. The book's `precis` takes a `prob`; this one does not, because a
+`Summary` row carries the 5th, 50th and 95th percentiles and nothing else, and a function that
+accepted a mass and ignored it would be worse than one that does not offer it. `precisText`, which
+computes the interval itself, is where the 89 % appears.
+
+The book's 89 % default lives in this module only. The core always takes the mass explicitly: a
+default that differs between two parts of one library is a trap.
+
+### D-164. `Intervals.hpd` is now `coda::HPDinterval`, exactly
+
+§5.13 says `HPDI` is `Intervals.hpd` with coda's algorithm, so the core's function **became** that
+algorithm rather than the façade carrying a second one. The rule: the interval spans
+`round(n × mass)` gaps between order statistics, and the index chosen is the one minimising the
+width.
+
+The detail that matters is the rounding. R's `round` is half **to even**, which is `Math.rint` and
+not `math.round`; with half-up, two of the nine reference cases come out one order statistic wide
+of the published interval. Brute-forcing the four plausible rules against the reference was what
+settled it: floor 5 of 9, ceil 7 of 9, half-up 7 of 9, half-to-even 9 of 9.
+
+This changed the behaviour of a published function — by one index, in the same direction a
+different convention would — so it is recorded here as a change rather than an addition. The whole
+diagnostics suite, including the `worked_examples.json` comparison that `hpd` was originally
+written against, passes unchanged: both rules are consistent estimators and the test's tolerance is
+a Monte Carlo standard error.
+
+### D-165. `quap` works on the parameters' own scale, with numerical gradients
+
+The book's `quap` is a quadratic approximation of the log posterior **as written**, not of its
+unconstrained reparameterisation, and the reference data is explicit about it: the Gamma(7.5, 1.6)
+kernel's mode is `(a-1)/b = 4.0625` on `lambda`'s own scale, which is not the mode of its
+logarithm.
+
+So `quap` takes a function of the constrained parameter vector rather than a `Model`, and
+differentiates it by central differences. There is no automatic-differentiation path to a
+constrained-scale density: `Transform.unconstrain` is `Double`-only, so a `Real[A]` function of the
+constrained coordinates cannot be built generically, and going round through
+`unconstrain`-then-`constrain` would differentiate an identity for nothing. For the handful of
+parameters a quadratic approximation is honest for, `2n` evaluations a step costs nothing; for
+anything larger, `ulam` is the path, which is what the book says too.
+
+A flat or runaway posterior has no quadratic approximation, and the Cholesky of the curvature
+failing is how that is detected: `quap` returns the reason rather than a number.
+
+### D-166. Two additions to the core, and a Cholesky written in `Real[A]`
+
+§5.13's last bullet asks for both.
+
+`LogMass.zeroInflatedPoisson(k, p, lambda)` is the mixture — `p + (1-p) exp(-lambda)` at zero,
+`(1-p) Poisson(k)` above it — written entirely on the log scale through `logSumExp` and `log1p`, so
+a tiny `p` and a tiny rate are both exact. At `p = 0` it collapses onto the Poisson **exactly**,
+which the suite asserts with `==` rather than a tolerance.
+
+`LogDensity.lkjCorr(R, eta)` is the LKJ density on a correlation matrix:
+`logConstant(K, eta) + (eta - 1) log det R`. The determinant comes from a Cholesky written in
+`Real[A]` rather than from `core.linalg`, so the density is differentiable like every other one
+here — the factorisation is a fold over an immutable vector of rows, which for the handful of
+dimensions a correlation matrix has costs less than the mutation would be worth and needs no
+annotation in the register.
+
+Writing that factorisation is where the one real bug of the phase was: the diagonal's inner sum is
+over the row **being built**, not over a row that does not exist yet, and the first version indexed
+past the end of the vector. The reference cases caught it immediately.
+
+### D-167. `Optimize.lbfgs` and `Optimize.hessian` take functions, not models
+
+Both live in `core`, beside Brent, and take plain functions: `lbfgs` a value and a gradient,
+`hessian` a gradient. Where the gradient comes from is the caller's business — reverse-mode
+automatic differentiation when there is a model, central differences when there is not — and that
+keeps the optimiser below `ad` in the stack where `Optimize` already was.
+
+`lbfgs` is the two-loop recursion over at most `memory` remembered pairs, with Nocedal's scaling
+and the standard guard that skips a pair with no positive curvature. The line search is
+backtracking on the Armijo condition only, which is the simple half of a textbook one; three
+details earn their place and all three were found by the tests rather than by reading:
+
+- the **first** step is scaled by `1/|g|`. With no curvature remembered the direction is steepest
+  descent and its length is the gradient's, which on Rosenbrock is 232: without the scaling the
+  line search spent thirty halvings before its first useful move and the method did not converge in
+  five hundred iterations.
+- there is a **second stopping rule**, on the objective no longer changing to the resolution of a
+  double. A gradient-norm test alone walks a flat valley for ever, which is exactly what
+  Rosenbrock's is.
+- a direction that is not downhill restarts from steepest descent rather than failing, because a
+  memory can go bad and steepest descent always descends.
+
+`hessian` differences the **gradient** rather than the value: `2n` gradient evaluations instead of
+`4n²` function evaluations, and far less lost precision, since a second difference of the value
+divides by the square of the step. The result is symmetrised, because the two one-sided estimates
+of a mixed partial differ by rounding and a curvature matrix that is not symmetric is not one.
+
+### D-168. `dmvnorm2` builds its covariance symmetrically, because the naive form is not
+
+`diag(sigma) Rho diag(sigma)` written as `sigma(i) * rho(i)(j) * sigma(j)` is **not bit-symmetric**:
+the entry below the diagonal multiplies the same three numbers in a different order and differs in
+the last bit. `Linalg.cholesky` rightly refuses a matrix that is not symmetric, so the density came
+out `NaN` for every one of the three reference cases.
+
+The covariance is now built from the upper triangle and mirrored. The lesson generalises: anywhere
+a symmetric matrix is assembled from a product, assemble half of it.
