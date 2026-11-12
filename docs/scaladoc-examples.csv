@@ -1,0 +1,55 @@
+# Every entry point a model-writer touches carries a compiled example in its Scaladoc, showing the
+# methods named here. scripts/check-scaladoc.py checks that the example exists and names them;
+# `sbt doc` compiles it, so it cannot rot.
+#
+# type: the object, trait or class whose doc comment carries the example.
+# methods: what the example has to show, separated by spaces.
+# file: where it lives.
+type,methods,file
+Seed,fold next nextUniform,modules/core/src/main/scala/bayes4s/Seed.scala
+Rng,uniform normal,modules/core/src/main/scala/bayes4s/Rng.scala
+Sampling,poisson gamma beta categorical,modules/core/src/main/scala/bayes4s/Sampling.scala
+Quantile,quantile quantileOfSorted,modules/core/src/main/scala/bayes4s/Quantile.scala
+BayesError,InvalidArgument,modules/core/src/main/scala/bayes4s/BayesError.scala
+Real,sum vectorOf gather normalSum,modules/ad/src/main/scala/bayes4s/Real.scala
+LogDensity,normal halfNormal,modules/distributions/src/main/scala/bayes4s/LogDensity.scala
+LogMass,poissonLog negativeBinomial2,modules/distributions/src/main/scala/bayes4s/LogDensity.scala
+ParamSpec,real positive vector mapN,modules/transforms/src/main/scala/bayes4s/ParamSpec.scala
+Constraint,Positive Interval OffsetMultiplier,modules/transforms/src/main/scala/bayes4s/Constraint.scala
+Model,constrain values target,modules/transforms/src/main/scala/bayes4s/Model.scala
+Mcmc,runNuts run,modules/inference/src/main/scala/bayes4s/Mcmc.scala
+RunSettings,chains warmup samples,modules/inference/src/main/scala/bayes4s/Mcmc.scala
+Init,Uniform Given PriorMedian,modules/inference/src/main/scala/bayes4s/Mcmc.scala
+Summary,table of,modules/diagnostics/src/main/scala/bayes4s/Summary.scala
+SamplerReport,of lowEnergyChains,modules/diagnostics/src/main/scala/bayes4s/Summary.scala
+Intervals,equalTailed hpd probabilityAbove,modules/diagnostics/src/main/scala/bayes4s/Summary.scala
+Convergence,rhatRank essBulk essTail,modules/diagnostics/src/main/scala/bayes4s/Convergence.scala
+Loo,psis compare,modules/diagnostics/src/main/scala/bayes4s/Loo.scala
+PowerScaling,analyse,modules/diagnostics/src/main/scala/bayes4s/PowerScaling.scala
+Sbc,run,modules/diagnostics/src/main/scala/bayes4s/Sbc.scala
+Ensemble,quantiles total regroup,modules/predictive/src/main/scala/bayes4s/Ensemble.scala
+Periods,monthly quarters quarterOf,modules/predictive/src/main/scala/bayes4s/Periods.scala
+ReportingTriangle,rightCensored exposure correctedCounts,modules/predictive/src/main/scala/bayes4s/Triangle.scala
+Simulator,run,modules/predictive/src/main/scala/bayes4s/Simulator.scala
+BayesianBootstrap,weights,modules/predictive/src/main/scala/bayes4s/Bootstrap.scala
+TemplatePool,of,modules/predictive/src/main/scala/bayes4s/Bootstrap.scala
+ModelError,draw applied calibrate,modules/predictive/src/main/scala/bayes4s/ModelError.scala
+Crps,ensemble energy gaussian,modules/scoring/src/main/scala/bayes4s/Crps.scala
+Calibration,pit bias intervalScore,modules/scoring/src/main/scala/bayes4s/Calibration.scala
+Backtest,run,modules/scoring/src/main/scala/bayes4s/Backtest.scala
+DelayCountModel,generative,modules/nowcast/src/main/scala/bayes4s/DelayCountModel.scala
+Ar1Trend,logRate project,modules/nowcast/src/main/scala/bayes4s/Components.scala
+OrderedLogitDrift,logPmf,modules/nowcast/src/main/scala/bayes4s/Components.scala
+Forecast,run byGroup,modules/nowcast/src/main/scala/bayes4s/Forecast.scala
+Checks,priorPredictive posteriorPredictive,modules/nowcast/src/main/scala/bayes4s/Checks.scala
+GammaPoissonShrinkage,fit weight,modules/nowcast/src/main/scala/bayes4s/Shrinkage.scala
+StanCsv,parse render,modules/stan-io/src/main/scala/bayes4s/StanCsv.scala
+Plot,layers monoid,modules/plot/src/main/scala/bayes4s/Plot.scala
+Catalogue,tracePlot densityPlot fanChart,modules/plot/src/main/scala/bayes4s/Catalogue.scala
+VegaLite,spec concat raw,modules/plot/src/main/scala/bayes4s/VegaLite.scala
+Html,scripts embed report,modules/plot/src/main/scala/bayes4s/Html.scala
+Sampler,run chain,modules/effect/src/main/scala/bayes4s/Sampler.scala
+PosteriorCsv,writeAll readAll,modules/effect/src/main/scala/bayes4s/PosteriorCsv.scala
+PlotFile,writeHtml writeJson,modules/effect/src/main/scala/bayes4s/PlotFile.scala
+BacktestRunner,run,modules/effect/src/main/scala/bayes4s/BacktestRunner.scala
+RefRng,make,modules/effect/src/main/scala/bayes4s/RefRng.scala

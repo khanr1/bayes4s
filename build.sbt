@@ -84,6 +84,13 @@ ThisBuild / githubWorkflowBuildPreamble ++= Seq(
   WorkflowStep.Run(
     commands = List("python3 scripts/check-manual.py"),
     name = Some("Check the manual's checklist")
+  ),
+  // Every entry point of the API carries a worked example in its Scaladoc. That the examples
+  // **compile** is `sbt doc`'s job, below, through `-snippet-compiler:compile`; this is that they
+  // exist and show the methods a caller uses.
+  WorkflowStep.Run(
+    commands = List("python3 scripts/check-scaladoc.py"),
+    name = Some("Check the Scaladoc's examples")
   )
 )
 
@@ -121,6 +128,12 @@ lazy val Slow = config("slow").extend(Test)
 lazy val weaverFramework = new TestFramework("weaver.framework.CatsEffect")
 
 lazy val commonSettings = Seq(
+  // Scaladoc examples are type-checked, not merely rendered. Scala 3's scaladoc compiles the
+  // snippets in doc comments, so an example that stops compiling fails `sbt doc` the way a manual
+  // example that stops compiling fails `docs/mdoc`. The key has to be set per project: scoped to
+  // ThisBuild it is silently unused, because `Compile / doc / scalacOptions` falls back to
+  // `Compile / scalacOptions` instead.
+  Compile / doc / scalacOptions ++= Seq("-snippet-compiler:compile"),
   libraryDependencies ++= Seq(
     "org.typelevel" %% "weaver-cats" % weaverV % Test,
     "org.typelevel" %% "weaver-scalacheck" % weaverV % Test,

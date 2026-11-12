@@ -2426,3 +2426,73 @@ reason, which is what the glossary page itself does.
 3. **Appendix E lists the public surface a model-writer touches, not every public member.** The
    Scaladoc is the complete reference; the appendix is the part a reader needs and is checked
    against the sources for exactly the categories it claims.
+
+## Phase 12c — the Scaladoc, with examples that compile
+
+No library code and no new tests: 600 tests, 566 fast and 34 slow, unchanged. What changed is the
+API reference, and what is recorded here is how its examples are kept true.
+
+### What was there
+
+| Claim | Measurement |
+|---|---|
+| the Scaladoc exists and CI builds it | yes — `sbt doc`, a CI step since phase 0 |
+| it shows how a method is called | **2** code blocks in the entire library, **0** `@example` tags |
+| its entry points are covered | 47 of 47 had no example |
+| `RunSettings` is documented | it had **no doc comment at all**, and a user constructs one on every fit |
+
+### What is there now
+
+47 entry points and 105 methods, each with a worked example in the body of its doc comment. They
+are compiled by Scala 3's snippet compiler on every `sbt doc`, so they cannot rot, and
+`scripts/check-scaladoc.py` checks that each one exists and shows the methods it is supposed to.
+
+| Check | What it asserts | Result |
+|---|---|---|
+| `sbt doc` with `-snippet-compiler:compile` | every example type-checks against its own module's classpath | green, 15 modules |
+| `scripts/check-scaladoc.py` | every entry point has an example naming its methods | green, 47 of 47 |
+| the same | no snippet hides under `@example`, where nothing compiles it | green |
+
+### The trap, and how it was found
+
+**Every example written during this work was first placed under an `@example` tag, and all of them
+"passed".** The snippet compiler does not look inside `@example`: a call to a method that does not
+exist renders perfectly and never fails a build. It was found by deliberately breaking one —
+`Simulator.runXX` — and watching `sbt doc` succeed.
+
+Moving the same snippet into the comment body made the build fail on the planted error **and** on a
+real one in the same snippet: a `Monad` that was never imported. Four more real errors surfaced the
+moment the examples were genuinely compiled — `LogDensity` used from `ad`, which does not depend on
+it; `ValueAndGradient` written as a tuple; `Ar1TrendParams` given field names it does not have; a
+`DelayCountData.empty` that does not exist.
+
+That is the whole argument for compiling examples, measured rather than asserted: of 47 examples,
+**six contained an error that type-checking caught and no reader would have**.
+
+### Mutations (6.6)
+
+| Component | Mutation | Check that failed |
+|---|---|---|
+| a compiled example | a call to a method that does not exist | `sbt doc`: "value ensembleX is not a member of object bayes4s.Crps" |
+| a compiled example | a result bound to the wrong type | `sbt doc`: "Found: Double, Required: String" |
+| the coverage map | an entry point's fenced block deleted | `check-scaladoc.py`: "Calibration: its doc comment carries no example" |
+| the coverage map | an example that stops calling one of its methods | `check-scaladoc.py`: "Convergence: the example never uses `essTail`" |
+| the `@example` guard | a snippet moved under `@example` | `check-scaladoc.py`: "a snippet under `@example` is never compiled" |
+
+A sixth mutation found a defect in the check rather than in the code, and is recorded as such
+(D-161): the comment parser scanned backwards for the nearest `/**`, which lands **inside** an
+example that documents its own `def`, because Scala's block comments nest. Six freshly written
+examples were reported as missing. The parser now counts depth forwards.
+
+### Known limits
+
+1. **Snippets are type-checked, never run.** An example can show what a call looks like and not
+   what it returns. Numbers live in the manual, where mdoc evaluates them.
+2. **The Scaladoc is generated and not published**, like the site and for the same reason (D-152,
+   D-1). `sbt doc` writes it to `modules/*/target/scala-3.3.9/api`; laika 1.x no longer has the
+   `laikaIncludeAPI` setting that used to fold it into the site, so joining the two is work for
+   whenever publishing is turned on.
+3. **The covered surface is the one appendix E claims**, not every public member. An example of
+   every case class's `copy` would be noise, and the Scaladoc already shows every signature.
+4. **Whether an example is a good one is still a person's job.** The checks assert that it exists,
+   that it compiles, and that it calls what it claims to.

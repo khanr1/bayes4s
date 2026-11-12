@@ -32,6 +32,27 @@ package bayes4s
   * Everything here returns `NaN` rather than an error for a sample it cannot summarise — a
   * constant chain, an infinite value, too few draws. A diagnostic is a number you look at, and a
   * `NaN` in a summary table is the diagnosis.
+  * **Example.**
+  * One statistic at a time, for when you have columns rather than a fit. Each takes one row per
+  * chain:
+  *
+  * ```scala
+  * val chains: IArray[IArray[Double]] =
+  *   IArray(
+  *     IArray.tabulate(500)(i => math.sin(i * 0.1)),
+  *     IArray.tabulate(500)(i => math.sin(i * 0.1 + 1.0))
+  *   )
+  *
+  * // Rank-normalised, so it still means something for a posterior with no variance.
+  * val rhat: Double = Convergence.rhatRank(chains)
+  *
+  * // How many independent samples the correlated ones are worth, in the middle and in the tails.
+  * val bulk: Double = Convergence.essBulk(chains)
+  * val tail: Double = Convergence.essTail(chains)
+  *
+  * // A `NaN` is a diagnosis rather than an error: a constant chain has no variance to compare.
+  * val constant: Double = Convergence.rhatRank(IArray(IArray.fill(100)(1.0), IArray.fill(100)(1.0)))
+  * ```
   */
 object Convergence:
 

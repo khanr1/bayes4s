@@ -100,6 +100,26 @@ final case class BacktestResult[D](scored: List[Scored[D]], alpha: Double):
   * at each origin, so that no fit has seen its own target — belongs to whoever owns the model, and
   * needs the sampler this module does not depend on. What is here is the half that must agree with
   * everyone else's arithmetic.
+  * **Example.** Scoring a sequence of forecasts, each against what actually happened:
+  *
+  * ```scala
+  * // One entry per date: a label, the predictive samples, and the outcome.
+  * val dates: List[(Int, IArray[Double], Double)] = (1 to 24).toList.map { month =>
+  *   val centre = 100.0 + month
+  *   (month, IArray.tabulate(500)(i => centre + 8.0 * Special.invPhi((i + 0.5) / 500.0)), centre + 3.0)
+  * }
+  *
+  * val result: BacktestResult[Int] = Backtest.run(dates, alpha = 0.1)
+  *
+  * // Read it as a diagnosis rather than a grade: coverage far above what it aimed at means the
+  * // forecasts were too wide, whatever the mean score says.
+  * val diagnosis: (Double, Double, Double) = (result.meanCrps, result.coverage, result.meanBias)
+  *
+  * // The standard error of the mean score is **not** sd/sqrt(n): scores on neighbouring dates are
+  * // correlated, so whole blocks of dates are resampled together.
+  * val replicates: IArray[Double] =
+  *   result.blockBootstrap[Rand](_.crps, blockSize = 6, replications = 1000).runA(Seed(1L)).value
+  * ```
   */
 object Backtest:
 

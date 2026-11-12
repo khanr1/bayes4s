@@ -27,6 +27,24 @@ package bayes4s
   * here is one `Long`, so they are our own derivation, held to determinism, distinctness and
   * independence instead. They mix the state with a second odd constant before advancing it, so an
   * index of 0 does not return the parent stream.
+  * **Example.**
+  * Advancing a seed by hand, and deriving independent streams for four chains:
+  *
+  * ```scala
+  * val seed = Seed(20261112L)
+  *
+  * // `next` is a function: the same seed always gives the same pair back.
+  * val (advanced, bits) = seed.next
+  * val (_, again) = seed.next
+  * val reproducible: Boolean = bits == again
+  *
+  * // A uniform strictly inside (0, 1), so `log(u)` is always finite.
+  * val (afterUniform, u) = seed.nextUniform
+  *
+  * // `fold(i)` derives an independent stream by index. This is how chain `c` is seeded, and why
+  * // four chains in parallel give bit-for-bit what four chains in sequence give.
+  * val perChain: List[Seed] = (0 until 4).toList.map(c => seed.fold(c.toLong))
+  * ```
   */
 opaque type Seed = Long
 

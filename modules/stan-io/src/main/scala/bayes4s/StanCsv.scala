@@ -26,6 +26,28 @@ package bayes4s
   * header line of column names, then **more** `#` comments (the adaptation's step size and mass
   * matrix), then the rows, then possibly more comments with the timing. So a comment can appear
   * anywhere and the header is simply the first line that is not one.
+  * **Example.** Two pure functions of lines: nothing here touches a file, which is `PosteriorCsv`'s
+  * job in the `effect` module.
+  *
+  * ```scala
+  * val lines = List(
+  *   "# stan_version_major = 2",
+  *   "lp__,mu,sigma",
+  *   "-3.1,4.5,1.2",
+  *   "-3.4,4.2,1.1"
+  * )
+  *
+  * // A header, the rows, and the comments ignored. A file with a header and no rows is malformed
+  * // rather than an empty posterior, because a truncated file looks exactly like that.
+  * val read: Either[BayesError.Malformed, Draws] = StanCsv.parse(lines)
+  *
+  * // And back out again, in CmdStan's own format, so what this writes `cmdstanpy` can read.
+  * val written: Either[BayesError.Malformed, List[String]] = read.map(draws => StanCsv.render(draws))
+  *
+  * // One file holds one chain, which is CmdStan's convention: `parseAll` and `renderAll` are the
+  * // whole fit.
+  * val wholeFit: Either[BayesError.Malformed, Draws] = StanCsv.parseAll(List(lines, lines))
+  * ```
   */
 object StanCsv:
 

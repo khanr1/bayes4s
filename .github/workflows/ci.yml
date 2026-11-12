@@ -74,6 +74,9 @@ jobs:
       - name: Check the manual's checklist
         run: python3 scripts/check-manual.py
 
+      - name: Check the Scaladoc's examples
+        run: python3 scripts/check-scaladoc.py
+
       - name: Check that workflows are up to date
         run: sbt githubWorkflowCheck
 

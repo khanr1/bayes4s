@@ -42,6 +42,26 @@ import bayes4s.syntax.*
   * it is the same formula the law layer evaluates in `Double` — which is what carries the Stan
   * Math and mpmath validation of phases 1 and 1b over to the layer the models are written
   * against.
+  * **Example.**
+  * Every density takes its parameters in Stan's order and returns a log density. Inside a model the
+  * scalar is `A`, so constants are lifted:
+  *
+  * ```scala
+  * //{
+  * import bayes4s.syntax.*
+  * //}
+  * // At `Double`, for a quick check at the REPL.
+  * val atDouble: Double = LogDensity.normal(1.5, 0.0, 1.0)
+  *
+  * /** The same calls inside a model's prior, where the scalar is whatever the interpreter wants. */
+  * def prior[A: Real](mu: A, sigma: A): A =
+  *   LogDensity.normal(mu, 0.0.lift[A], 5.0.lift[A]) +
+  *     LogDensity.halfNormal(sigma, 1.0.lift[A])
+  *
+  * // Outside the support it is -Inf rather than an exception, which is what lets a sampler reject a
+  * // proposal instead of crashing on it.
+  * val impossible: Double = LogDensity.halfNormal(-1.0, 1.0)
+  * ```
   */
 object LogDensity:
 
@@ -285,6 +305,27 @@ object LogDensity:
   * A count is an `Int` and never a parameter: nothing is differentiated with respect to it, and
   * the combinatorial factors it appears in are therefore ordinary constants, computed once in
   * `Double` by the same well-conditioned routines the law layer uses.
+  * **Example.**
+  * The counts' half of the same idea. Prefer the `…Log` forms when what you have is a linear
+  * predictor: they never form a rate or a probability, so nothing is lost to rounding:
+  *
+  * ```scala
+  * //{
+  * import bayes4s.syntax.*
+  * //}
+  * /** A log rate from a linear predictor, read straight by `poissonLog`. */
+  * def poissonLikelihood[A: Real](y: IArray[Int], logRate: IArray[A]): A =
+  *   Real[A].poissonLogSum(y, logRate)
+  *
+  * /** The same counts under a gamma-Poisson, which adds a dispersion. */
+  * def overDispersed[A: Real](y: IArray[Int], mean: A, dispersion: A): A =
+  *   Real[A].sum(
+  *     Real[A].vectorOf(y.length)(i => LogMass.negativeBinomial2(y(i), mean, dispersion))
+  *   )
+  *
+  * // A negative count is -Inf, not an error.
+  * val impossible: Double = LogMass.poissonLog(-1, 0.0)
+  * ```
   */
 object LogMass:
 

@@ -102,6 +102,37 @@ final case class DelayCountParams[R[_], D[_], A](rate: R[A], delay: D[A])
   *
   * Changing the story about the rate, or about the delay, means passing a different component. The
   * model itself does not know which one it has.
+  * **Example.** A count model is a rate component, a delay component and the data. Trying a different
+  * story about the rate means passing a different component, not rewriting the model:
+  *
+  * ```scala
+  * //{
+  * val months = 18
+  * val maxLag = 5
+  * val t = IArray.tabulate(months)(m => (m - (months - 1) / 2.0) / months)
+  * val visible = ReportingTriangle.rightCensored(months, maxLag + 1, current = months)
+  * //}
+  * // An empty grid of the right shape. It can be refused — a mask that disagrees with the counts
+  * // — so it is an `Either`, and everything below reads it through `map`.
+  * val blank = DelayCountData.blank(months, maxLag, t, visible)
+  *
+  * val fit: Either[BayesError, List[Chain]] = blank.flatMap { data =>
+  *   val model = DelayCountModel(Ar1Trend(), OrderedLogitDrift(), data)
+  *   Mcmc.runNuts(model, RunSettings(chains = 2, warmup = 600, samples = 600))
+  *     .runA(Seed(4711L))
+  *     .value
+  * }
+  *
+  * // `generative` adds the other direction — draw parameters from the prior, simulate counts from
+  * // them — which is what a prior predictive simulation and calibration need.
+  * val simulated: Either[BayesError, DelayCountData] = blank.map { data =>
+  *   val generative = DelayCountModel.generative(Ar1Trend(), OrderedLogitDrift(), data)
+  *   generative.generative.samplePrior[Rand]
+  *     .flatMap(p => generative.generative.simulateData[Rand](p))
+  *     .runA(Seed(1L))
+  *     .value
+  * }
+  * ```
   */
 final case class DelayCountModel[R[_], D[_]](
     rate: RateComponent[R],

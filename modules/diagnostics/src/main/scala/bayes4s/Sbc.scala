@@ -78,6 +78,24 @@ final case class SbcRanks(
   * The samples are **thinned** before ranking. Talts et al. are explicit about it: consecutive
   * samples of a Markov chain are correlated, and ranking against correlated samples gives a rank
   * histogram with a shape of its own even when everything is right.
+  * **Example.**
+  * Draw parameters from the prior, simulate data from them, fit, and rank the drawn value among the
+  * samples. Over many replications those ranks must be uniform — which needs a
+  * [[GenerativeModel]], not merely a model:
+  *
+  * ```scala
+  * //{
+  * val generative: GenerativeModel[[A] =>> A, IArray[Double]] = ???
+  * //}
+  * val ranks: Either[BayesError, SbcRanks] =
+  *   Sbc.run(generative, RunSettings(chains = 2, warmup = 400, samples = 500), replications = 64)
+  *     .runA(Seed(7L))
+  *     .value
+  *
+  * // Pearson's statistic against uniformity, per parameter; `miscalibrated` names the failures.
+  * val chiSquared: Either[BayesError, Map[String, Double]] = ranks.map(_.uniformityChiSquared(8))
+  * val failing: Either[BayesError, List[String]] = ranks.map(_.miscalibrated(bins = 8, critical = 20.0))
+  * ```
   */
 object Sbc:
 

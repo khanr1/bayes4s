@@ -56,6 +56,29 @@ final case class Facet(field: String, columns: Int)
   *
   * Axis titles are not optional in spirit even though they are `Option` in type: the catalogue
   * always sets them, and a figure in the manual without them is a bug (§5.14).
+  * **Example.** A plot is a value: layers, titles, and the size it asks to be drawn at. Nothing here
+  * renders anything.
+  *
+  * ```scala
+  * //{
+  * import cats.syntax.all.*
+  * //}
+  * val trace = Catalogue.tracePlot(
+  *   IArray(IArray.tabulate(100)(i => math.sin(i * 0.1))),
+  *   "mu"
+  * )
+  *
+  * // How many marks it is made of, and what they are.
+  * val count: Int = trace.layers.length
+  *
+  * // Superposition: `Plot` is a monoid, so a figure can be assembled from pieces rather than
+  * // configured through options. The left plot keeps its titles and its size.
+  * val withZero: Plot = trace |+| Plot(List(Layer.Rule(0.0, Axis.Y)))
+  * val identity: Boolean = (Plot.empty |+| trace) == trace
+  *
+  * // Split into panels by a field of the data.
+  * val faceted: Plot = trace.copy(facet = Some(Facet("city", columns = 2)))
+  * ```
   */
 final case class Plot(
     layers: List[Layer],

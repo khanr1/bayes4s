@@ -25,6 +25,31 @@ package bayes4s
   *
   * The vocabulary is the manual's (§9.6): samples from the posterior, compatibility intervals,
   * divergent transitions.
+  * **Example.** Each figure is built from the types the rest of the library already produces, and
+  * each is a pure value:
+  *
+  * ```scala
+  * //{
+  * import java.time.YearMonth
+  * //}
+  * val chains: IArray[IArray[Double]] =
+  *   IArray.tabulate(2)(c => IArray.tabulate(400)(i => math.sin(i * 0.07 + c)))
+  *
+  * // The first thing to look at: do the chains overlap, and where were the divergent transitions?
+  * val trace: Plot = Catalogue.tracePlot(chains, "mu")
+  * val marked: Plot =
+  *   Catalogue.tracePlot(chains, "mu", Some(IArray.fill(2)(IArray.fill(400)(false))))
+  *
+  * // A density per chain, reflected at zero so the mass of a positive parameter does not leak past
+  * // the boundary.
+  * val density: Plot = Catalogue.densityPlot(chains, "tau", reflectAt = Some(0.0))
+  *
+  * // A forecast, with the bands widest first so the narrow one stays visible.
+  * val periods = Periods.monthly(YearMonth.of(2027, 1), 6).getOrElse(Periods.empty)
+  * val ensemble: Either[BayesError, Ensemble[Unit]] =
+  *   Ensemble.of(4, periods, Map(() -> IArray.tabulate(4)(r => IArray.tabulate(6)(p => 100.0 + p + r))))
+  * val fan: Either[BayesError, Plot] = ensemble.map(e => Catalogue.fanChart(e, List(0.5, 0.9)))
+  * ```
   */
 object Catalogue:
 

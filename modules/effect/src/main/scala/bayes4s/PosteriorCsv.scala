@@ -35,6 +35,37 @@ import fs2.text
   * combines several files into one set of draws. So [[write]] refuses draws of more than one chain
   * rather than quietly writing the first and dropping the rest, and [[writeAll]] is the one to
   * reach for after a four-chain fit.
+  * **Example.** CmdStan's CSV, on and off the disk. One file holds one chain, which is CmdStan's
+  * convention and this library's:
+  *
+  * ```scala
+  * //{
+  * import bayes4s.syntax.{*, given}
+  * import cats.effect.IO
+  * import fs2.io.file.Path
+  * final case class Mean[A](mu: A, sigma: A)
+  * val observed = IArray(4.1, 5.2, 3.8, 4.9, 5.5, 4.4)
+  * val model: Model[Mean] = new Model[Mean]:
+  *   def params: ParamSpec[Mean] =
+  *     (ParamSpec.real("mu"), ParamSpec.positive("sigma"))
+  *       .mapN[Mean]([A] => (mu: A, sigma: A) => Mean(mu, sigma))
+  *   def logPrior[A: Real](p: Mean[A]): A =
+  *     LogDensity.normal(p.mu, 0.0.lift[A], 10.0.lift[A]) +
+  *       LogDensity.halfNormal(p.sigma, 5.0.lift[A])
+  *   def logLikelihood[A: Real](p: Mean[A]): A =
+  *     Real[A].normalSum(observed, Real[A].filled(observed.length)(p.mu), p.sigma)
+  * //}
+  * val roundTrip: IO[Boolean] = fs2.io.file.Files[IO].tempDirectory.use { directory =>
+  *   for
+  *     fitted <- Sampler[IO].run(model, RunSettings(chains = 3), Seed(7L))
+  *     written <- PosteriorCsv[IO].writeAll(fitted, directory, "fit")
+  *     back <- PosteriorCsv[IO].readAll(written)
+  *   yield back.chainCount == fitted.chainCount
+  * }
+  * ```
+  *
+  * Asking to write a whole fit into a single file is refused rather than quietly truncated to its
+  * first chain.
   */
 trait PosteriorCsv[F[_]]:
 

@@ -31,6 +31,26 @@ import bayes4s.syntax.{*, given}
   * shortcut, and its cost is that the uncertainty about `alpha` is then ignored —
   * [[GammaPoissonHierarchical]] is the same model without the shortcut, and the two part company
   * when there are few groups.
+  * **Example.** Empirical Bayes on counts per group: the dispersion by maximum likelihood, and what
+  * it implies for each group:
+  *
+  * ```scala
+  * val counts = IArray(260, 170, 130, 75)
+  * // The exposure each group was watched for, scaled so that `theta` has mean one.
+  * val exposures = IArray.fill(4)(counts.sum.toDouble / counts.length)
+  *
+  * val fitted: Either[BayesError, GammaPoissonShrinkage.Fit] =
+  *   GammaPoissonShrinkage.fit(counts, exposures)
+  *
+  * // `e / (alpha + e)` is the share of a group's own evidence that survives the shrinkage: near one
+  * // for a group with plenty of data, small for a thin one.
+  * val ownEvidence: Double = GammaPoissonShrinkage.weight(alpha = 5.0, exposure = 160.0)
+  * val thinGroup: Double = GammaPoissonShrinkage.weight(alpha = 5.0, exposure = 4.0)
+  *
+  * // `GammaPoissonHierarchical` is the same model with the dispersion sampled rather than fixed,
+  * // which is what the shortcut leaves out.
+  * val full = GammaPoissonHierarchical(counts, exposures)
+  * ```
   */
 object GammaPoissonShrinkage:
 

@@ -31,6 +31,22 @@ package bayes4s
   * The estimator of the second term is `1/n²`, which is properscoring's and is what the reference
   * values were produced with. The `1/(n(n-1))` version is the unbiased one and is a different
   * number; mixing them is a quiet way to disagree with every published score.
+  * **Example.** Three forms of the same score. Lower is better, and it is in the units of the thing
+  * being forecast:
+  *
+  * ```scala
+  * // A forecast as samples: the usual case, and `ensemble` sorts rather than comparing every pair.
+  * val forecast = IArray.tabulate(1000)(i => 10.0 + 2.0 * Special.invPhi((i + 0.5) / 1000.0))
+  * val good: Double = Crps.ensemble(forecast, 10.3)
+  * val badlyPlaced: Double = Crps.ensemble(forecast, 18.0)
+  *
+  * // `energy` is the definition, and costs O(n^2). The two agree.
+  * val sameAnswer: Double = Crps.energy(IArray(1.0, 1.0, 1.0, 4.0), 1.0)
+  *
+  * // The closed form for a Gaussian forecast, which knows nothing about samples — the useful thing
+  * // to check a sampler against.
+  * val exact: Double = Crps.gaussian(mu = 10.0, sigma = 2.0, observation = 10.3)
+  * ```
   */
 object Crps:
 

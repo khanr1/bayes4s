@@ -8,6 +8,28 @@ Versions follow git tags. Nothing is released yet.
 
 ## Unreleased
 
+### Phase 12c — the Scaladoc, with examples that compile (12 November 2026)
+
+Added
+
+- **A worked example on every entry point of the API**: 47 of them, 105 methods, each showing how
+  the methods are actually called. The Scaladoc existed and CI built it, but it had two code blocks
+  in the whole library and no examples at all.
+- **The examples are compiled.** `-snippet-compiler:compile` type-checks every fenced block in a
+  doc comment against its own module's classpath, so an example that stops compiling fails
+  `sbt doc` exactly as a manual example that stops compiling fails `docs/mdoc`.
+- `scripts/check-scaladoc.py`, with `docs/scaladoc-examples.csv`: every entry point has an example,
+  and the example names the methods it is supposed to show. It also **refuses `@example`**, where
+  the snippet compiler does not look — a block there renders beautifully and is never compiled.
+- A doc comment for `RunSettings`, which had none at all and is constructed on every fit.
+
+Fixed
+
+- Six of the 47 examples contained an error that only compiling them caught: a `Monad` never
+  imported, `LogDensity` used from a module that does not depend on it, `ValueAndGradient` written
+  as a tuple, `Ar1TrendParams` given field names it does not have, and a `DelayCountData.empty`
+  that does not exist.
+
 ### Phase 12b — the manual made teachable (7 November 2026)
 
 Added

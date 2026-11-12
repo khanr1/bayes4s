@@ -33,6 +33,48 @@ import scala.reflect.ClassTag
   * built without knowing the runtime class of `A`, and the type class that knows how to add two
   * `A`s is the natural place to know what an `A` is: it keeps `DiffFn.apply[A: Real]` and every
   * model free of a bound that says nothing about the mathematics.
+  * **Example.** A log density written once against `Real[A]`, then read two ways. Nothing here
+  * mentions a derivative, and nothing here is written twice:
+  *
+  * ```scala
+  * /** A Gaussian log density, summed over observations, with a Gaussian prior on the location.
+  *   *
+  *   * `ad` knows nothing about distributions — `LogDensity` lives a module above — so this is the
+  *   * arithmetic itself, which is what `Real[A]` is for.
+  *   */
+  * def target(y: IArray[Double]): DiffFn = new DiffFn:
+  *   def apply[A: Real](q: IArray[A]): A =
+  *     val r = Real[A]
+  *     val mu = q(0)
+  *     val logSigma = q(1)
+  *     val sigma = r.exp(logSigma)
+  *     // `normalSum` is one node of the gradient tape whatever the length of `y`; the same sum
+  *     // written as a loop is a node per observation.
+  *     val likelihood = r.normalSum(y, r.filled(y.length)(mu), sigma)
+  *     val prior = r.times(r.const(-0.5), r.times(mu, mu))
+  *     r.plus(likelihood, prior)
+  *
+  * val observed = IArray(1.2, 0.8, 1.9, 1.1)
+  *
+  * // The `Double` interpreter: a number, with no tape at all.
+  * val value: Double = Reverse.value(target(observed), IArray(1.0, 0.0))
+  *
+  * // The same text read by a reverse-mode tape: the value and every partial derivative.
+  * val gradient: ValueAndGradient = Reverse.valueAndGradient(target(observed), IArray(1.0, 0.0))
+  * val partials: IArray[Double] = gradient.gradient
+  * ```
+  *
+  * **Example.** The two primitives a multilevel model needs. `vectorOf` builds a vector of the
+  * interpreter's own scalar, and `gather` gives every observation its cluster's parameter at no
+  * cost on the tape — its adjoint accumulates over a cluster's observations in one pass:
+  *
+  * ```scala
+  * def clustered[A: Real](mu: A, tau: A, z: IArray[A], cluster: IArray[Int], y: IArray[Double]): A =
+  *   val r = Real[A]
+  *   val levels = r.vectorOf(z.length)(j => r.plus(mu, r.times(tau, z(j))))
+  *   val standardised = r.sum(r.vectorOf(z.length)(j => r.times(r.const(-0.5), r.times(z(j), z(j)))))
+  *   r.plus(r.normalSum(y, r.gather(levels, cluster), r.const(1.0)), standardised)
+  * ```
   */
 trait Real[A]:
 

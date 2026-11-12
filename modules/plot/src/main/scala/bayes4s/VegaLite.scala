@@ -29,6 +29,26 @@ import io.circe.Json
   * The data is inlined in each layer. That keeps a specification self-contained — one file, one
   * picture, no paths to resolve — at the cost of size, which is the right trade for figures in a
   * manual and for a few thousand points.
+  * **Example.** Compiling a plot to a specification, several into a grid, and editing one when the
+  * catalogue is nearly right:
+  *
+  * ```scala
+  * //{
+  * import io.circe.Json
+  * //}
+  * val plot = Catalogue.tracePlot(IArray(IArray.tabulate(50)(i => i * 0.1)), "mu")
+  *
+  * // One figure, as Vega-Lite JSON. Validated against Vega-Lite's own schema by the suite.
+  * val spec: Json = VegaLite.spec(plot)
+  *
+  * // Several side by side, as one specification.
+  * val grid: Json = VegaLite.concat(List(plot, plot), columns = 2)
+  *
+  * // The escape hatch: rather than grow options until the catalogue is a second grammar, the
+  * // specification is handed over and Vega-Lite's own documentation applies.
+  * val edited: Json =
+  *   VegaLite.raw(plot)(_.deepMerge(Json.obj("background" -> Json.fromString("#fafafa"))))
+  * ```
   */
 object VegaLite:
 

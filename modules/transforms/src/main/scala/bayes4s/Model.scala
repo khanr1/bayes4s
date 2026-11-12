@@ -28,6 +28,64 @@ import cats.Monad
   * need; the sum is what a posterior sampler wants. Both are written on the **constrained** space,
   * the one the model is about, and [[Model.target]] is what adds the log Jacobians and hands the
   * sampler a function on the unconstrained space.
+  * **Example.**
+  * A model is three methods. `params` names the parameters, `logPrior` is what you believed before
+  * the data, `logLikelihood` is what the data says — kept apart so that the prior on its own is a
+  * model you can simulate from:
+  *
+  * ```scala
+  * //{
+  * import bayes4s.syntax.{*, given}
+  * //}
+  * final case class Mean[A](mu: A, sigma: A)
+  *
+  * val observed = IArray(4.1, 5.2, 3.8, 4.9)
+  *
+  * val model: Model[Mean] = new Model[Mean]:
+  *   def params: ParamSpec[Mean] =
+  *     (ParamSpec.real("mu"), ParamSpec.positive("sigma"))
+  *       .mapN[Mean]([A] => (mu: A, sigma: A) => Mean(mu, sigma))
+  *
+  *   // `distributions` sits above this module, so these are written with `Real`'s own
+  *   // arithmetic; in a real model they would be `LogDensity.normal` and `LogDensity.halfNormal`.
+  *   def logPrior[A: Real](p: Mean[A]): A =
+  *     Real[A].times(Real[A].const(-0.5), Real[A].times(p.mu, p.mu))
+  *
+  *   def logLikelihood[A: Real](p: Mean[A]): A =
+  *     Real[A].normalSum(observed, Real[A].filled(observed.length)(p.mu), p.sigma)
+  * ```
+  *
+  * **Example.**
+  * What the companion gives you once a sampler has produced a point. `target` is the density on the
+  * unconstrained space with the Jacobians already in it — what the sampler sees — while `constrain`
+  * and `values` turn a point back into something you can read:
+  *
+  * ```scala
+  * //{
+  * import bayes4s.syntax.{*, given}
+  * final case class Mean[A](mu: A, sigma: A)
+  * val observed = IArray(4.1, 5.2, 3.8, 4.9)
+  * val model: Model[Mean] = new Model[Mean]:
+  *   def params: ParamSpec[Mean] =
+  *     (ParamSpec.real("mu"), ParamSpec.positive("sigma"))
+  *       .mapN[Mean]([A] => (mu: A, sigma: A) => Mean(mu, sigma))
+  *   def logPrior[A: Real](p: Mean[A]): A =
+  *     Real[A].times(Real[A].const(-0.5), Real[A].times(p.mu, p.mu))
+  *   def logLikelihood[A: Real](p: Mean[A]): A =
+  *     Real[A].normalSum(observed, Real[A].filled(observed.length)(p.mu), p.sigma)
+  * //}
+  * // A point in the unconstrained space, as a sampler holds it.
+  * val point = IArray(4.5, 0.0)
+  *
+  * // Your own case class back, with `sigma` on its natural scale.
+  * val parameters: Mean[Double] = Model.constrain(model, point)
+  *
+  * // The same by name, which is what a CSV row is made of.
+  * val named: Map[String, IArray[Double]] = Model.values(model, point)
+  *
+  * // The density the sampler walks on, log Jacobians included.
+  * val density: Double = Reverse.value(Model.target(model), point)
+  * ```
   */
 trait Model[T[_]]:
 

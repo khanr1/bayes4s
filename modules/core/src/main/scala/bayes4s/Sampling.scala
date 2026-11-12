@@ -28,6 +28,31 @@ import cats.syntax.all.*
   * Algorithms: gamma by Marsaglia and Tsang with Boost's correction below shape 1, Poisson by
   * inversion below mean 10 and Hormann's transformed rejection above, beta and Dirichlet through
   * gamma, categorical by binary search on the cumulative masses, and [[alias]] by Vose's tables.
+  * **Example.**
+  * Each generator is a `Rand` program, so they compose and the result is a function of the seed:
+  *
+  * ```scala
+  * //{
+  * import cats.Monad
+  * import cats.syntax.all.*
+  * //}
+  * val counts: Rand[List[Int]] = Monad[Rand].replicateA(5, Sampling.poisson[Rand](3.5))
+  *
+  * /** A gamma-Poisson draw written as what it is: a Poisson whose rate is drawn from a Gamma. */
+  * val gammaPoisson: Rand[Int] =
+  *   for
+  *     rate <- Sampling.gamma[Rand](2.0).map(_ / 0.5)
+  *     count <- Sampling.poisson[Rand](rate)
+  *   yield count
+  *
+  * val probability: Rand[Double] = Sampling.beta[Rand](2.0, 5.0)
+  *
+  * // `categorical` takes *cumulative* masses and returns a zero-based index.
+  * val shelf: Rand[Int] = Sampling.categorical[Rand](IArray(0.5, 0.8, 1.0))
+  *
+  * val drawn: (List[Int], Int, Double, Int) =
+  *   (counts, gammaPoisson, probability, shelf).tupled.runA(Seed(7L)).value
+  * ```
   */
 object Sampling:
 

@@ -23,6 +23,26 @@ package bayes4s
   * fell inside the forecast distribution. Over many periods those values must be uniform, and the
   * way they are not is the diagnosis — piled at the ends means too narrow, piled in the middle
   * means too wide, piled at one end means shifted.
+  * **Example.** A good average score can hide a model that is systematically too wide, too narrow or
+  * shifted. These read the shape of the wrongness rather than its size:
+  *
+  * ```scala
+  * val forecast = IArray(1.0, 2.0, 3.0, 4.0)
+  *
+  * // Where the observation fell inside the forecast. Over many periods it has to be uniform; a tie
+  * // counts as half, which is what keeps a count forecast off the bin edges.
+  * val middle: Double = Calibration.pit(forecast, 2.5)
+  * val above: Double = Calibration.pit(forecast, 5.0)
+  *
+  * // The same thing in one number, from -1 to +1. Positive means the forecast sat above what
+  * // happened.
+  * val tooHigh: Double = Calibration.bias(forecast, 0.0)
+  *
+  * // The width of an interval plus a penalty for missing it, scaled by 2/alpha: sharpness, subject
+  * // to being right.
+  * val inside: Double = Calibration.intervalScore(10.0, 20.0, 15.0, 0.1)
+  * val missed: Double = Calibration.intervalScore(10.0, 20.0, 8.0, 0.1)
+  * ```
   */
 object Calibration:
 

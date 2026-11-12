@@ -79,6 +79,41 @@ object SimulatedFuture:
   * `draw` carries everything the future needs from the fit — the rates, the templates, the
   * bootstrap weights — so that an amount and the parts it decomposes into come from the same
   * sample and keep their correlation.
+  * **Example.**
+  * Three pieces, and only the middle one belongs to this library: your model says what an event is,
+  * a [[ContributionRule]] says where what it produces belongs, and `run` turns one sample from the
+  * posterior into one future — for every sample you have.
+  *
+  * ```scala
+  * //{
+  * import cats.Monad
+  * import cats.syntax.all.*
+  * import java.time.YearMonth
+  * //}
+  * final case class Parameters(rate: Double)
+  *
+  * val horizon = Periods.monthly(YearMonth.of(2027, 1), 6).getOrElse(Periods.empty)
+  *
+  * /** Every event contributes its amount to the month it closes in, and a quarter of it a month
+  *   * later — which is how a delay is expressed.
+  *   */
+  * val rule: ContributionRule[Double, String] =
+  *   (payload, scaled) => List(Contribution("total", 0, scaled), Contribution("late", 1, scaled * 0.25))
+  *
+  * val simulator: Simulator[Parameters, String] = (parameters, seed) =>
+  *   val sizes = Monad[Rand].replicateA(6, Rng[Rand].uniform.map(u => parameters.rate * (0.5 + u)))
+  *   val drawn = sizes.runA(seed).value
+  *   drawn.zipWithIndex
+  *     .foldLeft(SimulatedFuture.empty[String](horizon)) { case (future, (size, month)) =>
+  *       future.add(closeOffset = month, rule.contributions(size, size))
+  *     }
+  *     .ensemble
+  *
+  * // Future `i` is simulated at `seed.fold(i)`, so the loop is parallelisable without changing a
+  * // single number.
+  * val samples = IArray.tabulate(500)(s => Parameters(100.0 + s % 20))
+  * val ensemble: Ensemble[String] = Simulator.run(simulator, samples, Seed(20261112L))
+  * ```
   */
 trait Simulator[P, K]:
   def simulate(draw: P, seed: Seed): Ensemble[K]

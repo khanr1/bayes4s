@@ -32,6 +32,32 @@ import cats.syntax.all.*
   * Safe to share between fibres, because a `Ref` serialises. Nothing in this library does share
   * one: a sampler gives every chain its own, seeded by `seed.fold(chain)`, so that what each chain
   * draws does not depend on the order the scheduler ran them in.
+  * **Example.** The randomness algebra over a `Ref`, running the **same** pure programs the `State`
+  * interpreter runs — so the two cannot drift apart:
+  *
+  * ```scala
+  * //{
+  * import cats.Monad
+  * import cats.effect.IO
+  * import cats.syntax.all.*
+  * //}
+  * /** Two numbers from a generator held in a `Ref`, as one `IO`. */
+  * def twoNumbers(rng: Rng[IO]): IO[(Double, Int)] =
+  *   given Rng[IO] = rng
+  *   for
+  *     u <- Rng[IO].uniform
+  *     count <- Sampling.poisson[IO](3.5)
+  *   yield (u, count)
+  *
+  * val drawn: IO[(Double, Int)] = RefRng.make[IO](Seed(42L)).flatMap(twoNumbers)
+  *
+  * // The same program under `State`, for the same seed, gives the same numbers.
+  * val pure: (Double, Int) =
+  *   (for
+  *     u <- Rng[Rand].uniform
+  *     count <- Sampling.poisson[Rand](3.5)
+  *   yield (u, count)).runA(Seed(42L)).value
+  * ```
   */
 object RefRng:
 

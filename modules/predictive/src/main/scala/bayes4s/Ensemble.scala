@@ -30,6 +30,36 @@ import cats.kernel.CommutativeMonoid
   * a total is not the sum of its parts' 90th percentiles; it is smaller whenever the parts are not
   * perfectly correlated, which they never are. Nothing in this type sums a quantile, and
   * `quantiles` is the only way to get one — deliberately the last step.
+  * **Example.**
+  * An ensemble is aligned by sample: row `s` of one key and row `s` of another came from the same
+  * simulated future, which is what makes them addable and their summaries not:
+  *
+  * ```scala
+  * //{
+  * import java.time.YearMonth
+  * //}
+  * val months = Periods.monthly(YearMonth.of(2027, 1), 2).getOrElse(Periods.empty)
+  *
+  * val byCity: Either[BayesError, Ensemble[String]] = Ensemble.of(
+  *   draws = 4,
+  *   periods = months,
+  *   values = Map(
+  *     "Northgate" -> IArray(IArray(10.0, 12.0), IArray(30.0, 33.0), IArray(20.0, 21.0), IArray(5.0, 6.0)),
+  *     "Rivermouth" -> IArray(IArray(30.0, 28.0), IArray(10.0, 7.0), IArray(20.0, 19.0), IArray(35.0, 34.0))
+  *   )
+  * )
+  *
+  * // Summed sample by sample, never percentile by percentile.
+  * val total: Either[BayesError, Ensemble[Unit]] = byCity.map(_.total)
+  *
+  * // Coarser keys, summing the ones that land together. The total is the same whichever regrouping.
+  * val byRegion: Either[BayesError, Ensemble[Boolean]] =
+  *   byCity.map(_.regroup(_.startsWith("N")))
+  *
+  * // Quantiles come last, and reading an ensemble is the only way to get one.
+  * val reported: Either[BayesError, Map[Unit, IArray[IArray[Double]]]] =
+  *   total.map(_.quantiles(List(0.05, 0.5, 0.95)))
+  * ```
   */
 final case class Ensemble[K] private (
     draws: Int,

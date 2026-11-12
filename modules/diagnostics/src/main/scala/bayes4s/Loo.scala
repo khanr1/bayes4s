@@ -58,6 +58,57 @@ trait PointwiseLikelihood[T[_]]:
   * of the pointwise estimates times the square root of their number, which assumes the
   * observations are independent given the parameters. It says nothing about the Monte Carlo error
   * of the fit, and on a sample with an outlier it can be larger than the estimate itself.
+  * **Example.**
+  * Cross-validation from the fit you already have. It needs the log likelihood **one observation at a
+  * time**, which is what [[PointwiseLikelihood]] adds to a model:
+  *
+  * ```scala
+  * //{
+  * import bayes4s.syntax.{*, given}
+  * final case class Mean[A](mu: A, sigma: A)
+  * val observed = IArray(4.1, 5.2, 3.8, 4.9, 5.5, 4.4)
+  * val model: Model[Mean] & PointwiseLikelihood[Mean] =
+  *   new Model[Mean] with PointwiseLikelihood[Mean]:
+  *     def params: ParamSpec[Mean] =
+  *       (ParamSpec.real("mu"), ParamSpec.positive("sigma"))
+  *         .mapN[Mean]([A] => (mu: A, sigma: A) => Mean(mu, sigma))
+  *     def logPrior[A: Real](p: Mean[A]): A =
+  *       LogDensity.normal(p.mu, 0.0.lift[A], 10.0.lift[A]) +
+  *         LogDensity.halfNormal(p.sigma, 5.0.lift[A])
+  *     def logLikelihood[A: Real](p: Mean[A]): A =
+  *       Real[A].normalSum(observed, Real[A].filled(observed.length)(p.mu), p.sigma)
+  *     def pointwise(p: Mean[Double]): IArray[Double] =
+  *       IArray.tabulate(observed.length)(i => LogDensity.normal(observed(i), p.mu, p.sigma))
+  * val fit = Mcmc.runNuts(model, RunSettings()).runA(Seed(1L)).value
+  * //}
+  * val loo: Either[BayesError, LooResult] = fit.map { chains =>
+  *   val samples = chains.flatMap(_.draws).map(q => model.pointwise(Model.constrain(model, q)))
+  *   // One row per observation, one column per sample from the posterior.
+  *   val logLik = IArray.tabulate(observed.length)(i => IArray.from(samples.map(_(i))))
+  *   Loo.psis(logLik, 1.0)
+  * }
+  *
+  * // The shape parameter is the diagnostic that matters: above the threshold, that observation's
+  * // estimate is not to be trusted and the honest fix is a refit without it.
+  * val untrustworthy: Either[BayesError, List[Int]] =
+  *   loo.map(_.problematic(Loo.kThreshold(4000)))
+  * ```
+  *
+  * **Example.**
+  * Comparing models. The error of a difference comes from the **pointwise** differences, because the
+  * two models are scored on the same observations and their errors are correlated:
+  *
+  * ```scala
+  * //{
+  * val a: LooResult = LooResult(-12.0, 1.5, 2.0, IArray(-3.0, -4.0), IArray(0.2, 0.3))
+  * val b: LooResult = LooResult(-14.0, 1.6, 2.5, IArray(-3.5, -4.5), IArray(0.2, 0.4))
+  * //}
+  * val ranked: List[LooComparison] = Loo.compare(List("partial pooling" -> a, "no pooling" -> b))
+  *
+  * // A difference smaller than its own standard error means cross-validation cannot tell them apart.
+  * val indistinguishable: List[String] =
+  *   ranked.filter(row => math.abs(row.difference) < row.se).map(_.name)
+  * ```
   */
 object Loo:
 

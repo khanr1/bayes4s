@@ -35,6 +35,31 @@ import cats.syntax.all.*
   * `sigmaError` is calibrated on dates already past by [[ModelError.calibrate]], which widens every
   * past forecast by each candidate scale and keeps the one that scores best. The scoring rule is
   * the caller's, so this module needs no dependency on `scoring` (docs/design.md).
+  * **Example.**
+  * The error a model does not know it has: drawn **once per future**, applied to every amount in it,
+  * and calibrated on months the fit did not see:
+  *
+  * ```scala
+  * //{
+  * import cats.syntax.all.*
+  * //}
+  * // One multiplier per future, on the log scale.
+  * val perFuture: Rand[Double] = ModelError.draw[Rand](0.2)
+  *
+  * val widened: Rand[Double] = perFuture.map(error => ModelError.applied(100.0, error))
+  *
+  * // The scale that scores best on dates already past. The rule is the caller's, and lower is
+  * // better — a scale calibrated under one rule is not calibrated under another.
+  * val past: List[(IArray[Double], Double)] =
+  *   List((IArray(95.0, 100.0, 105.0), 102.0), (IArray(98.0, 103.0, 108.0), 99.0))
+  * val calibrated: Either[BayesError, ModelError.Calibration] =
+  *   ModelError.calibrate(
+  *     past,
+  *     grid = IArray(0.0, 0.1, 0.2, 0.4),
+  *     score = (ensemble, observed) => math.abs(ensemble.sum / ensemble.length - observed),
+  *     seed = Seed(5L)
+  *   )
+  * ```
   */
 object ModelError:
 

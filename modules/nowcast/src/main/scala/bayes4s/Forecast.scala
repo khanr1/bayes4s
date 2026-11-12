@@ -69,6 +69,89 @@ final case class ForecastSettings(
   * Everything a future needs comes from **one** sample: the rate, the delay, the template weights.
   * That is what keeps the correlations the fit found, and it is why the seed is derived per future
   * rather than per draw of anything.
+  * **Example.** Everything a future needs, assembled: the rate component projecting itself, the
+  * delay's drift, a Poisson count thinned by it, a template drawn from a pool, a size, and a rule
+  * saying where what results belongs.
+  *
+  * ```scala
+  * //{
+  * import java.time.YearMonth
+  * val months = 18
+  * val maxLag = 5
+  * val t = IArray.tabulate(months)(m => (m - (months - 1) / 2.0) / months)
+  * val visible = ReportingTriangle.rightCensored(months, maxLag + 1, current = months)
+  * val blank = DelayCountData.blank(months, maxLag, t, visible)
+  * //}
+  * val futureT = IArray.tabulate(6)(h => (months + h - (months - 1) / 2.0) / months)
+  *
+  * val ensemble: Either[BayesError, Ensemble[String]] =
+  *   for
+  *     periods <- Periods.monthly(YearMonth.of(2027, 1), 6 + maxLag)
+  *     pool <- TemplatePool.of(IArray("standard", "large"), IArray(0.8, 0.2))
+  *   yield
+  *     val parameters = List.fill(200)(
+  *       DelayCountParams[Ar1TrendParams, OrderedLogitDriftParams, Double](
+  *         Ar1TrendParams(IArray(3.4), IArray(0.6), 0.5, 0.2, IArray.tabulate(months)(m => math.sin(m * 0.7))),
+  *         OrderedLogitDriftParams(0.5, IArray(0.8, 0.6, 0.5, 0.4), 0.4)
+  *       )
+  *     )
+  *     val rule: ContributionRule[String, String] =
+  *       (payload, scaled) => List(Contribution(payload, 0, scaled))
+  *     Forecast.run(
+  *       Ar1Trend(), OrderedLogitDrift(), parameters, futureT, periods, pool,
+  *       // A log-normal size with a cap: a log-normal has no largest value, and one absurd event can
+  *       // dominate a total.
+  *       SizeModel.logNormal[String](LogNormalTrendRegressionParams(1.0, 0.2, -0.1, 0.4), cap = Some(50.0)),
+  *       rule,
+  *       // The first forecast month has already half happened, and two futures per sample give a
+  *       // thousand futures from five hundred samples — each still using **one** sample throughout.
+  *       ForecastSettings(perDraw = 2, firstPeriodFactor = 0.5),
+  *       Seed(5L)
+  *     )
+  *
+  * val reported: Either[BayesError, IArray[IArray[Double]]] =
+  *   ensemble.map(_.total.quantiles(List(0.05, 0.5, 0.95))(()))
+  * ```
+  *
+  * **Example.** With several groups, `byGroup` takes one rule per group — and simulates every group
+  * inside the **same** future, so what they share stays shared:
+  *
+  * ```scala
+  * //{
+  * import java.time.YearMonth
+  * val months = 18
+  * val maxLag = 5
+  * val t = IArray.tabulate(months)(m => (m - (months - 1) / 2.0) / months)
+  * val visible = ReportingTriangle.rightCensored(months, maxLag + 1, current = months)
+  * val blank = DelayCountData.blank(months, maxLag, t, visible)
+  * //}
+  * val futureT = IArray.tabulate(4)(h => (months + h - (months - 1) / 2.0) / months)
+  *
+  * val perGroup: Either[BayesError, Ensemble[String]] =
+  *   for
+  *     periods <- Periods.monthly(YearMonth.of(2027, 1), 4 + maxLag)
+  *     pool <- TemplatePool.of(IArray("one"), IArray(1.0))
+  *   yield Forecast.byGroup(
+  *     Ar1TrendHierarchical(IArray(0, 0, 0)),
+  *     OrderedLogitDrift(),
+  *     List.fill(100)(
+  *       DelayCountParams[HierarchicalAr1Params, OrderedLogitDriftParams, Double](
+  *         HierarchicalAr1Params(
+  *           muA = IArray(3.2), muB = IArray(0.4), sigmaA = 0.4, sigmaB = 0.15,
+  *           aRaw = IArray(1.0, -0.5, 0.3), bRaw = IArray(-0.5, 1.0, 0.0),
+  *           phi = 0.5, tau = 0.15, eps = IArray.tabulate(months)(m => math.sin(m * 0.8))
+  *         ),
+  *         OrderedLogitDriftParams(0.5, IArray(0.8, 0.6, 0.5, 0.4), 0.3)
+  *       )
+  *     ),
+  *     futureT, periods, pool, SizeModel.unit, groups = 3,
+  *     g => (_, scaled) => List(Contribution(s"site-$g", 0, scaled)),
+  *     ForecastSettings(), Seed(77L)
+  *   )
+  *
+  * // Summed sample by sample. Never add the groups' own quantiles.
+  * val total: Either[BayesError, Ensemble[Unit]] = perGroup.map(_.total)
+  * ```
   */
 object Forecast:
 

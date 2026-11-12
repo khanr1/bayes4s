@@ -25,6 +25,23 @@ import cats.Show
   *
   * The core returns these inside `Either` and never throws. They extend `NoStackTrace` so that the
   * `effect` module can raise them in `F` through `MonadThrow` without paying for a stack trace.
+  * **Example.**
+  * An error is a value, so it is handled where it happens rather than caught somewhere else:
+  *
+  * ```scala
+  * val refused: Either[BayesError, Double] =
+  *   Left(BayesError.InvalidArgument("Normal.of", "sigma", -1.0, "greater than zero"))
+  *
+  * // It names the place, the parameter, the offending value and the rule it broke.
+  * val explained: String = refused.fold(_.message, value => s"fine: $value")
+  *
+  * // Several validations compose, and the first failure is the one you are told about.
+  * val combined: Either[BayesError, (Double, Double)] =
+  *   for
+  *     location <- Right(0.0)
+  *     scale <- refused
+  *   yield (location, scale)
+  * ```
   */
 sealed trait BayesError extends Product with Serializable with NoStackTrace:
 

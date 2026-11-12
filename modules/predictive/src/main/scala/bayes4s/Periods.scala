@@ -39,6 +39,22 @@ object Quarter:
   * Quarters are the calendar's own. A run that starts in February starts in the middle of a
   * quarter and its first quarter is therefore short — which is the point of asking `java.time`
   * rather than counting in threes from the start.
+  * **Example.**
+  * ```scala
+  * //{
+  * import java.time.YearMonth
+  * //}
+  * // A run of months. `monthly` refuses a negative count, so it returns an `Either`.
+  * val horizon: Either[BayesError, Periods] = Periods.monthly(YearMonth.of(2027, 1), 11)
+  *
+  * // A period is addressed by its offset, which is what an ensemble's arrays are indexed by, and
+  * // names a `YearMonth`, which is what a report is labelled with.
+  * val labels: Either[BayesError, IArray[YearMonth]] = horizon.map(_.months)
+  *
+  * // Reporting by quarter: which quarters the run touches, and which one an offset falls in.
+  * val quarters: Either[BayesError, IArray[Quarter]] = horizon.map(_.quarters)
+  * val firstQuarter: Either[BayesError, Option[Quarter]] = horizon.map(_.quarterOf(0))
+  * ```
   */
 final case class Periods private (start: YearMonth, count: Int):
 

@@ -2163,3 +2163,55 @@ reader sees.
 The six other terms the vocabulary check flagged in the new pages were genuine slips and were
 reworded rather than excused — "draws an opinion" became "samples an opinion", "a million draws"
 became "a million values". The escape is meant to be rare enough to read as a list.
+
+### D-160. Scaladoc examples are compiled, and `@example` is forbidden
+
+The Scaladoc existed and CI built it, but it had two code blocks in the whole library and no
+examples at all: a reference that gives a signature and no call sends the reader back to the manual
+for every method. Every entry point a model-writer touches now carries a worked example showing
+the methods a caller actually uses.
+
+The examples are **compiled**. Scala 3's scaladoc has a snippet compiler, and
+`Compile / doc / scalacOptions += "-snippet-compiler:compile"` turns it on: a fenced `scala` block
+in a doc comment is type-checked against the module's own classpath, so an example that stops
+compiling fails `sbt doc` exactly as a manual example that stops compiling fails `docs/mdoc`. That
+was proved before a single example was written, by putting a call to a method that does not exist
+into a doc comment and watching the build go red.
+
+The key has to be set **per project**. Scoped to `ThisBuild` it is silently unused, because
+`Compile / doc / scalacOptions` falls back to `Compile / scalacOptions` rather than to a
+build-level doc scope, and sbt says so only through `lintUnused`.
+
+**`@example` is forbidden, and the check refuses it.** The snippet compiler does not look inside
+`@example` tags: a block there renders beautifully and is never compiled, so a call to a method
+that does not exist passes `sbt doc` without a word. Every example written during this work was
+first put under `@example`, all of them "passed", and the trap was found only by deliberately
+breaking one. They now live in the body of the comment under a `**Example.**` heading, and
+`scripts/check-scaladoc.py` fails on any `@example` that contains a snippet.
+
+Snippets are type-checked and **not run**, so an example can say what a call looks like but never
+what it returns. Numbers belong in the manual, where mdoc evaluates them; an example here that
+claimed a result would be an unchecked claim wearing the clothes of a checked one.
+
+Three consequences for how the examples are written. A snippet sees its own module's classpath, so
+`Real`'s examples use `Real`'s arithmetic rather than `LogDensity`, which lives a module above and
+is a test dependency only — the first draft did not, and the compiler said so. Setup that would
+drown the point goes in a `//{ … //}` block, which is compiled and not rendered. And an example
+that must handle an `Either` handles it, because the examples are held to the same rule as the
+manual's.
+
+### D-161. The coverage map for examples, and a parser that had to learn to nest
+
+`docs/scaladoc-examples.csv` maps each entry point to the methods its example must show, and
+`scripts/check-scaladoc.py` checks that the example exists and names them. The two halves are
+deliberately separate: `sbt doc` cannot be satisfied by writing code about something else, and the
+check cannot be satisfied by writing plausible-looking code that does not compile.
+
+The check's comment parser was wrong first, and the mutation round is what found it. Scanning
+backwards from a declaration for the nearest `/**` finds the **inner** comment when an example
+documents its own `def` — Scala's block comments nest — so six examples that had just been written
+were reported as missing. It now scans comment spans forward, counting depth.
+
+The list is curated rather than derived: it is the surface appendix E already claims to cover, so
+the two agree by construction. Deriving it from every public member would demand an example of
+every case class's `copy`.

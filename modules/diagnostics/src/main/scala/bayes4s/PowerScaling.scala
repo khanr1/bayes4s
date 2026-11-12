@@ -45,6 +45,36 @@ final case class Sensitivity(
   *
   * ArviZ's `psense` is the reference and its arithmetic is the specification, down to the
   * asymmetry that the "both tails" setting smooths only the right one.
+  * **Example.**
+  * Whether your conclusion is the data's or the prior's, without refitting anything:
+  *
+  * ```scala
+  * //{
+  * import bayes4s.syntax.{*, given}
+  * final case class Mean[A](mu: A, sigma: A)
+  * val observed = IArray(4.1, 5.2, 3.8, 4.9, 5.5, 4.4)
+  * val model: Model[Mean] & PointwiseLikelihood[Mean] =
+  *   new Model[Mean] with PointwiseLikelihood[Mean]:
+  *     def params: ParamSpec[Mean] =
+  *       (ParamSpec.real("mu"), ParamSpec.positive("sigma"))
+  *         .mapN[Mean]([A] => (mu: A, sigma: A) => Mean(mu, sigma))
+  *     def logPrior[A: Real](p: Mean[A]): A =
+  *       LogDensity.normal(p.mu, 0.0.lift[A], 10.0.lift[A]) +
+  *         LogDensity.halfNormal(p.sigma, 5.0.lift[A])
+  *     def logLikelihood[A: Real](p: Mean[A]): A =
+  *       Real[A].normalSum(observed, Real[A].filled(observed.length)(p.mu), p.sigma)
+  *     def pointwise(p: Mean[Double]): IArray[Double] =
+  *       IArray.tabulate(observed.length)(i => LogDensity.normal(observed(i), p.mu, p.sigma))
+  * val fit = Mcmc.runNuts(model, RunSettings()).runA(Seed(1L)).value
+  * //}
+  * val sensitivities: Either[BayesError, List[Sensitivity]] =
+  *   fit.map(chains => PowerScaling.analyse(model, chains))
+  *
+  * // Four readings, and `diagnosis` says which one you are in: neither sensitive, the data doing the
+  * // work, the prior doing the work, or — both above the threshold — prior-data conflict.
+  * val conflicted: Either[BayesError, List[String]] =
+  *   sensitivities.map(_.filter(_.diagnosis == "prior-data conflict").map(_.name))
+  * ```
   */
 object PowerScaling:
 

@@ -69,6 +69,24 @@ object PoissonThinning:
   * the ordinary case. Nothing here assumes the visible set is a triangle, because a lost month or
   * a system that changed mid-history is a hole, and a library that assumed a shape would quietly
   * mis-state the exposure of every period after it.
+  * **Example.**
+  * Which cells of a (month, delay) grid have been seen, and what to do about the ones that have not:
+  *
+  * ```scala
+  * // Six months, delays of nought to three, standing at the end of month six: a cell is visible once
+  * // `month + delay` is in the past.
+  * val visible = ReportingTriangle.rightCensored(creations = 6, delays = 4, current = 6)
+  *
+  * // The share of each month's events that could have been reported by now, given the delay
+  * // distribution. It falls to almost nothing at the right-hand edge.
+  * val shares = IArray(0.5, 0.3, 0.15, 0.05)
+  * val exposure: IArray[Double] = visible.exposure(shares)
+  *
+  * // Counts scaled up by what is still to come — and refused where the exposure is too small to
+  * // divide by, which is the standard way a nowcast explodes at its newest month.
+  * val seen = IArray(40.0, 38.0, 44.0, 41.0, 30.0, 12.0)
+  * val corrected: IArray[Double] = visible.correctedCounts(seen, shares, minimumVisibility = 0.3)
+  * ```
   */
 final case class ReportingTriangle private (
     creations: Int,

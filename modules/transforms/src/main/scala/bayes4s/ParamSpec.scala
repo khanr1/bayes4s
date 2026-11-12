@@ -63,6 +63,28 @@ object Block:
   * The type is sealed. Every spec comes from the combinators below, which is what makes the layout
   * and the reading agree by construction: a hand-written instance could say one thing in `layout`
   * and read another.
+  * **Example.**
+  * Three blocks combined into a parameter object. The order of the blocks is the order of the
+  * arguments, and the `[A] =>` wrapper is there because the spec reads its parameters for **any**
+  * scalar — a `Double` when you want a value, a tape entry when the sampler wants a gradient:
+  *
+  * ```scala
+  * //{
+  * import bayes4s.syntax.{*, given}
+  * //}
+  * final case class Schools[A](mu: A, tau: A, theta: IArray[A])
+  *
+  * val spec: ParamSpec[Schools] =
+  *   (
+  *     ParamSpec.real("mu"),
+  *     ParamSpec.positive("tau"),
+  *     ParamSpec.vector("theta", 8)
+  *   ).mapN[Schools]([A] => (mu: A, tau: A, theta: IArray[A]) => Schools(mu, tau, theta))
+  *
+  * // Ten parameters, ten unconstrained reals: `tau` costs a transform but not a dimension.
+  * val dimension: Int = spec.unconstrainedSize
+  * val names: List[String] = spec.names
+  * ```
   */
 sealed trait ParamSpec[T[_]]:
 

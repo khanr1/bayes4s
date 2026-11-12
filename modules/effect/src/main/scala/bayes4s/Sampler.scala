@@ -52,6 +52,37 @@ final case class Draw(
   *     cancelled run stops at an iteration boundary and never half way through a transition.
   *   - **No error is swallowed.** The core returns `Either`; every `Left` is raised in `F` through
   *     `MonadThrow`. `BayesError` extends `NoStackTrace` for exactly this.
+  * **Example.** The same fit as `Mcmc.runNuts`, on separate fibres. Chain `c` is driven by its own
+  * generator at `seed.fold(c)`, so the result cannot depend on the scheduler — four chains in
+  * parallel give **bit for bit** what four chains in sequence give:
+  *
+  * ```scala
+  * //{
+  * import bayes4s.syntax.{*, given}
+  * import cats.effect.IO
+  * import fs2.io.file.Path
+  * final case class Mean[A](mu: A, sigma: A)
+  * val observed = IArray(4.1, 5.2, 3.8, 4.9, 5.5, 4.4)
+  * val model: Model[Mean] = new Model[Mean]:
+  *   def params: ParamSpec[Mean] =
+  *     (ParamSpec.real("mu"), ParamSpec.positive("sigma"))
+  *       .mapN[Mean]([A] => (mu: A, sigma: A) => Mean(mu, sigma))
+  *   def logPrior[A: Real](p: Mean[A]): A =
+  *     LogDensity.normal(p.mu, 0.0.lift[A], 10.0.lift[A]) +
+  *       LogDensity.halfNormal(p.sigma, 5.0.lift[A])
+  *   def logLikelihood[A: Real](p: Mean[A]): A =
+  *     Real[A].normalSum(observed, Real[A].filled(observed.length)(p.mu), p.sigma)
+  * //}
+  * val fit: IO[Draws] = Sampler[IO].run(model, RunSettings(chains = 4), Seed(20261112L))
+  *
+  * // One chain as a stream, for a long fit you want to watch — or stop. Cancellation lands between
+  * // iterations, never inside a transition.
+  * val watched: fs2.Stream[IO, Draw] = Sampler[IO].chain(model, RunSettings(), chainId = 0, Seed(1L))
+  * val firstHundred: IO[List[Draw]] = watched.take(100).compile.toList
+  * ```
+  *
+  * A `Left` from the core becomes an error of `IO`, raised through `MonadThrow`, so nothing is
+  * swallowed.
   */
 trait Sampler[F[_]]:
 

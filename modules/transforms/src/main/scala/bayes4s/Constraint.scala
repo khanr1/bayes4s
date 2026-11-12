@@ -28,6 +28,22 @@ package bayes4s
   * a number, which is the same total-function convention the densities follow. A smart constructor
   * would be the wrong place for it, because a constraint is written in a model's source and not
   * built from data.
+  * **Example.**
+  * A constraint is a transform plus its log Jacobian. You declare the constrained space; the sampler
+  * walks the unconstrained one and the Jacobian is added once, in [[Model.target]], never by you:
+  *
+  * ```scala
+  * // A scale, by the exponential.
+  * val scale = ParamSpec.scalar("sigma", Constraint.Positive)
+  *
+  * // A correlation in (-1, 1), by the logistic, shifted and scaled.
+  * val rho = ParamSpec.scalar("rho", Constraint.Interval(-1.0, 1.0))
+  *
+  * // The non-centred parameterisation as a constraint rather than a rewrite of the model: the
+  * // Jacobian of an affine map is constant, so this costs nothing and changes the geometry the
+  * // sampler walks.
+  * val offset = ParamSpec.scalar("alpha", Constraint.OffsetMultiplier(2.0, 0.5))
+  * ```
   */
 enum Constraint:
 

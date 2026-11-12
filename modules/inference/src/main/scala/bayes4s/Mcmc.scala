@@ -26,6 +26,19 @@ import cats.syntax.all.*
   * the sampler in a region where the gradient points nowhere useful and the step size collapses.
   * `PriorMedian` is the answer for those, and it needs the model's prior — from its generative
   * part if it has one, and otherwise from a short run on the prior alone.
+  * **Example.**
+  * ```scala
+  * // Stan's default: uniform on (-2, 2) in the *unconstrained* space, so a positive parameter starts
+  * // anywhere between about 0.14 and 7.4.
+  * val spread = RunSettings(init = Init.Uniform(2.0))
+  *
+  * // Named constrained values, as `Model.values` reports them. A value outside its constraint is an
+  * // error rather than a clamp.
+  * val chosen = RunSettings(init = Init.Given(Map("mu" -> IArray(4.5), "sigma" -> IArray(1.0))))
+  *
+  * // The median of a sample from the prior, which needs the model's generative part.
+  * val fromPrior = RunSettings(init = Init.PriorMedian(draws = 100))
+  * ```
   */
 enum Init:
   case Uniform(radius: Double)
@@ -72,6 +85,31 @@ final case class Progress private[bayes4s] (
   */
 final case class Iteration(transition: Transition, warmup: Boolean, progress: Progress)
 
+/** Everything a fit needs beyond the model itself: how many chains, how long, and how they start.
+  *
+  * The defaults are Stan's, so `RunSettings()` is four chains of a thousand warmup iterations and
+  * a thousand kept samples under the no-U-turn sampler with a diagonal metric. The three nested
+  * settings are the trajectory's limits ([[NutsSettings]]), the warmup schedule
+  * ([[AdaptationSettings]]) and where each chain starts ([[Init]]).
+  * **Example.**
+  * ```scala
+  * // What `RunSettings()` means, written out.
+  * val stanDefaults = RunSettings(chains = 4, warmup = 1000, samples = 1000)
+  *
+  * // Small and quick, for a smoke test — and too few samples to report.
+  * val quick = RunSettings(chains = 2, warmup = 200, samples = 200)
+  *
+  * // A posterior that is strongly correlated: learn the whole covariance rather than one scale per
+  * // coordinate, and allow the integrator longer trajectories.
+  * val correlated = RunSettings(
+  *   chains = 4,
+  *   warmup = 1500,
+  *   samples = 1000,
+  *   nuts = NutsSettings(maxTreeDepth = 12),
+  *   adaptation = AdaptationSettings(metric = MetricShape.Dense)
+  * )
+  * ```
+  */
 final case class RunSettings(
     chains: Int = 4,
     warmup: Int = 1000,
@@ -83,6 +121,72 @@ final case class RunSettings(
 
 /** The driver: a warmup with adaptation, then sampling. A fold over values, and with
   * `F = State[Seed, *]` the result is a function of the seed and nothing else.
+  * **Example.**
+  * The usual way to fit a model. The result is an `Either`, because a fit can fail for reasons worth
+  * reporting, and it is a `State` program, so nothing runs until a seed is given:
+  *
+  * ```scala
+  * //{
+  * import bayes4s.syntax.{*, given}
+  * final case class Mean[A](mu: A, sigma: A)
+  * val observed = IArray(4.1, 5.2, 3.8, 4.9, 5.5, 4.4)
+  * val model: Model[Mean] = new Model[Mean]:
+  *   def params: ParamSpec[Mean] =
+  *     (ParamSpec.real("mu"), ParamSpec.positive("sigma"))
+  *       .mapN[Mean]([A] => (mu: A, sigma: A) => Mean(mu, sigma))
+  *   def logPrior[A: Real](p: Mean[A]): A =
+  *     LogDensity.normal(p.mu, 0.0.lift[A], 10.0.lift[A]) +
+  *       LogDensity.halfNormal(p.sigma, 5.0.lift[A])
+  *   def logLikelihood[A: Real](p: Mean[A]): A =
+  *     Real[A].normalSum(observed, Real[A].filled(observed.length)(p.mu), p.sigma)
+  * //}
+  * val fit: Either[BayesError, List[Chain]] =
+  *   Mcmc.runNuts(model, RunSettings(chains = 4, warmup = 1000, samples = 1000))
+  *     .runA(Seed(20261112L))
+  *     .value
+  *
+  * // The same seed always gives the same chains, on any machine and in any order.
+  * val again: Either[BayesError, List[Chain]] =
+  *   Mcmc.runNuts(model, RunSettings(chains = 4, warmup = 1000, samples = 1000))
+  *     .runA(Seed(20261112L))
+  *     .value
+  * ```
+  *
+  * **Example.**
+  * `run` is the lower level: a kernel, a target and a starting point, for when you want a sampler
+  * other than the default. This is a random walk, which needs no gradient and a far lower acceptance
+  * target than a Hamiltonian method:
+  *
+  * ```scala
+  * //{
+  * import bayes4s.syntax.{*, given}
+  * final case class Mean[A](mu: A, sigma: A)
+  * val observed = IArray(4.1, 5.2, 3.8, 4.9, 5.5, 4.4)
+  * val model: Model[Mean] = new Model[Mean]:
+  *   def params: ParamSpec[Mean] =
+  *     (ParamSpec.real("mu"), ParamSpec.positive("sigma"))
+  *       .mapN[Mean]([A] => (mu: A, sigma: A) => Mean(mu, sigma))
+  *   def logPrior[A: Real](p: Mean[A]): A =
+  *     LogDensity.normal(p.mu, 0.0.lift[A], 10.0.lift[A]) +
+  *       LogDensity.halfNormal(p.sigma, 5.0.lift[A])
+  *   def logLikelihood[A: Real](p: Mean[A]): A =
+  *     Real[A].normalSum(observed, Real[A].filled(observed.length)(p.mu), p.sigma)
+  * //}
+  * val target = Model.target(model)
+  *
+  * val chain: Either[BayesError, Chain] =
+  *   Mcmc
+  *     .run[Rand](
+  *       RandomWalkMetropolis.kernel[Rand](target, 1.0),
+  *       target,
+  *       IArray(4.0, 0.0),
+  *       warmup = 1000,
+  *       samples = 5000,
+  *       AdaptationSettings(targetAccept = 0.234)
+  *     )
+  *     .runA(Seed(77L))
+  *     .value
+  * ```
   */
 object Mcmc:
 

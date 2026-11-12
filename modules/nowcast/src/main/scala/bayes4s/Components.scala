@@ -78,6 +78,31 @@ final case class Ar1TrendParams[A](
   * `z[0]` is drawn from the **stationary** distribution, `tau/sqrt(1 - phi²)`, rather than started
   * at zero. Starting at zero says the first month of the data is known exactly, which is false and
   * shows up as an artificially certain first month in every simulation from the prior.
+  * **Example.** The rate on the log scale, and the same component projecting itself past the data —
+  * which is what makes a forecast possible:
+  *
+  * ```scala
+  * val component = Ar1Trend()
+  *
+  * // `a` is the level per group and `b` the trend: `log lambda[g, m] = a[g] + b[g] t[m] + z[m]`.
+  * val parameters = Ar1TrendParams[Double](
+  *   a = IArray(3.4),
+  *   b = IArray(0.6),
+  *   phi = 0.5,
+  *   tau = 0.2,
+  *   eps = IArray.tabulate(18)(m => math.sin(m * 0.7))
+  * )
+  *
+  * val t = IArray.tabulate(18)(m => (m - 8.5) / 18.0)
+  *
+  * // One log rate per month, for group 0.
+  * val logRate: IArray[Double] = component.logRate[Double](parameters, 0, t)
+  *
+  * // Beyond the data the wobble has no innovations, so the component draws them: `project` takes a
+  * // seed, and extending the data's own time axis instead would give `NaN` for every future month.
+  * val futureT = IArray.tabulate(6)(h => (18 + h - 8.5) / 18.0)
+  * val projected: IArray[Double] = component.project(parameters, 0, futureT, Seed(404L))
+  * ```
   */
 final case class Ar1Trend(
     levelPrior: (Double, Double) = (0.0, 2.0),
@@ -185,6 +210,25 @@ final case class OrderedLogitDriftParams[A](cut0: A, increments: IArray[A], beta
   * The probabilities are the differences of the cumulative function, and they are computed through
   * the ordered logistic of `LogDensity`, which is Stan's identity for the difference of two
   * `inv_logit`s and keeps its digits where the naive subtraction does not.
+  * **Example.** The delay distribution at one month, as log probabilities over the delays:
+  *
+  * ```scala
+  * val delay = OrderedLogitDrift()
+  *
+  * val parameters = OrderedLogitDriftParams[Double](
+  *   cut0 = 0.5,
+  *   increments = IArray(0.8, 0.6, 0.5, 0.4),
+  *   beta = 0.4
+  * )
+  *
+  * // `t` is the month's position on the time axis: the drift slides the whole distribution earlier
+  * // or later as it moves.
+  * val early: IArray[Double] = delay.logPmf[Double](parameters, 0, -0.5)
+  * val late: IArray[Double] = delay.logPmf[Double](parameters, 0, 0.5)
+  *
+  * // They are log probabilities, so they exponentiate to one.
+  * val total: Double = early.toList.map(math.exp).sum
+  * ```
   */
 final case class OrderedLogitDrift(
     firstCutPrior: (Double, Double) = (0.0, 2.0),

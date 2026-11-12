@@ -61,6 +61,44 @@ final case class PredictiveSample(
   * `month + delay = period`, summed over the visible part of the grid. That is the series a
   * nowcast is read against: not how many events were created, which nobody has seen yet, but how
   * many reports came in, which everybody has.
+  * **Example.** The two predictive checks. The first costs nothing and needs no fit; the second needs
+  * the fit and compares the model with the data it was given:
+  *
+  * ```scala
+  * //{
+  * import java.time.YearMonth
+  * val months = 18
+  * val maxLag = 5
+  * val t = IArray.tabulate(months)(m => (m - (months - 1) / 2.0) / months)
+  * val visible = ReportingTriangle.rightCensored(months, maxLag + 1, current = months)
+  * val blank = DelayCountData.blank(months, maxLag, t, visible)
+  * //}
+  * val priorCheck: Either[BayesError, PredictiveSample] = blank.map { data =>
+  *   Checks.priorPredictive(DelayCountModel(Ar1Trend(), OrderedLogitDrift(), data), draws = 200, Seed(1L))
+  * }
+  *
+  * // Simulated totals spanning orders of magnitude mean the priors are doing nothing — which is
+  * // something to find out before fitting rather than after.
+  * val spread: Either[BayesError, (Double, Double)] = priorCheck.map { sample =>
+  *   val totals = IArray.tabulate(sample.replications)(r =>
+  *     (0 until sample.periods).foldLeft(0.0)((sum, p) => sum + sample.replicated(r)(p))
+  *   )
+  *   (Quantile.quantile(totals, 0.05), Quantile.quantile(totals, 0.95))
+  * }
+  *
+  * val posteriorCheck: Either[BayesError, Int] = blank.flatMap { data =>
+  *   val model = DelayCountModel(Ar1Trend(), OrderedLogitDrift(), data)
+  *   for
+  *     chains <- Mcmc.runNuts(model, RunSettings(chains = 2, warmup = 400, samples = 500))
+  *       .runA(Seed(7L))
+  *       .value
+  *     posterior <- Mcmc.draws(model, chains)
+  *     sample <- Checks.posteriorPredictive(model, posterior, Seed(99L))
+  *   // Read it in both directions: about a tenth of the periods should fall outside a 90 % band, and
+  *   // zero is as much a warning as half.
+  *   yield sample.outsideBand(0.9)
+  * }
+  * ```
   */
 object Checks:
 

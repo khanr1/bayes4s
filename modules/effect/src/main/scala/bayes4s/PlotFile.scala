@@ -27,6 +27,34 @@ import fs2.text
   * A plot is a value and its specification is JSON; both are made in the `plot` module, where
   * they can be compared and tested. This writes them, and does nothing else — no rendering, no
   * browser, no image. An SVG or a PNG is `vl-convert`'s job, and the manual says how.
+  * **Example.** The only part of drawing a figure that is an effect:
+  *
+  * ```scala
+  * //{
+  * import bayes4s.syntax.{*, given}
+  * import cats.effect.IO
+  * import fs2.io.file.Path
+  * final case class Mean[A](mu: A, sigma: A)
+  * val observed = IArray(4.1, 5.2, 3.8, 4.9, 5.5, 4.4)
+  * val model: Model[Mean] = new Model[Mean]:
+  *   def params: ParamSpec[Mean] =
+  *     (ParamSpec.real("mu"), ParamSpec.positive("sigma"))
+  *       .mapN[Mean]([A] => (mu: A, sigma: A) => Mean(mu, sigma))
+  *   def logPrior[A: Real](p: Mean[A]): A =
+  *     LogDensity.normal(p.mu, 0.0.lift[A], 10.0.lift[A]) +
+  *       LogDensity.halfNormal(p.sigma, 5.0.lift[A])
+  *   def logLikelihood[A: Real](p: Mean[A]): A =
+  *     Real[A].normalSum(observed, Real[A].filled(observed.length)(p.mu), p.sigma)
+  * //}
+  * val plot = Catalogue.tracePlot(IArray(IArray.tabulate(50)(i => i * 0.1)), "mu")
+  *
+  * val written: IO[Unit] = fs2.io.file.Files[IO].tempDirectory.use { directory =>
+  *   // A page a browser renders when it is opened.
+  *   PlotFile[IO].writeHtml(directory / "figures.html", List(plot), "Two chains") *>
+  *     // One specification, for a notebook, an editor, or `vl-convert`.
+  *     PlotFile[IO].writeJson(directory / "trace.vl.json", plot)
+  * }
+  * ```
   */
 trait PlotFile[F[_]]:
 

@@ -30,6 +30,14 @@ import cats.syntax.all.*
   * period would average that uncertainty away inside each future — twelve independent opinions
   * averaged are far more certain than one — and the intervals would come out too narrow while
   * every mean stayed right. The suite measures the difference rather than taking it on trust.
+  * **Example.**
+  * One opinion about the pool's composition, drawn once per simulated future and held for the whole
+  * horizon — redrawing it every period would average its uncertainty away:
+  *
+  * ```scala
+  * val weights: Rand[IArray[Double]] = BayesianBootstrap.weights[Rand](5)
+  * val drawn: IArray[Double] = weights.runA(Seed(1L)).value
+  * ```
   */
 object BayesianBootstrap:
 
@@ -56,6 +64,16 @@ object BayesianBootstrap:
   * from as many times as the future needs. The alias table is part of the value for that reason:
   * building it is `O(n)` and drawing is constant time, so it is built when the opinion is formed
   * rather than at every draw.
+  * **Example.**
+  * ```scala
+  * // The pool a future samples its events from, with the weights a bootstrap drew.
+  * val pool: Either[BayesError, TemplatePool[String]] =
+  *   TemplatePool.of(IArray("standard", "large"), IArray(0.8, 0.2))
+  *
+  * // Built in one step from a bootstrap draw, which is how a simulation uses it.
+  * val fromBootstrap: Rand[Either[BayesError, TemplatePool[String]]] =
+  *   BayesianBootstrap.weights[Rand](2).map(w => TemplatePool.of(IArray("standard", "large"), w))
+  * ```
   */
 final case class TemplatePool[P] private (
     items: IArray[P],

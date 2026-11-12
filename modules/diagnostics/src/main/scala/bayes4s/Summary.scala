@@ -16,7 +16,37 @@
 
 package bayes4s
 
-/** One parameter's row of a posterior summary, in the order `stansummary` prints them. */
+/** One parameter's row of a posterior summary, in the order `stansummary` prints them.   * **Example.**
+  * The table is what you look at first, and `of` is the same rows as values when you want to do
+  * something with them:
+  *
+  * ```scala
+  * //{
+  * import bayes4s.syntax.{*, given}
+  * final case class Mean[A](mu: A, sigma: A)
+  * val observed = IArray(4.1, 5.2, 3.8, 4.9, 5.5, 4.4)
+  * val model: Model[Mean] = new Model[Mean]:
+  *   def params: ParamSpec[Mean] =
+  *     (ParamSpec.real("mu"), ParamSpec.positive("sigma"))
+  *       .mapN[Mean]([A] => (mu: A, sigma: A) => Mean(mu, sigma))
+  *   def logPrior[A: Real](p: Mean[A]): A =
+  *     LogDensity.normal(p.mu, 0.0.lift[A], 10.0.lift[A]) +
+  *       LogDensity.halfNormal(p.sigma, 5.0.lift[A])
+  *   def logLikelihood[A: Real](p: Mean[A]): A =
+  *     Real[A].normalSum(observed, Real[A].filled(observed.length)(p.mu), p.sigma)
+  * val fit = Mcmc.runNuts(model, RunSettings()).runA(Seed(1L)).value
+  * //}
+  * // One block of text, with a row per parameter and `lp__` at the top.
+  * val table: Either[BayesError, String] = fit.map(chains => Summary.table(model, chains))
+  *
+  * // The same, as values: name, mean, sd, the 5/50/95 quantiles, Rhat, both effective sizes, MCSE.
+  * val rows: Either[BayesError, List[Summary]] = fit.map(chains => Summary.of(model, chains))
+  *
+  * // Anything above about 1.01 means the chains have not agreed.
+  * val suspect: Either[BayesError, List[String]] =
+  *   rows.map(_.filter(row => !(row.rhat < 1.01)).map(_.name))
+  * ```
+  */
 final case class Summary(
     name: String,
     mean: Double,
@@ -34,6 +64,37 @@ final case class Summary(
   *
   * These three are not about the posterior: they are about the sampler, and a fit with a healthy
   * R-hat and ten divergent transitions is a fit to look at again rather than to report.
+  * **Example.**
+  * These are about the sampler rather than the posterior, and a fit with a healthy table and ten
+  * divergent transitions is a fit to look at again rather than to report:
+  *
+  * ```scala
+  * //{
+  * import bayes4s.syntax.{*, given}
+  * final case class Mean[A](mu: A, sigma: A)
+  * val observed = IArray(4.1, 5.2, 3.8, 4.9, 5.5, 4.4)
+  * val model: Model[Mean] = new Model[Mean]:
+  *   def params: ParamSpec[Mean] =
+  *     (ParamSpec.real("mu"), ParamSpec.positive("sigma"))
+  *       .mapN[Mean]([A] => (mu: A, sigma: A) => Mean(mu, sigma))
+  *   def logPrior[A: Real](p: Mean[A]): A =
+  *     LogDensity.normal(p.mu, 0.0.lift[A], 10.0.lift[A]) +
+  *       LogDensity.halfNormal(p.sigma, 5.0.lift[A])
+  *   def logLikelihood[A: Real](p: Mean[A]): A =
+  *     Real[A].normalSum(observed, Real[A].filled(observed.length)(p.mu), p.sigma)
+  * val fit = Mcmc.runNuts(model, RunSettings()).runA(Seed(1L)).value
+  * //}
+  * val report: Either[BayesError, SamplerReport] =
+  *   fit.map(chains => SamplerReport.of(chains, maxTreeDepth = 10))
+  *
+  * // Divergent transitions are the serious one: more samples do not fix them, a reparameterisation
+  * // does. A saturated tree depth is a cost problem rather than a correctness one.
+  * val worrying: Either[BayesError, (Int, Int)] =
+  *   report.map(r => (r.divergent, r.saturatedDepth))
+  *
+  * // Below 0.3 a chain is not exploring the energy distribution, whatever the other numbers say.
+  * val stuck: Either[BayesError, List[Int]] = report.map(_.lowEnergyChains(0.3))
+  * ```
   */
 final case class SamplerReport(
     divergent: Int,
@@ -178,6 +239,38 @@ object Summary:
   *
   * The warning in the name of the last one: a quantile of a sum is not the sum of the quantiles,
   * so every interval here takes draws and nothing else.
+  * **Example.**
+  * Three questions about the same samples, which are not the same question:
+  *
+  * ```scala
+  * //{
+  * import bayes4s.syntax.{*, given}
+  * final case class Mean[A](mu: A, sigma: A)
+  * val observed = IArray(4.1, 5.2, 3.8, 4.9, 5.5, 4.4)
+  * val model: Model[Mean] = new Model[Mean]:
+  *   def params: ParamSpec[Mean] =
+  *     (ParamSpec.real("mu"), ParamSpec.positive("sigma"))
+  *       .mapN[Mean]([A] => (mu: A, sigma: A) => Mean(mu, sigma))
+  *   def logPrior[A: Real](p: Mean[A]): A =
+  *     LogDensity.normal(p.mu, 0.0.lift[A], 10.0.lift[A]) +
+  *       LogDensity.halfNormal(p.sigma, 5.0.lift[A])
+  *   def logLikelihood[A: Real](p: Mean[A]): A =
+  *     Real[A].normalSum(observed, Real[A].filled(observed.length)(p.mu), p.sigma)
+  * val fit = Mcmc.runNuts(model, RunSettings()).runA(Seed(1L)).value
+  * //}
+  * val sigma: Either[BayesError, IArray[Double]] =
+  *   fit.map(chains => IArray.from(chains.flatMap(_.draws.map(q => Model.constrain(model, q).sigma))))
+  *
+  * // The percentile interval: 5 % cut from each end.
+  * val percentile: Either[BayesError, (Double, Double)] = sigma.map(Intervals.equalTailed(_, 0.9))
+  *
+  * // The shortest window holding 90 % of the samples. For a scale it sits lower and is narrower,
+  * // which is what a right-skewed posterior does.
+  * val shortest: Either[BayesError, (Double, Double)] = sigma.map(Intervals.hpd(_, 0.9))
+  *
+  * // A probability rather than an interval, which is often the thing actually being asked.
+  * val above: Either[BayesError, Double] = sigma.map(Intervals.probabilityAbove(_, 1.0))
+  * ```
   */
 object Intervals:
 

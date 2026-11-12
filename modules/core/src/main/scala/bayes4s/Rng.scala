@@ -26,6 +26,28 @@ type Rand[A] = State[Seed, A]
   *
   * A program asks only for the type classes it uses, and the interpreter is chosen at the edge:
   * `State` in the core and in tests, a `Ref` in `effect`.
+  * **Example.**
+  * A program that asks only for the capability, run by the `State` interpreter:
+  *
+  * ```scala
+  * //{
+  * import cats.Monad
+  * import cats.syntax.all.*
+  * //}
+  * /** Two uniforms and a standard Gaussian, as one pure program. */
+  * def threeNumbers[F[_]: Monad: Rng]: F[(Double, Double, Double)] =
+  *   for
+  *     a <- Rng[F].uniform
+  *     b <- Rng[F].uniform
+  *     z <- Rng[F].normal
+  *   yield (a, b, z)
+  *
+  * // `Rand` is `State[Seed, *]`, the interpreter the core uses. Nothing has happened until `runA`.
+  * val drawn: (Double, Double, Double) = threeNumbers[Rand].runA(Seed(1L)).value
+  * ```
+  *
+  * The same program interpreted by a `Ref` in the `effect` module gives the same numbers for the same
+  * seed, which is what `RefRng` is for.
   */
 trait Rng[F[_]]:
   def nextLong: F[Long]

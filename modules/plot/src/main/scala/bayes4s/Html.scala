@@ -26,6 +26,26 @@ final case class Figure(heading: String, caption: String, spec: Json)
   * Pure: it builds the HTML and nothing writes it. The versions of vega, vega-lite and vega-embed
   * are **pinned** — a page that loaded "latest" would render differently next year than it does in
   * the manual today, and a figure that silently changes is worse than one that breaks.
+  * **Example.** A page of figures, and the two pieces for putting one figure into a page somebody
+  * else is building — which is how this manual's figures are made:
+  *
+  * ```scala
+  * val plot = Catalogue.tracePlot(IArray(IArray.tabulate(50)(i => i * 0.1)), "mu")
+  *
+  * // A whole page, with the vega versions pinned and an error box a smoke test can read.
+  * val page: String = Html.page(List(VegaLite.spec(plot)), "Two chains")
+  *
+  * // With a heading and a caption per figure.
+  * val reported: String =
+  *   Html.report(List(Figure("A trace", "Two chains of mu.", VegaLite.spec(plot))), "A report", "")
+  *
+  * // Or the pieces: the scripts once near the top of a page, then one fragment per figure. The
+  * // alternative text is required — a figure drawn by a script is invisible until it draws, and
+  * // invisible for ever to a reader who cannot see it.
+  * val scripts: String = Html.scripts
+  * val fragment: String =
+  *   Html.embed("fig-trace", VegaLite.spec(plot), "Two chains of mu, overlapping, no divergences.")
+  * ```
   */
 object Html:
 

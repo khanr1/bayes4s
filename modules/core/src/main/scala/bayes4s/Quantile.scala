@@ -22,6 +22,18 @@ package bayes4s
   * Every interval and every summary in the library reduces to this definition, so it is written
   * once and compared against the values NumPy and R assert rather than against an idea of what a
   * quantile should be.
+  * **Example.**
+  * ```scala
+  * val samples = IArray(3.0, 1.0, 4.0, 1.0, 5.0, 9.0, 2.0, 6.0)
+  *
+  * // `quantile` sorts for you, which is what you want once.
+  * val median: Double = Quantile.quantile(samples, 0.5)
+  * val band: (Double, Double) = (Quantile.quantile(samples, 0.05), Quantile.quantile(samples, 0.95))
+  *
+  * // `quantileOfSorted` does not, which is what you want when asking for several from one sample.
+  * val sorted = IArray.from(samples.toList.sorted)
+  * val three: List[Double] = List(0.05, 0.5, 0.95).map(p => Quantile.quantileOfSorted(sorted, p))
+  * ```
   */
 object Quantile:
 

@@ -35,6 +35,30 @@ import fs2.Stream
   * **No fit may see its own target.** The runner cannot enforce that — the forecast function is
   * opaque to it — so it is the caller's contract, and chapter 8 says what happens when it is
   * broken: every score flatters the model and the comparison means nothing.
+  * **Example.** A backtest refits once per origin — the most expensive thing this library does — so
+  * the rows are a stream: they can be watched as they arrive, written out one at a time, and stopped
+  * after any of them.
+  *
+  * ```scala
+  * //{
+  * import cats.effect.IO
+  * //}
+  * // The forecast is yours, which is why the runner knows nothing about models — and why the
+  * // contract that no fit may see its own target stays yours too.
+  * def forecastFrom(origin: Int): IO[IArray[Double]] =
+  *   IO.pure(IArray.tabulate(500)(i => 100.0 + origin + i * 0.01))
+  *
+  * val rows: fs2.Stream[IO, Scored[Int]] =
+  *   BacktestRunner[IO].run(
+  *     origins = (1 to 24).toList,
+  *     forecast = forecastFrom,
+  *     observed = origin => 100.0 + origin + 0.5,
+  *     alpha = 0.1
+  *   )
+  *
+  * // Taking two rows costs two refits, not twenty-four.
+  * val firstTwo: IO[List[Scored[Int]]] = rows.take(2).compile.toList
+  * ```
   */
 trait BacktestRunner[F[_]]:
 
