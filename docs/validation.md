@@ -2545,19 +2545,57 @@ suite passes unchanged, including the `worked_examples.json` comparison `hpd` wa
 written against: both rules are consistent estimators and that test's tolerance is a Monte Carlo
 standard error.
 
-### Pending: the two values marked `confirm_with_R`
+### Confirmed with R: both values marked `confirm_with_R`
 
-The reference marks two rules `confirm_with_R`, and **neither is confirmed**. They are asserted
-here against the independent Python computation, which is not the same thing as agreeing with the
-package:
+Run on 13 November 2026 with **R 4.6.0**, `coda` 0.19.4.1 and `loo` 2.10.1, all from CRAN. The
+script is `reference/confirm-rethinking-with-r.R`. Note what this does and does not do: it **runs**
+those packages and compares numbers, which is the same relationship the reference data has with
+NumPy and SciPy. No package's source was read (D-162).
 
-1. `HPDI`'s tie-breaking, when two windows of the same width are equally narrow. The reference's
-   rule and this implementation both take the first; `coda` may not.
-2. `WAIC`'s standard error, `sqrt(n var(pointwise))`. The book states it; whether the package
-   divides by `n` or `n - 1` inside the variance has not been checked against R.
+The nine HPDI cases are written out of the reference with
 
-Running the two in R once and recording the answer here is the last item of this phase's
-definition of done, and it needs R rather than this library.
+```
+python3 -c "import json, csv, sys; d=json.load(open('modules/testkit/src/main/resources/reference/rethinking/rethinking.json'));
+w=csv.writer(sys.stdout); w.writerow(['case','prob','ref_low','ref_high','samples']);
+[w.writerow([c['samples_name'], c['prob'], repr(c['HPDI'][0]), repr(c['HPDI'][1]),
+';'.join(repr(v) for v in c['samples'])]) for c in d['intervals']['cases']]" > hpdi_cases.csv
+```
+
+**1. `HPDI` is `coda::HPDinterval`, exactly.** On the reference's nine cases the two agree to the
+last bit — worst gap over the nine, measured as the larger of the two endpoint differences:
+
+| | |
+|---|---|
+| worst gap, nine cases | **0.000e+00** |
+
+Three things follow, and the first two were inferences before this run:
+
+- **The index rule is `round(n × prob)` gaps**, recovered from coda's own answers rather than from
+  its source: for each case, the `npoints` that reproduces the interval coda returned. It matches
+  `round` in nine of nine, and separates from `floor` in four of them and from `ceiling` in two.
+- **The rounding is half to even.** The `gamma` case at prob 0.50 has `n × prob` exactly 500.5, and
+  coda spans **500** gaps, not 501. Half-up would give 501. That is `Math.rint`, which is what
+  `Intervals.hpd` uses, and it is now a measurement rather than a deduction.
+- **The tie-break is the first window.** On `0..9`, where every window of a given length is equally
+  wide, coda returns `[0, 5]` at prob 0.50 and `[0, 9]` at 0.89. `Intervals.hpd` returns the same,
+  because `minBy` keeps the earliest minimum. Both are now asserted by a test rather than assumed.
+
+**2. `WAIC`'s standard error uses the sample variance.** `loo::waic` is an independent
+implementation of the same published formula, and on the reference's 4000 × 20 log-likelihood
+matrix it reproduces every part:
+
+| | this library | `loo::waic` | reference |
+|---|---|---|---|
+| WAIC | 243.8013439725 | 243.8013439725 | 243.8013439725 |
+| penalty (`p_waic`) | 10.1734748330 | 10.1734748330 | 10.1734748330 |
+| standard error | 176.3034863379 | 176.3034863379 | 176.3034863379 |
+
+And the convention is settled rather than assumed: `sqrt(n × var(pointwise))` with R's `var`, which
+divides by `n - 1`, gives **176.3034863379**; with the population variance it gives 171.8393823608.
+Only the first matches `loo`. That is what this library computes.
+
+Both lines of the reference may now be read as settled, and this phase's definition of done is
+complete.
 
 ### The licence review
 
@@ -2632,8 +2670,9 @@ guard working, it is not a regression, and nothing here was changed to make it p
 
 ### Known limits at the end of phase 13
 
-1. **The two `confirm_with_R` values are pending**, as above. Everything else in this phase is
-   asserted against an independent computation.
+1. **Nothing is pending against R.** Both `confirm_with_R` values are confirmed above, with the
+   script kept in `reference/`. What remains unverified against the R package itself is the
+   behaviour of functions it has and this façade does not reproduce, which is by design.
 2. **`quap` differentiates numerically** (D-165), because there is no automatic-differentiation
    path to a constrained-scale density: `Transform.unconstrain` is `Double`-only. For the handful
    of parameters a quadratic approximation is honest for this costs nothing; `ulam` is the path for

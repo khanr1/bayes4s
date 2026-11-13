@@ -36,6 +36,17 @@ Changed
   `round(n × mass)` gaps, with R's half-to-even rounding. A behaviour change of one order
   statistic; the whole diagnostics suite passes unchanged.
 
+Confirmed with R
+
+- Both values the reference marks `confirm_with_R` are now settled, by running `coda` 0.19.4.1 and
+  `loo` 2.10.1 under R 4.6.0 and comparing numbers — `reference/confirm-rethinking-with-r.R`.
+  `coda::HPDinterval` reproduces all nine reference intervals **to the last bit**; its index rule is
+  `round(n × prob)` with half-to-even rounding, proved by the case where `n × prob` is exactly
+  500.5 and coda spans 500 gaps; and its tie-break is the first window, which this library's also
+  is. `loo::waic` reproduces the criterion, the penalty and the standard error exactly, and only
+  the `n - 1` variance does — which is what this library computes. Both behaviours are now pinned
+  by tests rather than assumed.
+
 ### Phase 12c — the Scaladoc, with examples that compile (12 November 2026)
 
 Added

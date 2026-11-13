@@ -191,6 +191,26 @@ object FacadeSuite extends SimpleIOSuite with Approx:
             val samples = IArray.tabulate(1000)(i => (i + 0.5) / 1000.0)
             check(Rethinking.PI(samples) == Rethinking.PI(samples, 0.89), "the default is not 0.89")
           }
+          // Confirmed against `coda::HPDinterval` 0.19.4.1 directly (docs/validation.md): on a
+          // sample where every window of a given length is equally wide, coda returns the
+          // **first**, and so does this — `minBy` keeps the earliest minimum.
+          .and {
+            val tied = IArray.tabulate(10)(_.toDouble)
+            check(Intervals.hpd(tied, 0.5) == (0.0, 5.0), s"at 0.5: ${Intervals.hpd(tied, 0.5)}")
+              .and(
+                check(
+                  Intervals.hpd(tied, 0.89) == (0.0, 9.0),
+                  s"at 0.89: ${Intervals.hpd(tied, 0.89)}"
+                )
+              )
+          }
+          // The decisive case for the rounding: `n * prob` is exactly 500.5 here, and coda spans
+          // 500 gaps rather than 501 — half to **even**, which is `rint` and not `round`.
+          .and {
+            val thousandOne = IArray.tabulate(1001)(i => i.toDouble)
+            val (lower, upper) = Intervals.hpd(thousandOne, 0.5)
+            check(upper - lower == 500.0, s"the interval spans ${upper - lower} gaps, not 500")
+          }
   }
 
   pureTest("WAIC is on the deviance scale, and its parts are the book's") {

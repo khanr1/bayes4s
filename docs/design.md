@@ -2235,6 +2235,15 @@ The module is its own artefact (`bayes4s-rethinking`), so a user who does not wa
 vocabulary never sees it, and it carries its own README saying all of the above. This is not legal
 advice, and the plan says to confirm it with a lawyer before any public release.
 
+**Running a package is not reading it.** The two rules the reference marks `confirm_with_R` were
+confirmed by running `coda::HPDinterval` and `loo::waic` from CRAN and comparing numbers — the same
+relationship the reference data already has with NumPy and SciPy, and the opposite of reading a
+source. The script is `reference/confirm-rethinking-with-r.R`, beside the Python generators, and
+`reference/` is never compiled. It deliberately needs neither the `rethinking` package nor a
+toolchain to build it: `coda` *is* the algorithm §5.13 names, and `loo` is an independent
+implementation of the same published WAIC formula, which is a better witness than the package would
+be because it shares no author with it.
+
 ### D-163. The façade returns the core's types, and the 89 % default lives only here
 
 `precis` returns `List[Summary]`, `PSIS` returns the core's `LooResult`, `extractSamples` returns
