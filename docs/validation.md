@@ -2606,6 +2606,30 @@ formatted its columns with an interpolator, which follows the machine's locale, 
 out `5,5%` on a French machine. It now formats under `Locale.ROOT`, as the core's own table always
 has.
 
+### A verification gap the scheduled stress run exposed
+
+The stress workflow of 9 November, on `74a39e0`, failed — and the more interesting half of the
+failure was not a statistic.
+
+**Three unused imports in `nowcast`'s slow sources** — `cats.syntax.all.*` twice and
+`java.time.YearMonth` once — are warnings locally and **errors in any workflow**, because
+`tlFatalWarnings := githubIsWorkflowBuild`. So `modules/nowcast/src/slow` had failed to compile in
+every scheduled stress run since those files were written, and its thirteen suites had never run
+with fresh seeds. Nothing was wrong with them: with the imports removed they pass, thirteen of
+thirteen, under fatal warnings.
+
+What let it hide for several phases is the verification recipe. Every phase ran `sbt slow:test`
+**without** fatal warnings, where those imports are warnings and the suites compile. The recipe is
+now `sbt "set ThisBuild/tlFatalWarnings := true" slow:test`, which is what the workflow actually
+does.
+
+The second half of that failure was `arma-arma11`'s convergence guard refusing to compare — Rhat
+1.58 with a bulk effective size of 6.8. That is the limitation already diagnosed and measured at
+the end of phase 6b, reproduced at a fresh seed: `Init.Uniform(2.0)` occasionally starts a chain
+outside the ARMA stationary region, warmup adapts the step size down by four orders of magnitude
+instead of escaping, and the chain never leaves. Two runs in ten, one chain in twenty. It is the
+guard working, it is not a regression, and nothing here was changed to make it pass.
+
 ### Known limits at the end of phase 13
 
 1. **The two `confirm_with_R` values are pending**, as above. Everything else in this phase is

@@ -2,7 +2,6 @@ package bayes4s
 
 import bayes4s.testkit.Approx
 import bayes4s.testkit.MonteCarlo
-import cats.syntax.all.*
 import weaver.SimpleIOSuite
 
 /** Does the count model recover what generated the data, and are its intervals honest?

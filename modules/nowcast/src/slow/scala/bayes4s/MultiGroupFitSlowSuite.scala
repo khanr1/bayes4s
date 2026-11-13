@@ -1,8 +1,6 @@
 package bayes4s
 
 import bayes4s.testkit.Approx
-import cats.syntax.all.*
-import java.time.YearMonth
 import weaver.SimpleIOSuite
 
 /** Three groups fitted together, and two rate components asked about the same data.
