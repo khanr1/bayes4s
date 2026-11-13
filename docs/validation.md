@@ -2545,6 +2545,86 @@ suite passes unchanged, including the `worked_examples.json` comparison `hpd` wa
 written against: both rules are consistent estimators and that test's tolerance is a Monte Carlo
 standard error.
 
+### The stress failure, diagnosed and fixed at the cause
+
+The scheduled stress run kept failing on `arma-arma11`. Phase 6b recorded it as a limit of the
+initialisation and deferred the fix; this is the fix, and the diagnosis turned out to be both
+sharper and worse than the record.
+
+**The mechanism.** The log likelihood is an error recursion, `err[i] = y[i] - mu - phi y[i-1] -
+theta err[i-1]`, whose feedback term carries **`theta`** and not `phi`. Over the two hundred steps
+of this data, `|theta| > 1` therefore grows geometrically. Measured at a sane `phi` and `sigma`:
+
+| `theta` | log density | ‖gradient‖ |
+|---|---|---|
+| 0.90 | -201 | 1.8e2 |
+| 0.99 | -212 | 8.5e2 |
+| 1.01 | -782 | 1.9e5 |
+| 1.05 | -9.4e8 | 3.4e11 |
+| 1.08 | -4.8e13 | 1.7e16 |
+| 1.50 | -6.3e69 | 1.7e72 |
+
+`phi` and `theta` are unconstrained, as posteriordb's own Stan program declares them, so a uniform
+draw on (-2, 2) lands in the explosive half of `theta` about half the time. The start that failed in
+CI had a log density of **-9.6e111**. The initial step-size search then collapses to 1e-50, dual
+averaging drives the adapted step to 1e-8, and a chain with a step that small can no longer travel
+far enough to escape.
+
+**Reproduced exactly**, from the root seed the failing run printed, 1794229236580:
+
+| chain | step | tree depth saturated | divergent | mean `phi` | mean lp |
+|---|---|---|---|---|---|
+| 0 | 7.4e-01 | 0.0 % | 0 % | 0.958 | +64 |
+| 1 | **2.5e-08** | 90.3 % | 0 % | 0.248 | -3.1e4 |
+| 2 | **1.2e-06** | 0.7 % | 0 % | 1.921 | -3.3e5 |
+| 3 | 6.2e-01 | 0.0 % | 0 % | 0.955 | +64 |
+
+Three things in that table are worth more than the fix itself.
+
+**Two chains were lost, not one.** The phase 6b record says one. At this seed it is two.
+
+**Divergences see none of it.** Every chain, healthy and trapped, diverged on 0 % of its
+transitions — because a step of 1e-8 integrates *accurately*. Any detector built on divergence
+rates would have reported this fit as clean.
+
+**Tree-depth saturation catches only one of the two.** 90.3 % against 0.7 %. That is why the
+detector built on it was discarded (D-169): a signal that catches half the cases would be trusted.
+
+**The longer the warmup, the likelier the failure.** At warmup 300 the trap develops; at 200 it does
+not, because the adaptation has not had time to collapse and the chain escapes on its own. That is
+the opposite of the usual intuition, and it is why no short smoke test ever saw this.
+
+**The fix is the start.** `Init.Uniform(radius, attempts)` keeps the best of `attempts` candidate
+draws by log density. Re-measured over twelve seeds at warmup 300, four chains each:
+
+| attempts | runs losing a chain | chains lost |
+|---|---|---|
+| **1** (the default, and Stan's) | **6 of 12** | 8 of 48 — **16.7 %** |
+| 2 | 1 of 12 | 1 of 48 — 2.1 % |
+| **4** | **0 of 12** | **0 of 48** |
+
+Twelve seeds is a small sample: 0 of 48 chains bounds the per-chain rate below about 6 % at 95 %
+confidence, not at zero. What is not a sample of one is the end-to-end result — **the exact seed
+that failed in CI now passes all nine posteriors**, `gp_pois_regr` included, which was the other
+failure in the phase 6b record.
+
+**What was *not* changed**, and this is the part that matters for conformance: `runNuts`' default is
+still one uniform draw, consuming the same randomness, so every existing fit is unchanged and every
+Stan conformance case — the eleven leapfrog and `build_tree` cases, the window schedules, the
+acceptance target — is untouched by construction. 594 fast tests pass.
+
+| Mutation | Check that failed |
+|---|---|
+| the best candidate chosen by the *worst* log density | the highest-log-density test |
+| a `NaN` candidate allowed to win the comparison | the not-finite test, on a target that is `NaN` on half its domain |
+| a nonsensical attempt count accepted | the refusal test |
+| the posteriordb suite's start back to a single draw | `arma-arma11`, at the failing seed |
+
+A fifth mutation — removing the `attempts == 1` short circuit — changed **nothing**, and that is
+recorded rather than hidden: `replicateA(1, …)` draws the same uniforms and `maxBy` of one element
+is that element, so the branch only avoids a density evaluation nobody asked for. It is not what
+makes the default exact.
+
 ### Confirmed with R: both values marked `confirm_with_R`
 
 Run on 13 November 2026 with **R 4.6.0**, `coda` 0.19.4.1 and `loo` 2.10.1, all from CRAN. The

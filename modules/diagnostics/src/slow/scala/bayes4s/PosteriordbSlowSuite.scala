@@ -23,10 +23,32 @@ import weaver.SimpleIOSuite
 object PosteriordbSlowSuite extends SimpleIOSuite with Approx:
 
   private val stress: Boolean = sys.props.get("bayes4s.stress").contains("true")
-  private val root: Long = if stress then System.currentTimeMillis() else 20261105L
+
+  /** Candidate starting points per chain, the best by log density kept. */
+  private val attempts: Int = 4
+  /** The root seed: fixed by default, the clock under stress, and overridable either way.
+    *
+    * `-Dbayes4s.seed=1794229236580` reproduces a stress failure exactly. Without it, reproducing
+    * one means reading the seed out of a test's name and hand-editing a suite, which is what it
+    * took to diagnose the failure of 9 November.
+    */
+  private val root: Long =
+    sys.props
+      .get("bayes4s.seed")
+      .flatMap(_.toLongOption)
+      .getOrElse(if stress then System.currentTimeMillis() else 20261105L)
   private val settings =
-    if stress then RunSettings(chains = 4, warmup = 2000, samples = 2000)
-    else RunSettings(chains = 4, warmup = 1000, samples = 1000)
+    // Four candidate starting points per chain, the best by log density kept. A single uniform
+    // draw is what Stan does and what `runNuts` does by default; it is also what stranded two of
+    // four chains of `arma-arma11` in the stress run of 9 November, at a start whose log density
+    // was -9.6e111 (docs/validation.md, and `InitRecoverySlowSuite` reproduces it).
+    //
+    // Nothing else here is relaxed. The tolerances are the same, the seeds are the same, and the
+    // guard that refuses to compare an unconverged fit is the same — so if initialisation ever
+    // fails again, this suite still says so instead of comparing nonsense.
+    val init = Init.Uniform(2.0, attempts)
+    if stress then RunSettings(chains = 4, warmup = 2000, samples = 2000, init = init)
+    else RunSettings(chains = 4, warmup = 1000, samples = 1000, init = init)
 
   /** One parameter's comparison, with everything the message needs. */
   private final case class Comparison(
@@ -69,9 +91,14 @@ object PosteriordbSlowSuite extends SimpleIOSuite with Approx:
       chains <- (0 until settings.chains).toList
         .traverse { c =>
           val program = for
-            start <- cats.Monad[Rand]
-              .replicateA(model.dimension, Rng[Rand].uniform)
-              .map(us => IArray.from(us.map(u => 2.0 * (2.0 * u - 1.0))))
+            start <- Mcmc
+              .uniformStart[Rand](model.target, model.dimension, 2.0, attempts)
+              .flatMap {
+                case Right(q) => cats.data.State.pure[Seed, IArray[Double]](q)
+                // `attempts` is a literal above, so this cannot happen; failing loudly is still
+                // better than a start nobody chose.
+                case Left(error) => sys.error(error.message)
+              }
             chain <- Mcmc.run[Rand](
               Nuts.kernel[Rand](model.target, settings.nuts),
               model.target,

@@ -8,6 +8,35 @@ Versions follow git tags. Nothing is released yet.
 
 ## Unreleased
 
+### The stress failure, fixed at the cause (13 November 2026)
+
+Added
+
+- **`Init.Uniform(radius, attempts)`**: draw several candidate starting points and keep the one with
+  the highest log density. One attempt is the default and is Stan's behaviour — a single draw,
+  consuming the same randomness — so every existing fit is unchanged and every Stan conformance case
+  is untouched.
+- `Mcmc.uniformStart`, the same rule against a `DiffFn` rather than a `Model`, so a caller holding a
+  ported target shares one implementation with `startingPoint`.
+- `-Dbayes4s.seed=<n>` pins the root seed of the posteriordb suite in stress mode. Diagnosing the
+  9 November failure meant reading the seed out of a test's name and hand-editing a suite.
+
+Fixed
+
+- **The scheduled stress run's `arma-arma11` failure.** It was never a sampler fault: the error
+  recursion's feedback term carries `theta`, so a uniform start outside `|theta| < 1` sends the log
+  density to -1e30 and beyond, the step-size search collapses to 1e-50, and the adapted step reaches
+  1e-8 — too small for the chain to escape. Measured over twelve seeds, a single draw lost **16.7 %
+  of chains**; four candidates lost none, and the exact seed that failed in CI now passes all nine
+  posteriors. The fit also runs ten times faster, because the trapped chains had been spending their
+  whole budget at the maximum tree depth.
+
+Three other designs were implemented or measured and discarded, each for a reason recorded in
+`docs/design.md`: restarting a chain detected by tree-depth saturation **caught only one of the two
+trapped chains**; the adapted step size relative to the initial one does not separate the chains
+that fail from the ones that recover; and restarting whatever disagrees with the majority would
+delete a genuine minority mode.
+
 ### Phase 13 — the optional `rethinking` façade (12 November 2026)
 
 Added

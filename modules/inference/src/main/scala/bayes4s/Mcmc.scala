@@ -41,7 +41,25 @@ import cats.syntax.all.*
   * ```
   */
 enum Init:
-  case Uniform(radius: Double)
+  /** Uniform on `(-radius, radius)` in the unconstrained space, the best of `attempts` draws.
+    *
+    * One attempt is Stan's behaviour and the default: a single draw, kept whatever it is. It
+    * consumes exactly `dimension` uniforms, so a fit at one attempt is the fit this library has
+    * always produced.
+    *
+    * More attempts draw that many candidates and keep the one with the highest log density. It
+    * costs one density evaluation each — no gradients — and it is the cheapest remedy for the
+    * failure `docs/validation.md` records: on `arma-arma11`, a single uniform draw put a chain
+    * where the log density was -9.6e111, the initial step-size search collapsed to 1e-50, and
+    * dual averaging then drove the step so small that the chain could never leave. Four candidates
+    * were enough for every chain to find the posterior.
+    *
+    * It is **opt-in** for two reasons. It is not what Stan does, and conformance with Stan is a
+    * property this library asserts; and a chain started at the best of many draws is a chain
+    * started at a point that depends on the others, which is a different sampler to describe even
+    * though it is the same sampler to run — nothing about any transition changes.
+    */
+  case Uniform(radius: Double, attempts: Int = 1)
   case Given(values: Map[String, IArray[Double]])
   case PriorMedian(draws: Int)
 
@@ -343,10 +361,8 @@ object Mcmc:
   ): F[Either[BayesError, IArray[Double]]] =
     val dimension = model.params.unconstrainedSize
     init match
-      case Init.Uniform(radius) =>
-        Monad[F]
-          .replicateA(dimension, Rng[F].uniform)
-          .map(us => Right(IArray.from(us.map(u => radius * (2.0 * u - 1.0)))))
+      case Init.Uniform(radius, attempts) =>
+        uniformStart[F](Model.target(model), dimension, radius, attempts)
       case Init.Given(values) => Monad[F].pure(Model.unconstrain(model, values))
       case Init.PriorMedian(draws) =>
         generative match
@@ -359,6 +375,47 @@ object Mcmc:
                   .map(points => median(points, dimension))
               }
           case None => fromPriorOnly(model, draws, settings)
+
+  /** `Init.Uniform`'s draw, against a target rather than a model.
+    *
+    * `startingPoint` calls this, and so can a caller who has a `DiffFn` and no `Model` — which is
+    * what a model ported from another tool is. There is one implementation of the rule, so the two
+    * cannot drift apart.
+    *
+    * At one attempt it is a single uniform draw per coordinate, consuming exactly `dimension`
+    * uniforms: Stan's behaviour, and this library's default. Above one it draws that many
+    * candidates and keeps the one with the highest log density, reading a `NaN` as the worst
+    * possible value rather than letting it win a comparison by accident.
+    */
+  def uniformStart[F[_]: Monad: Rng](
+      target: DiffFn,
+      dimension: Int,
+      radius: Double,
+      attempts: Int
+  ): F[Either[BayesError, IArray[Double]]] =
+    if attempts < 1 then
+      Monad[F].pure(
+        Left(
+          BayesError
+            .InvalidArgument("Mcmc.uniformStart", "attempts", attempts.toDouble, "at least one")
+        )
+      )
+    else
+      val one = Monad[F]
+        .replicateA(dimension, Rng[F].uniform)
+        .map(us => IArray.from(us.map(u => radius * (2.0 * u - 1.0))))
+      // One attempt short-circuits only to avoid evaluating the density for a choice nobody
+      // asked for: `replicateA(1, one)` draws the same uniforms and `maxBy` of one element is
+      // that element, so the two paths agree. The equivalence is not what this branch buys, and a
+      // mutation that removed it changed nothing — which is how that was established.
+      if attempts == 1 then one.map(Right(_))
+      else
+        Monad[F].replicateA(attempts, one).map { candidates =>
+          Right(candidates.maxBy { q =>
+            val lp = Point.at(target, q).logDensity
+            if lp.isNaN then Double.NegativeInfinity else lp
+          })
+        }
 
   /** Draws from the prior by sampling `Model.priorOnly`, for a model with no generative part. */
   private def fromPriorOnly[F[_]: Monad: Rng, T[_]](

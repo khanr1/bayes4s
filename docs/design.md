@@ -2351,3 +2351,61 @@ out `NaN` for every one of the three reference cases.
 
 The covariance is now built from the upper triangle and mirrored. The lesson generalises: anywhere
 a symmetric matrix is assembled from a product, assemble half of it.
+
+### D-169. `Init.Uniform` can draw several candidates, and the default is still Stan's
+
+The failure the scheduled stress run kept hitting was never a sampler fault: it was the **start**.
+`arma-arma11`'s log likelihood is an error recursion whose feedback term carries `theta`, so
+outside `|theta| < 1` the errors grow geometrically over two hundred steps and the log density runs
+to -1e30 and beyond. A uniform draw on (-2, 2) — Stan's default, and this library's — puts a chain
+there often, and once there the step-size search collapses to 1e-50 and dual averaging drives the
+adapted step to 1e-8. A chain with a step that small can no longer travel far enough to escape, so
+it spends the fit going nowhere.
+
+`Init.Uniform(radius, attempts)` draws `attempts` candidates and keeps the one with the highest log
+density. One attempt — the default — is a single draw, consuming exactly `dimension` uniforms, so
+every existing fit is unchanged. Measured on the seed that failed in CI: a single draw gave a start
+whose log density was **-9.6e111**; four candidates were enough for all four chains to find the
+posterior, and the fit ran **ten times faster**, because the trapped chains had been burning their
+budget at the maximum tree depth.
+
+Four designs were tried and three discarded, which is worth recording because each failed for a
+reason:
+
+1. **Restart a chain that explored nothing**, detected by tree-depth saturation. Implemented,
+   tested, and **discarded**: at the failing seed two chains were trapped and saturation caught
+   only one of them (90.3 % against 0.7 %). A detector that catches half the cases is worse than
+   none, because it would be trusted.
+2. **Restart a chain whose adapted step size collapsed**, relative to the step size found at
+   initialisation. **Discarded on measurement**: three of the four chains began with a collapsed
+   search — 1e-48, 1e-59, 1e-50 — and one of those three recovered perfectly. The signal does not
+   separate the chains that fail from the chains that do not.
+3. **Restart the chains that disagree with the majority.** Discarded on principle: it is sound
+   nowhere and unsound somewhere, because on a genuinely multimodal posterior it deletes the
+   minority mode. A library must not do that by default. `low_dim_gauss_mix` is in the same suite.
+4. **Fix the start.** Intrinsic, per chain, no cross-chain comparison, no transition changed, and
+   it addresses the cause. This one.
+
+Why it is opt-in rather than the default: Stan draws one uniform point, and conformance with Stan
+is a property this library asserts against Stan's own test cases. The default therefore stays a
+single draw, and `runNuts` is unchanged — not nearly, exactly.
+
+The attempts logic lives in `Mcmc.uniformStart`, against a `DiffFn` rather than a `Model`, so that
+`startingPoint` and a caller holding a ported target — which is what the posteriordb suite holds —
+share one implementation and cannot drift.
+
+### D-170. The posteriordb suite starts from the best of four, and says so
+
+That suite's claim is that this library's posterior agrees with Stan's reference. A start whose log
+density is -9.6e111 does not test that claim; it tests initialisation luck. So the suite asks for
+four candidates.
+
+Nothing else about it is relaxed: the tolerances are the same, the seeds are the same, and the
+guard that refuses to compare a fit whose Rhat is above 1.01 is the same — so an initialisation
+that fails anyway is still reported rather than compared. The fixed-seed run passes, the seed that
+failed in CI now passes all nine posteriors, and reverting the suite to a single draw brings the
+failure straight back, which is the mutation that proves the change is load-bearing.
+
+`-Dbayes4s.seed=<n>` now pins the root seed in stress mode as well. Diagnosing the failure of
+9 November meant reading the seed out of a test's name and hand-editing a suite; one flag is
+better.

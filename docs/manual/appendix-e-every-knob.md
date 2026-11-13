@@ -136,7 +136,7 @@ on a high-dimensional model it spends more on the metric than it saves.
 
 | Case | What it does |
 |---|---|
-| `Init.Uniform(radius)` | uniform on `(-radius, radius)` in the **unconstrained** space, which is Stan's default |
+| `Init.Uniform(radius, attempts)` | uniform on `(-radius, radius)` in the **unconstrained** space. One attempt is Stan's default; more draw that many candidates and keep the best by log density, which is the cheapest remedy for a posterior where a bad start cannot be recovered from |
 | `Init.Given(values)` | named constrained values, as `Model.values` reports them. A value outside its constraint is an error, not a clamp |
 | `Init.PriorMedian(draws)` | samples the prior and starts at the median, which needs the model's generative part |
 
